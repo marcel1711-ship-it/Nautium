@@ -125,18 +125,13 @@ const AppContent: React.FC = () => {
   const isCaptainOnly     = role === 'captain';
   const isDeptRole        = DEPT_ROLES.includes(role);
 
-  React.useEffect(() => {
-    if (selectedVesselId === 'all' && PAGES_REQUIRING_VESSEL.includes(currentPage)) {
-      if (isAdminRole || isFleetManagerRole) {
-        setCurrentPage('fleet-overview');
-      }
-    }
-  }, [selectedVesselId, currentPage]);
-
   const renderPage = () => {
 
     // ── Guard "All Fleet" ────────────────────────────────────────────────
     if (selectedVesselId === 'all' && PAGES_REQUIRING_VESSEL.includes(currentPage)) {
+      if (isAdminRole || isFleetManagerRole) {
+        return <FleetOverview onNavigate={handleNavigate} />;
+      }
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5">
           <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">

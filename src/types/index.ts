@@ -232,7 +232,8 @@ export type OperationalExpenseCategory =
   | 'communications'
   | 'entertainment'
   | 'transport'
-  | 'Day Worker' 
+  | 'crew_salary'
+  | 'Day Worker'
   | 'other';
 
 export type OperationalExpenseDepartment =
@@ -258,6 +259,31 @@ export interface OperationalExpense {
   /** Department that owns this expense */
   department?: OperationalExpenseDepartment | null;
   created_at: string;
+}
+
+export interface CrewMember {
+  id: string;
+  vessel_id: string;
+  company_id: string;
+  full_name: string;
+  position: string;
+  department: string;
+  nationality?: string;
+  date_of_birth?: string;
+  phone?: string;
+  email?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  embark_date?: string;
+  disembark_date?: string;
+  contract_end_date?: string;
+  monthly_salary: number;
+  salary_currency: string;
+  photo_url?: string;
+  notes?: string;
+  status: 'active' | 'on_leave' | 'off_vessel';
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Role helpers ──────────────────────────────────────────────────────────────

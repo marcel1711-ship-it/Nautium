@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard, Wrench, Package, Ship, Building2, Users,
+  LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -37,6 +37,7 @@ const navItems: NavItem[] = [
   { id: 'fleet-overview',         labelKey: 'nav.fleetOverview',         icon: Layers,          roles: ['captain'] },
   { id: 'vessels',                labelKey: 'nav.vessels',               icon: Ship,            roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'users-customer',         labelKey: 'nav.users',                 icon: Users,           roles: ['customer_admin', 'fleet_manager', 'captain'] },
+  { id: 'crew',                   labelKey: 'nav.crew',                  icon: Users2,          roles: ['customer_admin', 'fleet_manager', 'captain', ...CREW_ROLES] },
   { id: 'maintenance',            labelKey: 'nav.maintenance',           icon: Wrench,          roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'inventory',              labelKey: 'nav.inventory',             icon: Package,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'equipment',              labelKey: 'nav.equipment',             icon: Boxes,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
@@ -57,8 +58,9 @@ const FLEET_MANAGER_PRIMARY = [
   'financials',     // Financials
   'vessels',        // Vessels
   'users-customer', // Users
+  'crew',           // Crew Management
   'compliance',     // Compliance
-  'contractors',    // Preferred Contractors ← nuevo
+  'contractors',    // Preferred Contractors
   'settings',       // Settings — siempre al final
 ];
 

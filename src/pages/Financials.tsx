@@ -53,7 +53,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const [filter, setFilter] = useState<PeriodFilter>({ year: now.getFullYear(), month: now.getMonth() + 1, isFullYear: false });
   const [periodSpend, setPeriodSpend] = useState(0);
   const [periodBudget, setPeriodBudget] = useState(0);
-  const [spendBreakdown, setSpendBreakdown] = useState({ operational: 0, fuel: 0, parts: 0, service: 0 });
+  const [spendBreakdown, setSpendBreakdown] = useState({ operational: 0, fuel: 0, parts: 0, service: 0, crew: 0 });
 
   const companyId = currentUser?.company_id;
 
@@ -155,8 +155,17 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       });
     }
 
-    const totalSpend = operationalTotal + fuelTotal + partsTotal + serviceTotal;
-    setSpendBreakdown({ operational: operationalTotal, fuel: fuelTotal, parts: partsTotal, service: serviceTotal });
+    // 4) Crew salaries (fixed monthly cost)
+    let crewQuery = supabase.from('crew_members').select('monthly_salary')
+      .eq('company_id', companyId!).eq('status', 'active');
+    crewQuery = vesselClause(crewQuery);
+    const { data: crewData } = await crewQuery;
+    const crewSalaryTotal = (crewData || []).reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
+    const monthsInPeriod = filter.isFullYear ? 12 : 1;
+    const crewCostForPeriod = crewSalaryTotal * monthsInPeriod;
+
+    const totalSpend = operationalTotal + fuelTotal + partsTotal + serviceTotal + crewCostForPeriod;
+    setSpendBreakdown({ operational: operationalTotal, fuel: fuelTotal, parts: partsTotal, service: serviceTotal, crew: crewCostForPeriod });
     setPeriodSpend(totalSpend);
 
     // Budget
@@ -294,6 +303,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
               <BreakdownItem label="Fuel" value={spendBreakdown.fuel} />
               <BreakdownItem label="Parts used" value={spendBreakdown.parts} />
               <BreakdownItem label="External service" value={spendBreakdown.service} />
+              {spendBreakdown.crew > 0 && <BreakdownItem label="Crew salaries" value={spendBreakdown.crew} />}
             </div>
           </div>
 

@@ -105,7 +105,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
     mooring: t('costs.mooring'), electricity: t('costs.electricity'), water: t('costs.water'),
     internet: t('costs.internet'), waste_disposal: t('costs.wasteDisposal'), port_fees: t('costs.portFees'),
     insurance: t('costs.insurance'), fuel: 'Fuel', maintenance: 'Maintenance', provisions: 'Provisions',
-    crew_expenses: 'Crew Expenses', repairs: 'Repairs', communications: 'Communications',
+    crew_expenses: 'Crew Expenses', crew_salary: 'Crew Salaries', repairs: 'Repairs', communications: 'Communications',
     entertainment: 'Entertainment', transport: 'Transport', day_worker: 'Day Worker',
     other: t('costs.otherExpense'),
   };

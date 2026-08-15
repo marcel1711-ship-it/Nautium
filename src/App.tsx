@@ -31,6 +31,7 @@ const Compliance = lazy(() => import('./pages/Compliance').then(m => ({ default:
 const Budget = lazy(() => import('./pages/Budget').then(m => ({ default: m.Budget })));
 const Financials = lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
 const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ default: m.Contractors })));
+const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 
 const PageLoader = () => (
@@ -226,6 +227,9 @@ const AppContent: React.FC = () => {
         return isFleetManagerRole
           ? <Financials onNavigate={handleNavigate} />
           : <Dashboard onNavigate={handleNavigate} />;
+
+      case 'crew':
+        return <Crew onNavigate={handleNavigate} />;
 
       // ── CONTRACTORS — fleet_manager, customer_admin, captain (read-only) ──
       case 'contractors':

@@ -50,7 +50,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   mooring: 'Mooring', electricity: 'Electricity', water: 'Water',
   internet: 'Internet', waste_disposal: 'Waste Disposal', port_fees: 'Port Fees',
   insurance: 'Insurance', fuel: 'Fuel', maintenance: 'Maintenance',
-  provisions: 'Provisions', day_worker: 'Day Worker', other: 'Other',
+  provisions: 'Provisions', crew_salary: 'Crew Salaries', day_worker: 'Day Worker', other: 'Other',
 };
 
 const getScoreTone = (score: number) => {
@@ -311,6 +311,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
       let compQ    = supabase.from('compliance_items').select('*');
       let budgetQ  = supabase.from('vessel_budgets').select('vessel_id, department, budget_amount')
         .eq('year', getCurrentYear()).eq('month', getCurrentMonth()).eq('department', 'Total');
+      let crewQ    = supabase.from('crew_members').select('vessel_id, monthly_salary').eq('status', 'active');
 
       if (shouldFilterByVesselIds) {
         vesselsQ = vesselsQ.in('id', allowedVesselIds);
@@ -320,6 +321,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         expQ     = expQ.in('vessel_id', allowedVesselIds);
         compQ    = compQ.in('vessel_id', allowedVesselIds);
         budgetQ  = budgetQ.in('vessel_id', allowedVesselIds);
+        crewQ    = crewQ.in('vessel_id', allowedVesselIds);
       } else if (companyId) {
         vesselsQ = vesselsQ.eq('company_id', companyId);
         tasksQ   = tasksQ.eq('company_id', companyId);
@@ -328,16 +330,18 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         expQ     = expQ.eq('company_id', companyId);
         compQ    = compQ.eq('company_id', companyId);
         budgetQ  = budgetQ.eq('company_id', companyId);
+        crewQ    = crewQ.eq('company_id', companyId);
       }
 
-      const [vR, tR, iR, hR, eR, cR, bR] = await Promise.all([vesselsQ, tasksQ, invQ, histQ, expQ, compQ, budgetQ]);
+      const [vR, tR, iR, hR, eR, cR, bR, crR] = await Promise.all([vesselsQ, tasksQ, invQ, histQ, expQ, compQ, budgetQ, crewQ]);
       const compliance = (cR.data || []) as ComplianceItem[];
       setAllCompliance(compliance);
+      const crewSalaries = (crR.data || []) as { vessel_id: string; monthly_salary: number }[];
       setVesselStats(computeVesselStats(
         (vR.data || []) as Vessel[], (tR.data || []) as MaintenanceTask[],
         (iR.data || []) as InventoryItem[], (hR.data || []) as MaintenanceHistory[],
         (eR.data || []) as OperationalExpense[], compliance,
-        (bR.data || []) as BudgetItem[]
+        (bR.data || []) as BudgetItem[], crewSalaries
       ));
     } catch (err) { console.error('Fleet overview error:', err); }
     finally { setLoading(false); }
@@ -346,7 +350,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
   const computeVesselStats = (
     vessels: Vessel[], tasks: MaintenanceTask[], inventory: InventoryItem[],
     history: MaintenanceHistory[], expenses: OperationalExpense[], compliance: ComplianceItem[],
-    budgets: BudgetItem[]
+    budgets: BudgetItem[], crewSalaries: { vessel_id: string; monthly_salary: number }[] = []
   ): VesselStats[] => {
     const today = new Date();
     const sevenDaysFromNow = new Date(today); sevenDaysFromNow.setDate(today.getDate() + 7);
@@ -370,7 +374,8 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
       const complianceHealth     = vComp.length > 0 ? Math.round((vComp.filter(c => getDaysUntilExpiry(c.expiry_date) >= 0).length / vComp.length) * 100) : 100;
       const taskPressureScore    = Math.max(0, 100 - overdueCount * 12 - dueSoonCount * 4);
       const readinessScore       = Math.round((maintenanceHealth * 0.4) + (inventoryHealth * 0.25) + (complianceHealth * 0.2) + (taskPressureScore * 0.15));
-      const monthlySpend         = vExp.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const vesselCrewSalary     = crewSalaries.filter(c => c.vessel_id === vessel.id).reduce((s, c) => s + Number(c.monthly_salary || 0), 0);
+      const monthlySpend         = vExp.reduce((s, e) => s + Number(e.amount || 0), 0) + vesselCrewSalary;
       const spendByDept: Record<string, number> = {};
       vExp.forEach(e => { const d = e.department || 'General'; spendByDept[d] = (spendByDept[d] || 0) + Number(e.amount || 0); });
       const topSpendDepartment   = Object.entries(spendByDept).sort((a, b) => b[1] - a[1])[0]?.[0] || null;

@@ -1,0 +1,24 @@
+
+/*
+  # Delete manually inserted demo users
+
+  These users were inserted with non-standard UUIDs that the Supabase Admin API
+  cannot manage. Deleting them so they can be recreated via the Admin API with
+  proper UUIDs.
+*/
+
+DELETE FROM auth.identities WHERE user_id IN (
+  '10000010-0000-0000-0009-000000000001',
+  '10000010-0000-0000-0009-000000000002',
+  '10000020-0000-0000-0009-000000000001',
+  '10000020-0000-0000-0009-000000000002',
+  '10000030-0000-0000-0009-000000000001'
+);
+
+DELETE FROM auth.users WHERE id IN (
+  '10000010-0000-0000-0009-000000000001',
+  '10000010-0000-0000-0009-000000000002',
+  '10000020-0000-0000-0009-000000000001',
+  '10000020-0000-0000-0009-000000000002',
+  '10000030-0000-0000-0009-000000000001'
+);

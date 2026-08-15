@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  AlertTriangle, BarChart3, CheckCircle2, ChevronRight, Clock,
+  AlertTriangle, BarChart3, ChevronRight, Clock,
   DollarSign, Package, ShieldCheck, ShieldAlert, Ship, Wrench,
-  Anchor, TrendingDown, TrendingUp, XCircle, Check, X,
+  TrendingDown, XCircle, Check, X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoMaintenanceHistory, demoMaintenanceTasks, demoVessels } from '../data/demoData';
@@ -176,29 +176,28 @@ const FleetPendingApprovalsCard: React.FC<{
   if (loading || pending.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-amber-200 p-5 shadow-sm"
-      style={{ boxShadow: '0 4px 16px rgba(245,158,11,0.08)' }}>
+    <div className="bg-white rounded-2xl border border-gray-200 border-l-4 border-l-amber-400 p-5">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Clock className="w-4 h-4 text-amber-600" />
+          <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
+            <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div>
             <h2 className="text-sm font-bold text-gray-900">
-              {pending.length} expense{pending.length > 1 ? 's' : ''} awaiting your approval
+              {pending.length} pending approval{pending.length > 1 ? 's' : ''}
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              Review and approve or reject — approved expenses count toward budgets
+              Approved expenses count toward vessel budgets
             </p>
           </div>
         </div>
         <button
           onClick={() => onNavigate('financials')}
-          className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+          className="text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
         >
-          View all →
+          View all
         </button>
       </div>
 
@@ -207,28 +206,27 @@ const FleetPendingApprovalsCard: React.FC<{
         {pending.map(expense => {
           const vesselName = vesselNames[expense.vessel_id] || '—';
           return (
-            <div key={expense.id} className="rounded-xl border border-amber-100 bg-amber-50 overflow-hidden">
+            <div key={expense.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
               {/* Info */}
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-sm font-bold text-gray-900 truncate">
+                    <span className="text-sm font-semibold text-gray-900 truncate">
                       {expense.description || CATEGORY_LABELS[expense.category] || expense.category}
                     </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full uppercase">
+                    <span className="text-[11px] font-medium px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
                       {CATEGORY_LABELS[expense.category] || expense.category}
                     </span>
-                    {/* Nombre del barco — útil cuando se ve "All Fleet" */}
-                    <span className="text-[10px] font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                    <span className="text-[11px] font-medium px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
                       {vesselName}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    By {expense.requested_by_name || 'crew'} · {new Date(expense.expense_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  <p className="text-xs text-gray-400">
+                    {expense.requested_by_name || 'Crew'} · {new Date(expense.expense_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-base font-extrabold text-amber-700 tabular-nums">
+                  <p className="text-base font-bold text-gray-900 tabular-nums">
                     {expense.currency} {fmtCurrency(expense.amount)}
                   </p>
                 </div>
@@ -451,17 +449,12 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
 
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-            <Anchor className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Fleet Overview</h1>
-            <p className="text-sm text-gray-500">{new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Fleet overview</h1>
+          <p className="text-sm text-gray-400">{new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
-        <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-          Manage vessels <ChevronRight className="w-4 h-4" />
+        <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+          Manage vessels <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -475,44 +468,43 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         <>
           {/* ── BANNER CRÍTICO ── */}
           {hasCriticalBanner && (
-            <div className="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-r from-red-950 to-red-900 p-5 shadow-lg">
-              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-red-400 to-transparent" />
+            <div className="rounded-2xl border border-red-200 bg-white p-5 border-l-4 border-l-red-500">
               <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-red-100 uppercase tracking-wide mb-1">Action required — fleet at risk</p>
-                    <p className="text-white/60 text-xs mb-4">The following issues require immediate attention to avoid legal or operational consequences.</p>
-                    <div className="flex flex-wrap gap-3">
+                    <p className="text-sm font-bold text-gray-900 mb-0.5">Action required</p>
+                    <p className="text-xs text-gray-500 mb-3">These issues need immediate attention.</p>
+                    <div className="flex flex-wrap gap-2">
                       {totals.totalExpiredCerts > 0 && (
                         <button onClick={() => onNavigate('compliance')}
-                          className="flex items-center gap-2.5 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-xl transition-all group">
-                          <ShieldAlert className="w-4 h-4 text-red-300 flex-shrink-0" />
+                          className="flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-all group">
+                          <ShieldAlert className="w-4 h-4 text-red-500 flex-shrink-0" />
                           <div className="text-left">
-                            <p className="text-sm font-bold text-white">{totals.totalExpiredCerts} expired certificate{totals.totalExpiredCerts > 1 ? 's' : ''}</p>
-                            <p className="text-[11px] text-red-300">Legal & operational risk → View Compliance</p>
+                            <p className="text-sm font-semibold text-gray-900">{totals.totalExpiredCerts} expired certificate{totals.totalExpiredCerts > 1 ? 's' : ''}</p>
+                            <p className="text-xs text-red-500">View compliance</p>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-red-400 group-hover:translate-x-0.5 transition-transform ml-1" />
+                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
                         </button>
                       )}
                       {totals.totalCriticalOverdue > 0 && (
                         <button onClick={() => onNavigate('maintenance')}
-                          className="flex items-center gap-2.5 px-4 py-2.5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-xl transition-all group">
-                          <Wrench className="w-4 h-4 text-orange-300 flex-shrink-0" />
+                          className="flex items-center gap-2 px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-all group">
+                          <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0" />
                           <div className="text-left">
-                            <p className="text-sm font-bold text-white">{totals.totalCriticalOverdue} high-priority task{totals.totalCriticalOverdue > 1 ? 's' : ''} overdue</p>
-                            <p className="text-[11px] text-orange-300">Safety risk → View Maintenance</p>
+                            <p className="text-sm font-semibold text-gray-900">{totals.totalCriticalOverdue} overdue task{totals.totalCriticalOverdue > 1 ? 's' : ''}</p>
+                            <p className="text-xs text-amber-600">View maintenance</p>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-orange-400 group-hover:translate-x-0.5 transition-transform ml-1" />
+                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setDismissedBanner(true)} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
-                  <XCircle className="w-4 h-4 text-white/40 hover:text-white/70" />
+                <button onClick={() => setDismissedBanner(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+                  <XCircle className="w-4 h-4 text-gray-400 hover:text-gray-600" />
                 </button>
               </div>
             </div>
@@ -559,30 +551,31 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
 
           {/* ── KPI ROW ── */}
           <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
-            <KpiCard label="Monthly Spend" value={fmtCurrency(totals.totalSpend)} sub={new Date().toLocaleString('en-US', { month: 'long' })} icon={DollarSign} tone="blue" onClick={() => onNavigate('financials')} />
-            <KpiCard label="Budget Used" value={totals.totalBudget > 0 ? `${totals.fleetBudgetUsedPct}%` : '—'} sub={totals.totalBudget > 0 ? getBudgetTone(totals.fleetBudgetUsedPct).label : 'No budget set'} icon={BarChart3} tone={totals.totalBudget === 0 ? 'gray' : totals.fleetBudgetUsedPct > 100 ? 'red' : totals.fleetBudgetUsedPct >= 85 ? 'amber' : 'green'} onClick={() => onNavigate('financials')} />
-            <KpiCard label="Expired Certs" value={String(totals.totalExpiredCerts)} sub={totals.totalExpiredCerts > 0 ? 'Needs immediate action' : 'None expired'} icon={ShieldAlert} tone={totals.totalExpiredCerts > 0 ? 'red' : 'gray'} onClick={() => onNavigate('compliance')} />
-            <KpiCard label="Fleet Health" value={`${totals.fleetHealth}%`} sub={getScoreTone(totals.fleetHealth).label} icon={ShieldCheck} tone={totals.fleetHealth >= 85 ? 'green' : totals.fleetHealth >= 70 ? 'amber' : 'red'} />
-            <KpiCard label="Maintenance" value={String(totals.totalCriticalOverdue)} sub={totals.totalCriticalOverdue > 0 ? 'High-priority overdue' : `${totals.totalOpenTasks} open tasks, on track`} icon={Wrench} tone={totals.totalCriticalOverdue > 0 ? 'red' : 'gray'} onClick={() => onNavigate('maintenance')} />
+            <KpiCard label="Monthly spend" value={fmtCurrency(totals.totalSpend)} sub={new Date().toLocaleString('en-US', { month: 'long' })} icon={DollarSign} tone="blue" onClick={() => onNavigate('financials')} />
+            <KpiCard label="Budget used" value={totals.totalBudget > 0 ? `${totals.fleetBudgetUsedPct}%` : '—'} sub={totals.totalBudget > 0 ? getBudgetTone(totals.fleetBudgetUsedPct).label : 'No budget set'} icon={BarChart3} tone={totals.totalBudget === 0 ? 'gray' : totals.fleetBudgetUsedPct > 100 ? 'red' : totals.fleetBudgetUsedPct >= 85 ? 'amber' : 'green'} onClick={() => onNavigate('financials')} />
+            <KpiCard label="Expired certs" value={String(totals.totalExpiredCerts)} sub={totals.totalExpiredCerts > 0 ? 'Needs immediate action' : 'None expired'} icon={ShieldAlert} tone={totals.totalExpiredCerts > 0 ? 'red' : 'gray'} onClick={() => onNavigate('compliance')} />
+            <KpiCard label="Fleet health" value={`${totals.fleetHealth}%`} sub={getScoreTone(totals.fleetHealth).label} icon={ShieldCheck} tone={totals.fleetHealth >= 85 ? 'green' : totals.fleetHealth >= 70 ? 'amber' : 'red'} />
+            <KpiCard label="Maintenance" value={String(totals.totalCriticalOverdue)} sub={totals.totalCriticalOverdue > 0 ? 'High-priority overdue' : `${totals.totalOpenTasks} open tasks`} icon={Wrench} tone={totals.totalCriticalOverdue > 0 ? 'red' : 'gray'} onClick={() => onNavigate('maintenance')} />
           </section>
 
           {/* ── NEEDS ATTENTION ── */}
           {attentionItems.length > 0 && (
-            <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <section className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Needs Attention</h2>
+                <h2 className="text-sm font-bold text-gray-900">Needs attention</h2>
+                <span className="text-xs font-medium text-gray-400 ml-1">{attentionItems.length} items</span>
               </div>
-              <p className="text-xs text-gray-400 mb-4">Legal, financial and safety-critical items — sorted by risk, not by category.</p>
+              <p className="text-xs text-gray-400 mb-4">Sorted by risk — compliance, budget, then maintenance.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {attentionItems.map((item, i) => (
                   <button key={i} onClick={() => onNavigate(item.nav)}
-                    className={`text-left rounded-xl border p-3.5 transition-colors hover:brightness-95 ${item.severity === 'critical' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
+                    className={`text-left rounded-xl bg-white border border-gray-200 p-3.5 transition-all hover:border-gray-300 hover:shadow-sm ${item.severity === 'critical' ? 'border-l-[3px] border-l-red-400' : 'border-l-[3px] border-l-amber-400'}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-bold text-gray-900 truncate">{item.vessel}</p>
-                      <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${item.severity === 'critical' ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>{item.category}</span>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{item.vessel}</p>
+                      <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{item.category}</span>
                     </div>
-                    <p className="text-xs text-gray-600">{item.message}</p>
+                    <p className="text-xs text-gray-500">{item.message}</p>
                   </button>
                 ))}
               </div>
@@ -602,14 +595,14 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           </section>
 
           {/* ── SPEND VS BUDGET ── */}
-          <section className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 shadow-sm">
+          <section className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-bold text-gray-900">Spend vs Budget by Vessel</h2>
-              <button onClick={() => onNavigate('financials')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700">
-                Financials <ChevronRight className="w-4 h-4" />
+              <h2 className="text-sm font-bold text-gray-900">Spend vs budget</h2>
+              <button onClick={() => onNavigate('financials')} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                Financials <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
-            <p className="text-xs text-gray-400 mb-5">Current month — how much of each vessel's budget has been used so far.</p>
+            <p className="text-xs text-gray-400 mb-5">Current month usage per vessel.</p>
             <div className="space-y-4">
               {scopedStats.map(v => {
                 const budgetTone = getBudgetTone(v.budgetUsedPct);
@@ -617,12 +610,12 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
                 return (
                   <div key={v.vessel.id}>
                     <div className="flex items-center justify-between gap-3 mb-1.5">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{v.vessel.name}</p>
+                      <p className="text-sm font-medium text-gray-700 truncate">{v.vessel.name}</p>
                       <div className="text-right shrink-0">
-                        <span className="text-sm font-bold text-gray-900 tabular-nums">
+                        <span className="text-sm font-semibold text-gray-900 tabular-nums">
                           {fmtCurrency(v.monthlySpend)}{v.monthlyBudget > 0 && <span className="text-gray-400 font-normal"> / {fmtCurrency(v.monthlyBudget)}</span>}
                         </span>
-                        {v.monthlyBudget > 0 && <span className={`ml-2 text-xs font-bold ${budgetTone.text}`}>{v.budgetUsedPct}%</span>}
+                        {v.monthlyBudget > 0 && <span className={`ml-2 text-xs font-medium ${budgetTone.text}`}>{v.budgetUsedPct}%</span>}
                       </div>
                     </div>
                     <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
@@ -648,20 +641,23 @@ const KpiCard: React.FC<{
   tone: 'green' | 'amber' | 'red' | 'blue' | 'gray'; onClick?: () => void;
 }> = ({ label, value, sub, icon: Icon, tone, onClick }) => {
   const tones = {
-    green: { icon: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', subText: 'text-emerald-600' },
-    amber: { icon: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-100',   subText: 'text-amber-600' },
-    red:   { icon: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-100',     subText: 'text-red-600' },
-    blue:  { icon: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-100',    subText: 'text-gray-400' },
-    gray:  { icon: 'text-gray-500',    bg: 'bg-gray-50',    border: 'border-gray-100',    subText: 'text-gray-400' },
+    green: { icon: 'text-emerald-600', dot: 'bg-emerald-500', subText: 'text-emerald-600' },
+    amber: { icon: 'text-amber-600',   dot: 'bg-amber-500',   subText: 'text-amber-600' },
+    red:   { icon: 'text-red-600',     dot: 'bg-red-500',     subText: 'text-red-600' },
+    blue:  { icon: 'text-blue-600',    dot: 'bg-blue-500',    subText: 'text-gray-400' },
+    gray:  { icon: 'text-gray-400',    dot: 'bg-gray-300',    subText: 'text-gray-400' },
   }[tone];
   return (
-    <div onClick={onClick} className={`bg-white rounded-2xl border border-gray-200 p-4 ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''} transition-all`}>
-      <div className={`w-9 h-9 rounded-lg ${tones.bg} ${tones.border} border flex items-center justify-center mb-3`}>
-        <Icon className={`w-4 h-4 ${tones.icon}`} />
+    <div onClick={onClick} className={`bg-white rounded-2xl border border-gray-200 p-4 ${onClick ? 'cursor-pointer hover:border-gray-300 hover:shadow-sm' : ''} transition-all`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+          <Icon className={`w-4 h-4 ${tones.icon}`} />
+        </div>
+        {tone !== 'gray' && tone !== 'blue' && <span className={`w-2 h-2 rounded-full ${tones.dot}`} />}
       </div>
-      <p className="text-xl font-extrabold text-gray-900 tabular-nums truncate">{value}</p>
-      <p className="text-xs font-semibold text-gray-500 mt-0.5">{label}</p>
-      <p className={`text-[11px] font-medium mt-1 ${tones.subText}`}>{sub}</p>
+      <p className="text-xl font-bold text-gray-900 tabular-nums truncate">{value}</p>
+      <p className="text-xs font-medium text-gray-500 mt-0.5">{label}</p>
+      <p className={`text-xs mt-1 ${tones.subText}`}>{sub}</p>
     </div>
   );
 };
@@ -674,84 +670,95 @@ const VesselCommandCard: React.FC<{
   const budgetTone = getBudgetTone(stats.budgetUsedPct);
   const hasComplianceIssues = stats.expiredCerts > 0 || stats.expiringSoonCerts > 0;
   const isOverBudget = stats.monthlyBudget > 0 && stats.budgetUsedPct > 100;
+  const issueCount = stats.criticalOverdueCount + stats.lowStockCount + stats.expiredCerts;
 
   return (
-    <article className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all">
-      <div className="relative h-28 overflow-hidden bg-gradient-to-br from-blue-700 to-slate-950">
+    <article className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all">
+      <div className="relative h-28 overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900">
         {vessel.photo_url ? (
           <img src={vessel.photo_url} alt={vessel.name} className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center"><Ship className="w-10 h-10 text-white/30" /></div>
+          <div className="w-full h-full flex items-center justify-center"><Ship className="w-10 h-10 text-white/20" /></div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/10 to-transparent" />
         <div className="absolute top-3 right-3">
-          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold border ${tone.bg} ${tone.text} ${tone.border}`}>
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${stats.readinessScore >= 85 ? 'bg-white/90 text-emerald-700' : stats.readinessScore >= 70 ? 'bg-white/90 text-amber-700' : 'bg-white/90 text-red-700'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
-            {stats.readinessScore}% · {tone.label}
+            {stats.readinessScore}%
           </div>
         </div>
         <div className="absolute left-4 right-4 bottom-3">
-          <h3 className="text-lg font-extrabold text-white tracking-tight truncate">{vessel.name}</h3>
-          <p className="text-xs text-white/70 truncate">{getVesselTypeLabel(vessel)}</p>
+          <h3 className="text-lg font-bold text-white tracking-tight truncate">{vessel.name}</h3>
+          <p className="text-xs text-white/60 truncate">{getVesselTypeLabel(vessel)}</p>
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 space-y-3">
+        {/* Spend / Budget */}
         {stats.monthlyBudget > 0 ? (
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wide font-bold">This month's spend</span>
-              <span className={`text-xs font-bold ${budgetTone.text}`}>{budgetTone.label}</span>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-400 font-medium">Monthly spend</span>
+              <span className={`text-xs font-semibold ${budgetTone.text}`}>{stats.budgetUsedPct}%</span>
             </div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-bold text-gray-900 tabular-nums">{fmtCurrency(stats.monthlySpend)} <span className="text-gray-400 font-normal">/ {fmtCurrency(stats.monthlyBudget)}</span></span>
-              <span className={`text-xs font-bold ${budgetTone.text}`}>{stats.budgetUsedPct}%</span>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-semibold text-gray-900 tabular-nums">{fmtCurrency(stats.monthlySpend)} <span className="text-gray-400 font-normal">/ {fmtCurrency(stats.monthlyBudget)}</span></span>
             </div>
             <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
               <div className={`h-full rounded-full ${budgetTone.bar} transition-all duration-700`} style={{ width: `${Math.min(stats.budgetUsedPct, 100)}%` }} />
             </div>
           </div>
         ) : (
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wide font-bold">This month's spend</span>
-            <span className="text-sm font-bold text-gray-900 tabular-nums">{fmtCurrency(stats.monthlySpend)} <span className="text-gray-400 font-normal text-xs">no budget set</span></span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400 font-medium">Monthly spend</span>
+            <span className="text-sm font-semibold text-gray-900 tabular-nums">{fmtCurrency(stats.monthlySpend)}</span>
           </div>
         )}
 
+        {/* Issues summary — single row instead of 3 colored boxes */}
+        <div className="flex items-center gap-4 py-2 border-t border-b border-gray-100">
+          <div className="flex items-center gap-1.5">
+            <Wrench className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-xs text-gray-500">{stats.openTaskCount} open</span>
+            {stats.criticalOverdueCount > 0 && <span className="text-xs font-semibold text-red-600">{stats.criticalOverdueCount} critical</span>}
+          </div>
+          {stats.lowStockCount > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-amber-600 font-medium">{stats.lowStockCount} low stock</span>
+            </div>
+          )}
+        </div>
+
+        {/* Compliance */}
         {hasComplianceIssues ? (
           <button onClick={onNavigateCompliance}
-            className="w-full flex items-center justify-between gap-2 px-2.5 py-2 mb-3 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors">
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:border-gray-300 transition-colors">
             <span className="flex items-center gap-2">
-              <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
+              <ShieldAlert className={`w-3.5 h-3.5 flex-shrink-0 ${stats.expiredCerts > 0 ? 'text-red-500' : 'text-amber-500'}`} />
               {stats.expiredCerts > 0 ? `${stats.expiredCerts} expired cert${stats.expiredCerts > 1 ? 's' : ''}` : `${stats.expiringSoonCerts} expiring soon`}
             </span>
-            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
           </button>
         ) : (
-          <div className="w-full flex items-center gap-2 px-2.5 py-2 mb-3 rounded-lg bg-gray-50 border border-gray-100 text-gray-500 text-xs font-medium">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-gray-400">
             <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" />
             All certificates valid
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <CompactMetric label="Critical" value={stats.criticalOverdueCount} icon={AlertTriangle} tone={stats.criticalOverdueCount > 0 ? 'red' : 'gray'} />
-          <CompactMetric label="Open tasks" value={stats.openTaskCount} icon={Wrench} tone="blue" />
-          <CompactMetric label="Low stock" value={stats.lowStockCount} icon={Package} tone={stats.lowStockCount > 0 ? 'amber' : 'gray'} />
-        </div>
-
         {isOverBudget && (
-          <div className="flex items-center gap-2 px-2.5 py-1.5 mb-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-medium">
             <TrendingDown className="w-3.5 h-3.5 flex-shrink-0" />
-            {fmtCurrency(stats.monthlySpend - stats.monthlyBudget)} over budget this month
+            {fmtCurrency(stats.monthlySpend - stats.monthlyBudget)} over budget
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
-          <p className="text-xs text-gray-500 truncate">
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <p className="text-xs text-gray-400 truncate">
             {stats.lastActivityDate ? `Active ${formatDate(stats.lastActivityDate)}` : 'No recent activity'}
           </p>
-          <button onClick={onView} className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
+          <button onClick={onView} className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors">
             Open <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -760,20 +767,3 @@ const VesselCommandCard: React.FC<{
   );
 };
 
-const CompactMetric: React.FC<{
-  label: string; value: number; icon: React.ElementType; tone: 'red' | 'amber' | 'blue' | 'gray';
-}> = ({ label, value, icon: Icon, tone }) => {
-  const tones = {
-    red:   'bg-red-50 border-red-100 text-red-700',
-    amber: 'bg-amber-50 border-amber-100 text-amber-700',
-    blue:  'bg-blue-50 border-blue-100 text-blue-700',
-    gray:  'bg-gray-50 border-gray-100 text-gray-400',
-  }[tone];
-  return (
-    <div className={`rounded-xl border p-2 text-center ${tones}`}>
-      <Icon className="w-3 h-3 mx-auto mb-0.5" />
-      <p className="text-base font-extrabold leading-none tabular-nums">{value}</p>
-      <p className="text-[9px] font-bold mt-0.5 truncate">{label}</p>
-    </div>
-  );
-};

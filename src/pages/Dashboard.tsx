@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Package, Calendar,
   Building2, Users as UsersIcon, CreditCard, Activity,
   TrendingUp, Anchor, DollarSign, BarChart3, TrendingDown, Ship,
-  ShieldCheck, ShieldAlert, Check, X,
+  ShieldCheck, ShieldAlert, Check, X, FileDown,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -16,6 +16,7 @@ import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency } fro
 import { MaintenanceTask, InventoryItem, MaintenanceHistory, getRoleDepartment, UserRole } from '../types';
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
+import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -572,14 +573,75 @@ const CaptainDashboard: React.FC<{
   const criticalCerts = complianceAlerts.filter(a => a.daysLeft >= 0 && a.daysLeft <= 30).length;
   const upcomingCerts = complianceAlerts.slice(0, 4);
 
+  const handleExportReport = async () => {
+    const vesselId = selectedVesselId;
+    let fuelResources: any[] = [];
+    let complianceItems: any[] = [];
+    let prStats = { pending: 0, approved: 0, totalValue: 0 };
+
+    try {
+      if (vesselId && vesselId !== 'all') {
+        const [fuelRes, compRes, prRes] = await Promise.all([
+          supabase.from('fuel_resources').select('name, current_level, capacity, unit').eq('vessel_id', vesselId),
+          supabase.from('compliance_items').select('title, expiry_date, status').eq('vessel_id', vesselId),
+          supabase.from('purchase_requests').select('status, total_estimated_cost').eq('vessel_id', vesselId),
+        ]);
+        fuelResources = fuelRes.data || [];
+        complianceItems = compRes.data || [];
+        const prs = prRes.data || [];
+        prStats.pending = prs.filter((p: any) => p.status === 'pending_captain' || p.status === 'pending_fleet_manager').length;
+        prStats.approved = prs.filter((p: any) => p.status === 'approved').length;
+        prStats.totalValue = prs.filter((p: any) => p.status === 'approved').reduce((s: number, p: any) => s + (p.total_estimated_cost || 0), 0);
+      }
+    } catch { /* silent */ }
+
+    const costMonths = monthlyTrend.slice(-3).map(m => ({
+      month: m.month,
+      total: m.total,
+      items: [] as { label: string; amount: number }[],
+    }));
+
+    const reportData: OwnerReportData = {
+      vessel: {
+        vesselName: vessel?.name || 'Vessel',
+        vesselType: vessel?.type,
+        vesselFlag: vessel?.flag,
+        vesselLength: vessel?.length_overall ? `${vessel.length_overall}m` : undefined,
+      },
+      maintenance: {
+        tasks,
+        recentHistory: history.map(h => ({ task_name: (h as any).task_name, completion_date: h.completion_date, completed_by_name: h.completed_by_name })),
+      },
+      inventory: { items: inventory },
+      costs: { months: costMonths, currency: 'EUR' },
+      fuel: { resources: fuelResources },
+      compliance: { items: complianceItems },
+      procurement: prStats,
+      generatedBy: currentUser?.full_name || 'Captain',
+    };
+
+    const html = generateOwnerReport(reportData);
+    downloadReport(html, vessel?.name || 'vessel');
+  };
+
   return (
     <div className="space-y-5 pt-4">
-      {/* VESSEL HEADER */}
+      {/* VESSEL HEADER + EXPORT */}
       <VesselHeader
         vessel={vessel} maintenanceHealth={maintenanceHealth}
         inventoryHealth={inventoryHealth} complianceHealth={complianceHealth}
         overallHealth={overallHealth} loading={loading}
       />
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleExportReport}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all text-sm"
+        >
+          <FileDown className="w-4 h-4" />
+          Export Owner Report
+        </button>
+      </div>
 
       {/* ── PENDING APPROVALS — aparece solo si hay gastos pendientes ── */}
       <PendingApprovalsCard

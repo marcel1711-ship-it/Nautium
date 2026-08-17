@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   AlertTriangle, BarChart3, ChevronRight, Clock,
   DollarSign, Package, ShieldCheck, ShieldAlert, Ship, Wrench,
-  TrendingDown, XCircle, Check, X,
+  TrendingDown, XCircle, Check, X, FileDown,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoMaintenanceHistory, demoMaintenanceTasks, demoVessels } from '../data/demoData';
@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { formatDate, isLowStock } from '../utils/helpers';
 import { InventoryItem, MaintenanceHistory, MaintenanceTask, OperationalExpense, Vessel } from '../types';
 import { useToast } from '../components/UI/Toast';
+import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
 
 interface FleetOverviewProps { onNavigate: (page: string, params?: any) => void; }
 
@@ -493,6 +494,86 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
     onNavigate('dashboard');
   };
 
+  const handleExportReport = async (vesselId: string) => {
+    const vs = vesselStats.find(v => v.vessel.id === vesselId);
+    if (!vs) return;
+
+    let fuelResources: any[] = [];
+    let complianceItems: any[] = [];
+    let prStats = { pending: 0, approved: 0, totalValue: 0 };
+    let expenses: any[] = [];
+    let history: any[] = [];
+
+    try {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const [fuelRes, compRes, prRes, expRes, histRes] = await Promise.all([
+        supabase.from('fuel_resources').select('name, current_level, capacity, unit').eq('vessel_id', vesselId),
+        supabase.from('compliance_items').select('title, expiry_date, status').eq('vessel_id', vesselId),
+        supabase.from('purchase_requests').select('status, total_estimated_cost').eq('vessel_id', vesselId),
+        supabase.from('operational_expenses').select('amount, department, expense_date, category').eq('vessel_id', vesselId).gte('expense_date', threeMonthsAgo.toISOString().slice(0, 10)),
+        supabase.from('maintenance_history').select('task_name, completion_date, completed_by_name').eq('vessel_id', vesselId).order('completion_date', { ascending: false }).limit(10),
+      ]);
+      fuelResources = fuelRes.data || [];
+      complianceItems = compRes.data || [];
+      history = histRes.data || [];
+      expenses = expRes.data || [];
+      const prs = prRes.data || [];
+      prStats.pending = prs.filter((p: any) => p.status === 'pending_captain' || p.status === 'pending_fleet_manager').length;
+      prStats.approved = prs.filter((p: any) => p.status === 'approved').length;
+      prStats.totalValue = prs.filter((p: any) => p.status === 'approved').reduce((s: number, p: any) => s + (p.total_estimated_cost || 0), 0);
+    } catch { /* silent */ }
+
+    const monthMap: Record<string, { total: number; cats: Record<string, number> }> = {};
+    expenses.forEach((e: any) => {
+      const d = new Date(e.expense_date);
+      const key = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+      if (!monthMap[key]) monthMap[key] = { total: 0, cats: {} };
+      monthMap[key].total += Number(e.amount || 0);
+      const cat = e.category || e.department || 'General';
+      monthMap[key].cats[cat] = (monthMap[key].cats[cat] || 0) + Number(e.amount || 0);
+    });
+    const costMonths = Object.entries(monthMap).slice(-3).map(([month, d]) => ({
+      month,
+      total: d.total,
+      items: Object.entries(d.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([label, amount]) => ({ label, amount })),
+    }));
+
+    let maintenanceTasks: any[] = [];
+    try {
+      const { data } = await supabase.from('maintenance_tasks').select('*').eq('vessel_id', vesselId);
+      maintenanceTasks = data || [];
+    } catch { /* silent */ }
+
+    let inventoryItems: any[] = [];
+    try {
+      const { data } = await supabase.from('inventory_items').select('*').eq('vessel_id', vesselId);
+      inventoryItems = data || [];
+    } catch { /* silent */ }
+
+    const reportData: OwnerReportData = {
+      vessel: {
+        vesselName: vs.vessel.name,
+        vesselType: vs.vessel.type,
+        vesselFlag: vs.vessel.flag,
+        vesselLength: vs.vessel.length_overall ? `${vs.vessel.length_overall}m` : undefined,
+      },
+      maintenance: {
+        tasks: maintenanceTasks,
+        recentHistory: history,
+      },
+      inventory: { items: inventoryItems },
+      costs: { months: costMonths, currency: 'EUR' },
+      fuel: { resources: fuelResources },
+      compliance: { items: complianceItems },
+      procurement: prStats,
+      generatedBy: currentUser?.full_name || 'Fleet Manager',
+    };
+
+    const html = generateOwnerReport(reportData);
+    downloadReport(html, vs.vessel.name);
+  };
+
   const scopedStats = useMemo(() =>
     activeFilter === 'all'
       ? vesselStats
@@ -557,9 +638,20 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Fleet overview</h1>
           <p className="text-sm text-gray-400">{new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
-        <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-          Manage vessels <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {activeFilter !== 'all' && (
+            <button
+              onClick={() => handleExportReport(activeFilter)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              Export Report
+            </button>
+          )}
+          <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            Manage vessels <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {vesselStats.length === 0 ? (
@@ -705,6 +797,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
                 stats={stats}
                 onView={() => handleViewVessel(stats.vessel.id)}
                 onNavigateCompliance={() => onNavigate('compliance')}
+                onExport={() => handleExportReport(stats.vessel.id)}
               />
             ))}
           </section>
@@ -778,8 +871,8 @@ const KpiCard: React.FC<{
 };
 
 const VesselCommandCard: React.FC<{
-  stats: VesselStats; onView: () => void; onNavigateCompliance: () => void;
-}> = ({ stats, onView, onNavigateCompliance }) => {
+  stats: VesselStats; onView: () => void; onNavigateCompliance: () => void; onExport: () => void;
+}> = ({ stats, onView, onNavigateCompliance, onExport }) => {
   const { vessel } = stats;
   const tone = getScoreTone(stats.readinessScore);
   const budgetTone = getBudgetTone(stats.budgetUsedPct);
@@ -873,9 +966,14 @@ const VesselCommandCard: React.FC<{
           <p className="text-xs text-gray-400 truncate">
             {stats.lastActivityDate ? `Active ${formatDate(stats.lastActivityDate)}` : 'No recent activity'}
           </p>
-          <button onClick={onView} className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors">
-            Open <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onExport} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50 transition-colors" title="Export report">
+              <FileDown className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onView} className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors">
+              Open <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </article>

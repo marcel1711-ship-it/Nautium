@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Ship, AlertCircle, Lock, Camera, Upload, UserCircle, Mail, Check, Users, UserCheck, ClipboardCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useToast } from '../UI/Toast';
 
 interface AddVesselModalProps {
   companyId: string;
@@ -43,6 +44,7 @@ const generatePassword = () => generateSecurePassword();
 export const AddVesselModal: React.FC<AddVesselModalProps> = ({
   companyId, vesselLimit, currentCount, onClose, onSuccess,
 }) => {
+  const { showToast } = useToast();
   const [form, setForm] = useState({ ...defaultForm });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +128,7 @@ export const AddVesselModal: React.FC<AddVesselModalProps> = ({
         return;
       }
       if (vesselData && form.owner_email.trim()) await createOwnerUser(vesselData.id, form.name.trim());
+      showToast('Vessel created successfully', 'success');
       onSuccess(); onClose();
     } catch (err: any) { setError(err.message || 'Failed to create vessel'); }
     finally { setIsLoading(false); }

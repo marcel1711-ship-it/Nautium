@@ -10,6 +10,7 @@ import { formatDate, calculateDaysUntilDue, getTaskStatusColor, getPriorityColor
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { useToast } from '../UI/Toast';
 
 interface TaskDetailProps {
   task: MaintenanceTask;
@@ -37,6 +38,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
 }) => {
   const { t } = useLanguage();
   const { currentUser } = useAuth();
+  const { showToast } = useToast();
   const equipment = equipmentMap[task.equipment_id];
   const vessel = vesselMap[task.vessel_id];
   const assignedUser = usersMap[task.assigned_user_id];
@@ -67,6 +69,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
     setIsDeleting(true);
     try {
       await supabase.from('maintenance_tasks').delete().eq('id', task.id);
+      showToast('Task deleted', 'success');
       onDeleted ? onDeleted() : onBack();
     } catch { setIsDeleting(false); setConfirmDelete(false); }
   };

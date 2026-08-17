@@ -105,7 +105,7 @@ export const EditEquipmentModal: React.FC<EditEquipmentModalProps> = ({ equipmen
     }).eq('id', equipment.id);
 
     setSaving(false);
-    if (!error) { onSaved(); onClose(); }
+    if (!error) { showToast('Equipment updated', 'success'); onSaved(); onClose(); }
     else showToast('Error saving equipment. Please try again.', 'error');
   };
 

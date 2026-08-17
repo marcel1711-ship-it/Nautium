@@ -119,6 +119,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
         department: itemData.department || 'Engineering',
       });
     }
+    showToast(`${importedItems.length} items imported`, 'success');
     setShowImportModal(false);
     loadData();
   };
@@ -137,6 +138,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
         photo_url: itemData.photo_url || null, company_id: currentUser.company_id || null,
         department: itemData.department || 'Engineering',
       });
+      showToast('Item added', 'success');
       setShowAddModal(false);
       loadData();
     } catch { showToast('Error saving inventory item', 'error'); }
@@ -160,6 +162,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
       movement_type: movementType, quantity, reason, notes,
       performed_by_id: currentUser.id, performed_by_name: currentUser.full_name,
     });
+    showToast('Stock adjusted', 'success');
     setAdjustingItem(null);
     loadData();
   };
@@ -171,6 +174,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
       return;
     }
     await dbDelete('inventory_items', item.id);
+    showToast('Item deleted', 'success');
     setDeletingItem(null);
     loadData();
   };

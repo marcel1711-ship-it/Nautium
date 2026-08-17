@@ -3,6 +3,7 @@ import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOp
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
+import { useToast } from '../components/UI/Toast';
 import { demoMaintenanceManuals, demoEquipment, demoVessels } from '../data/demoData';
 import { formatFileSize, formatDateTime } from '../utils/helpers';
 import { UploadManualModal } from '../components/Manuals/UploadManualModal';
@@ -30,6 +31,7 @@ function getFileExt(fileName: string) {
 export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
   const { currentUser, selectedVesselId } = useAuth();
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVessel, setFilterVessel] = useState<string>('all');
   const [filterEquipment, setFilterEquipment] = useState<string>('all');
@@ -89,7 +91,7 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
   const handleDelete = async (manualId: string) => {
     if (!currentUser || isDemoUser(currentUser.email)) return;
     const { error } = await supabase.from('maintenance_manuals').delete().eq('id', manualId);
-    if (!error) { setDeleteConfirm(null); loadData(); }
+    if (!error) { showToast('Manual deleted', 'success'); setDeleteConfirm(null); loadData(); }
   };
 
   const getFilteredManuals = () => {

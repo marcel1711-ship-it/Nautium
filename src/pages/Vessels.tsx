@@ -147,6 +147,7 @@ export const Vessels: React.FC<VesselsProps> = ({ onNavigate, companyId: filterC
 
   const handleNotifSaved = (vesselId: string, email: string | null) => {
     setVessels(prev => prev.map(v => v.id === vesselId ? { ...v, notification_email: email } : v));
+    showToast('Notification email updated', 'success');
   };
 
   const getFilteredVessels = () => {

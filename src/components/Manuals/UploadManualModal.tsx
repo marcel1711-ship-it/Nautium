@@ -118,6 +118,7 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
       });
 
       if (!dbError) {
+        showToast('Manual uploaded', 'success');
         onSaved?.();
         onClose();
       } else {

@@ -122,7 +122,7 @@ export const EditInventoryModal: React.FC<EditInventoryModalProps> = ({ item, on
         supplier_phone: formData.supplier_phone, photo_url: formData.photo_url,
         department: formData.department,
       });
-      onSaved(); onClose();
+      showToast('Item updated', 'success'); onSaved(); onClose();
     } catch { showToast('Error saving item. Please try again.', 'error'); }
     finally { setSaving(false); }
   };

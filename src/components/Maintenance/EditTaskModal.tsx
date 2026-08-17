@@ -174,7 +174,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
         checklist_items: checklistItems, required_parts: requiredParts,
         is_recurring: formData.is_recurring, // ← save is_recurring
       });
-      onSaved(); onClose();
+      showToast('Task updated', 'success'); onSaved(); onClose();
     } catch { showToast('Error saving task. Please try again.', 'error'); }
     finally { setSaving(false); }
   };

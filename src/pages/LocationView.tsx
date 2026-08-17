@@ -88,6 +88,7 @@ export const LocationView: React.FC<LocationViewProps> = ({ onNavigate, location
 
     if (!moveErr) {
       await supabase.from('inventory_items').update({ current_stock: newStock }).eq('id', selectedItem.id);
+      showToast('Stock adjusted', 'success');
       setSuccessItem(selectedItem.id);
       setTimeout(() => setSuccessItem(null), 2500);
       setSelectedItem(null);

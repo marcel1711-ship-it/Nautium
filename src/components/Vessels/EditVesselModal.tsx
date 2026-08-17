@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Ship, AlertCircle, Camera, Upload, Trash2, UserCircle, Mail, Check, Users, User, ClipboardCheck, Settings2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useToast } from '../UI/Toast';
 
 interface Vessel {
   id: string;
@@ -57,6 +58,7 @@ import { generateSecurePassword, validateImageFile } from '../../lib/security';
 const generatePassword = () => generateSecurePassword();
 
 export const EditVesselModal: React.FC<EditVesselModalProps> = ({ vessel, onClose, onSuccess, onOpenApprovalThresholds }) => {
+  const { showToast } = useToast();
   const [form, setForm] = useState({
     name: vessel.name,
     type: vessel.type,
@@ -169,6 +171,7 @@ export const EditVesselModal: React.FC<EditVesselModalProps> = ({ vessel, onClos
           },
         });
       }
+      showToast('Vessel updated successfully', 'success');
       onSuccess();
       onClose();
     } catch (err: any) {

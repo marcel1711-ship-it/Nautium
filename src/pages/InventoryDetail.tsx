@@ -110,8 +110,11 @@ export const InventoryDetail: React.FC<InventoryDetailProps> = ({ onNavigate, pa
     });
     if (!moveErr) {
       await supabase.from('inventory_items').update({ current_stock: newStock }).eq('id', item.id);
+      showToast('Stock adjusted', 'success');
       setShowAdjustModal(false); setAdjustReason(''); setAdjustQty(1);
       loadData();
+    } else {
+      showToast('Error adjusting stock', 'error');
     }
     setAdjusting(false);
   };
@@ -121,6 +124,7 @@ export const InventoryDetail: React.FC<InventoryDetailProps> = ({ onNavigate, pa
     if (!isDemoUser(currentUser?.email || '')) {
       await supabase.from('inventory_items').delete().eq('id', item.id);
     }
+    showToast('Item deleted', 'info');
     onNavigate('inventory');
   };
 

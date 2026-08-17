@@ -229,6 +229,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       .update({ current_level: newLevel, updated_at: new Date().toISOString() })
       .eq('id', logResource.id);
 
+    showToast('Fuel entry logged', 'success');
     setLogResource(null);
     loadData();
   };
@@ -288,6 +289,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       .from('fuel_resources')
       .update({ ...updated, updated_at: new Date().toISOString() })
       .eq('id', editResource.id);
+    showToast('Resource updated', 'success');
     setEditResource(null);
     loadData();
   };

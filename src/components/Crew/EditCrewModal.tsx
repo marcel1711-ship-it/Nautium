@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { X, Trash2, Camera } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Trash2, Camera, ShieldCheck, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../UI/Toast';
@@ -36,6 +36,24 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
     reader.onloadend = () => setPhotoPreview(reader.result as string);
     reader.readAsDataURL(file);
   };
+
+  const [certs, setCerts] = useState<{ id: string; name: string; expiry_date: string; status: string }[]>([]);
+  useEffect(() => {
+    supabase.from('compliance_items')
+      .select('id, name, expiry_date')
+      .eq('crew_member_id', member.id)
+      .order('expiry_date', { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          setCerts(data.map(c => {
+            const days = Math.ceil((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000);
+            const status = days < 0 ? 'expired' : days <= 30 ? 'critical' : days <= 90 ? 'expiring' : 'valid';
+            return { ...c, status };
+          }));
+        }
+      });
+  }, [member.id]);
 
   const [form, setForm] = useState({
     full_name: member.full_name,
@@ -288,6 +306,34 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
             <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           </div>
+
+          {/* Certifications */}
+          {certs.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" /> Certifications ({certs.length})
+              </label>
+              <div className="space-y-1.5">
+                {certs.map(c => {
+                  const icon = c.status === 'expired' ? <AlertTriangle className="w-3.5 h-3.5 text-red-500" /> :
+                    c.status === 'critical' ? <Clock className="w-3.5 h-3.5 text-orange-500" /> :
+                    c.status === 'expiring' ? <Clock className="w-3.5 h-3.5 text-amber-500" /> :
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />;
+                  const bg = c.status === 'expired' ? 'bg-red-50 border-red-200' :
+                    c.status === 'critical' ? 'bg-orange-50 border-orange-200' :
+                    c.status === 'expiring' ? 'bg-amber-50 border-amber-200' :
+                    'bg-green-50 border-green-200';
+                  return (
+                    <div key={c.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${bg}`}>
+                      {icon}
+                      <span className="flex-1 font-medium text-gray-800 truncate">{c.name}</span>
+                      <span className="text-xs text-gray-500">{new Date(c.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center gap-3 pt-3 border-t border-gray-200">

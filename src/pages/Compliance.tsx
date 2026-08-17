@@ -23,9 +23,11 @@ interface ComplianceItem {
   expiry_date: string;
   document_url: string | null;
   assigned_to: string | null;
+  crew_member_id: string | null;
   notes: string | null;
 }
 interface VesselOption { id: string; name: string; }
+interface CrewOption { id: string; full_name: string; position: string; vessel_id: string; photo_url: string | null; }
 
 const VESSEL_CERTIFICATES = [
   'Safety Management Certificate', 'Certificate of Registry', 'Radio License',
@@ -75,10 +77,11 @@ const uploadDocument = async (file: File, userId: string, itemId: string): Promi
 const ComplianceModal: React.FC<{
   item?: ComplianceItem | null;
   vessels: VesselOption[];
+  crewMembers: CrewOption[];
   companyId: string;
   onClose: () => void;
   onSaved: () => void;
-}> = ({ item, vessels, companyId, onClose, onSaved }) => {
+}> = ({ item, vessels, crewMembers, companyId, onClose, onSaved }) => {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -93,10 +96,13 @@ const ComplianceModal: React.FC<{
     issuing_authority: item?.issuing_authority || '',
     issued_date: item?.issued_date || '',
     expiry_date: item?.expiry_date || '',
+    crew_member_id: item?.crew_member_id || '',
     assigned_to: item?.assigned_to || '',
     notes: item?.notes || '',
     document_url: item?.document_url || '',
   });
+
+  const filteredCrew = crewMembers.filter(c => !form.vessel_id || c.vessel_id === form.vessel_id);
 
   const suggestions = form.type === 'vessel' ? VESSEL_CERTIFICATES : CREW_CERTIFICATES;
 
@@ -127,11 +133,13 @@ const ComplianceModal: React.FC<{
         if (url) document_url = url;
         setUploadingDoc(false);
       }
+      const selectedCrew = crewMembers.find(c => c.id === form.crew_member_id);
       const data = {
         ...form, company_id: companyId, document_url,
         issuing_authority: form.issuing_authority || null,
         issued_date: form.issued_date || null,
-        assigned_to: form.assigned_to || null,
+        crew_member_id: form.crew_member_id || null,
+        assigned_to: selectedCrew ? selectedCrew.full_name : (form.assigned_to || null),
         notes: form.notes || null,
       };
       if (item) { await dbUpdate('compliance_items', item.id, data); }
@@ -197,10 +205,21 @@ const ComplianceModal: React.FC<{
           {/* Crew member */}
           {form.type === 'crew' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Crew member name *</label>
-              <input type="text" value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g. Captain James" required />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Crew member *</label>
+              {filteredCrew.length > 0 ? (
+                <select value={form.crew_member_id} onChange={e => {
+                  const cm = crewMembers.find(c => c.id === e.target.value);
+                  setForm({ ...form, crew_member_id: e.target.value, assigned_to: cm?.full_name || '' });
+                }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                  <option value="">Select crew member...</option>
+                  {filteredCrew.map(c => <option key={c.id} value={c.id}>{c.full_name} — {c.position}</option>)}
+                </select>
+              ) : (
+                <input type="text" value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g. Captain James" required />
+              )}
             </div>
           )}
 
@@ -448,6 +467,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const { showToast } = useToast();
   const [items, setItems] = useState<ComplianceItem[]>([]);
   const [vessels, setVessels] = useState<VesselOption[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'expired' | 'critical' | 'expiring' | 'valid'>('all');
@@ -469,12 +489,14 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     setLoading(true);
     const cid = currentUser.company_id;
     if (!cid) { setLoading(false); return; }
-    const [compliance, vessels] = await Promise.all([
+    const [compliance, vessels, crew] = await Promise.all([
       fetchByCompany('compliance_items', cid, 'expiry_date', true),
       fetchByCompany('vessels', cid, 'name', true),
+      fetchByCompany('crew_members', cid, 'full_name', true),
     ]);
     setItems(compliance);
     setVessels(vessels.map((v: any) => ({ id: v.id, name: v.name })));
+    setCrewMembers((crew as any[]).filter(c => c.status === 'active').map(c => ({ id: c.id, full_name: c.full_name, position: c.position, vessel_id: c.vessel_id, photo_url: c.photo_url })));
     // Refresh selected item if open
     if (selectedItem) {
       const refreshed = compliance.find((i: ComplianceItem) => i.id === selectedItem.id);
@@ -524,6 +546,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
           <ComplianceModal
             item={editingItem}
             vessels={vessels}
+            crewMembers={crewMembers}
             companyId={companyId}
             onClose={() => { setShowModal(false); setEditingItem(null); }}
             onSaved={loadData}
@@ -705,6 +728,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
         <ComplianceModal
           item={editingItem}
           vessels={vessels}
+          crewMembers={crewMembers}
           companyId={companyId}
           onClose={() => { setShowModal(false); setEditingItem(null); }}
           onSaved={loadData}

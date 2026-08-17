@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users, Plus, Search, ChevronRight, Phone, Mail, Calendar,
-  Ship, Filter, UserCheck, UserMinus, Clock, AlertTriangle,
+  Ship, Filter, UserCheck, UserMinus, Clock, AlertTriangle, ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
@@ -54,6 +54,7 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<CrewMember | null>(null);
+  const [certCounts, setCertCounts] = useState<Record<string, { total: number; issues: number }>>({});
 
   const activeVessel = (!selectedVesselId || selectedVesselId === 'all') ? 'all' : selectedVesselId;
 
@@ -75,6 +76,23 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
       const { data, error } = await query;
       if (error) throw error;
       setCrew(data || []);
+
+      const { data: compData } = await supabase.from('compliance_items')
+        .select('crew_member_id, expiry_date')
+        .eq('company_id', companyId)
+        .not('crew_member_id', 'is', null);
+      if (compData) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const counts: Record<string, { total: number; issues: number }> = {};
+        compData.forEach((c: any) => {
+          if (!c.crew_member_id) return;
+          if (!counts[c.crew_member_id]) counts[c.crew_member_id] = { total: 0, issues: 0 };
+          counts[c.crew_member_id].total++;
+          const days = Math.ceil((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000);
+          if (days <= 30) counts[c.crew_member_id].issues++;
+        });
+        setCertCounts(counts);
+      }
     } catch (err) {
       showToast('Error loading crew data', 'error');
     } finally {
@@ -262,6 +280,13 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">
                           <AlertTriangle className="w-3 h-3" />
                           {contractDays}d left
+                        </span>
+                      )}
+                      {certCounts[member.id] && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${certCounts[member.id].issues > 0 ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                          <ShieldCheck className="w-3 h-3" />
+                          {certCounts[member.id].total} cert{certCounts[member.id].total !== 1 ? 's' : ''}
+                          {certCounts[member.id].issues > 0 && ` (${certCounts[member.id].issues} !)`}
                         </span>
                       )}
                     </div>

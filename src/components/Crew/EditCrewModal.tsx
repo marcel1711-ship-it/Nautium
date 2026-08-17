@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Trash2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Trash2, Camera } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../UI/Toast';
@@ -24,6 +24,19 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
 
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(member.photo_url || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhoto(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const [form, setForm] = useState({
     full_name: member.full_name,
     position: member.position,
@@ -55,6 +68,17 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
 
     setSaving(true);
     try {
+      let photoUrl = member.photo_url || null;
+      if (photo && currentUser) {
+        const ext = photo.name.split('.').pop();
+        const fileName = `crew/${currentUser.company_id}/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(fileName, photo, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(fileName);
+          photoUrl = urlData.publicUrl;
+        }
+      }
+
       const { error } = await supabase.from('crew_members').update({
         full_name: form.full_name,
         position: form.position,
@@ -71,6 +95,7 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
         contract_end_date: form.contract_end_date || null,
         monthly_salary: form.monthly_salary ? Number(form.monthly_salary) : 0,
         salary_currency: form.salary_currency,
+        photo_url: photoUrl,
         status: form.status,
         notes: form.notes || null,
         updated_at: new Date().toISOString(),
@@ -111,6 +136,24 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Photo */}
+          <div className="flex justify-center">
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              className="relative w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors flex items-center justify-center overflow-hidden group">
+              {photoPreview ? (
+                <img src={photoPreview} alt={member.full_name} className="w-full h-full object-cover" />
+              ) : (
+                <Camera className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors" />
+              )}
+              {photoPreview && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+              )}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+          </div>
+
           {/* Name + Position */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

@@ -286,6 +286,91 @@ const PendingApprovalsCard: React.FC<{
 };
 
 /* ─────────────────────────────────────────────
+   PENDING PURCHASE REQUESTS CARD
+───────────────────────────────────────────── */
+const PendingPRsCard: React.FC<{
+  companyId: string;
+  vesselId: string | null;
+  onNavigate: (page: string) => void;
+}> = ({ companyId, vesselId, onNavigate }) => {
+  const [pending, setPending] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!companyId) return;
+      let query = supabase
+        .from('purchase_requests')
+        .select('id, pr_number, total_estimated_cost, currency, department, requested_by_name, status, urgency, created_at')
+        .eq('company_id', companyId)
+        .in('status', ['pending_captain', 'pending_fleet_manager'])
+        .order('created_at', { ascending: false });
+
+      if (vesselId && vesselId !== 'all') {
+        query = query.eq('vessel_id', vesselId);
+      }
+
+      const { data } = await query;
+      setPending(data || []);
+      setLoading(false);
+    };
+    load();
+  }, [companyId, vesselId]);
+
+  if (loading || pending.length === 0) return null;
+
+  return (
+    <div style={{ background: 'white', border: '2px solid #bfdbfe', borderRadius: 16, padding: 20, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ padding: 8, background: '#dbeafe', borderRadius: 10 }}>
+            <Package style={{ width: 20, height: 20, color: '#2563eb' }} />
+          </div>
+          <div>
+            <p style={{ fontWeight: 700, color: '#111827' }}>Pending Purchase Requests</p>
+            <p style={{ fontSize: 12, color: '#6b7280' }}>{pending.length} request{pending.length !== 1 ? 's' : ''} awaiting approval</p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('procurement')}
+          style={{ fontSize: 13, color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          View all →
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {pending.map(pr => (
+          <div
+            key={pr.id}
+            onClick={() => onNavigate('procurement')}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#eff6ff', borderRadius: 10, cursor: 'pointer' }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{pr.pr_number}</span>
+                <span style={{
+                  padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                  background: pr.status === 'pending_captain' ? '#fef3c7' : '#ffedd5',
+                  color: pr.status === 'pending_captain' ? '#92400e' : '#9a3412',
+                }}>
+                  {pr.status === 'pending_captain' ? 'Captain' : 'Fleet Mgr'}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                {pr.department} · {pr.requested_by_name}
+              </p>
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+              {pr.currency} {pr.total_estimated_cost?.toLocaleString()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
    VESSEL HEADER — sin cambios
 ───────────────────────────────────────────── */
 const VesselHeader: React.FC<{
@@ -501,6 +586,13 @@ const CaptainDashboard: React.FC<{
         companyId={companyId}
         vesselId={selectedVesselId}
         currentUser={currentUser}
+        onNavigate={onNavigate}
+      />
+
+      {/* ── PENDING PURCHASE REQUESTS ── */}
+      <PendingPRsCard
+        companyId={companyId}
+        vesselId={selectedVesselId}
         onNavigate={onNavigate}
       />
 

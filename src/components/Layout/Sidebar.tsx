@@ -58,6 +58,7 @@ const navItems: NavItem[] = [
 const FLEET_MANAGER_PRIMARY = [
   'dashboard',      // Fleet Overview (relabelado)
   'financials',     // Financials
+  'procurement',    // Purchase Requests / Orders
   'vessels',        // Vessels
   'users-customer', // Users
   'crew',           // Crew Management
@@ -68,7 +69,6 @@ const FLEET_MANAGER_PRIMARY = [
 
 // ── Items secundarios para fleet manager — bajo "More" ────────────────────
 const FLEET_MANAGER_SECONDARY = [
-  'procurement',
   'maintenance',
   'inventory',
   'equipment',

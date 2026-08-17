@@ -274,6 +274,105 @@ const FleetPendingApprovalsCard: React.FC<{
   );
 };
 
+/* ── PENDING PURCHASE REQUESTS CARD ───────────────────────────────────────── */
+const FleetPendingPRsCard: React.FC<{
+  companyId: string;
+  vesselFilter: string;
+  vesselNames: Record<string, string>;
+  currentUser: any;
+  onNavigate: (page: string) => void;
+}> = ({ companyId, vesselFilter, vesselNames, currentUser, onNavigate }) => {
+  const [pending, setPending] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadPending = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('purchase_requests')
+        .select('id, pr_number, total_estimated_cost, currency, department, requested_by_name, vessel_id, status, urgency, created_at')
+        .eq('company_id', companyId)
+        .in('status', ['pending_captain', 'pending_fleet_manager'])
+        .order('created_at', { ascending: false });
+
+      if (vesselFilter !== 'all') {
+        query = query.eq('vessel_id', vesselFilter);
+      }
+
+      const { data } = await query;
+      setPending(data || []);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, vesselFilter]);
+
+  useEffect(() => { loadPending(); }, [loadPending]);
+
+  if (loading || pending.length === 0) return null;
+
+  const urgencyColors: Record<string, string> = {
+    low: 'bg-gray-100 text-gray-600',
+    medium: 'bg-blue-100 text-blue-700',
+    high: 'bg-amber-100 text-amber-700',
+    critical: 'bg-red-100 text-red-700',
+  };
+
+  return (
+    <div className="bg-white border-2 border-blue-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-blue-100 rounded-xl">
+            <Package className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">Pending Purchase Requests</h3>
+            <p className="text-xs text-gray-500">{pending.length} request{pending.length !== 1 ? 's' : ''} awaiting approval</p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('procurement')}
+          className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1"
+        >
+          View all <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="space-y-2.5">
+        {pending.map(pr => (
+          <div
+            key={pr.id}
+            onClick={() => onNavigate('procurement')}
+            className="flex items-center justify-between p-3 bg-blue-50/50 rounded-xl hover:bg-blue-50 cursor-pointer transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900 text-sm">{pr.pr_number}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pr.status === 'pending_captain' ? 'bg-amber-100 text-amber-700' : 'bg-orange-100 text-orange-700'}`}>
+                  {pr.status === 'pending_captain' ? 'Captain' : 'Fleet Mgr'}
+                </span>
+                {pr.urgency !== 'medium' && (
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${urgencyColors[pr.urgency] || ''}`}>
+                    {pr.urgency}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {vesselNames[pr.vessel_id] || 'Unknown'} · {pr.department} · {pr.requested_by_name}
+              </p>
+            </div>
+            <span className="font-bold text-gray-900 text-sm shrink-0 ml-3">
+              {pr.currency} {pr.total_estimated_cost?.toLocaleString()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
   const { currentUser, setSelectedVesselId, selectedVesselId } = useAuth();
   const [vesselStats, setVesselStats]       = useState<VesselStats[]>([]);
@@ -518,6 +617,17 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           {/* ── PENDING APPROVALS — fleet manager ve todos los barcos ── */}
           {currentUser && currentUser.company_id && (
             <FleetPendingApprovalsCard
+              companyId={currentUser.company_id}
+              vesselFilter={activeFilter}
+              vesselNames={vesselNames}
+              currentUser={currentUser}
+              onNavigate={onNavigate}
+            />
+          )}
+
+          {/* ── PENDING PURCHASE REQUESTS ── */}
+          {currentUser && currentUser.company_id && (
+            <FleetPendingPRsCard
               companyId={currentUser.company_id}
               vesselFilter={activeFilter}
               vesselNames={vesselNames}

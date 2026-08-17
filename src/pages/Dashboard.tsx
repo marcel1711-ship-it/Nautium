@@ -402,8 +402,9 @@ const CaptainDashboard: React.FC<{
   const [deptInventory, setDeptInventory] = useState<DeptInventory[]>([]);
   const [loadingCosts, setLoadingCosts] = useState(true);
   const [monthlyTrend, setMonthlyTrend] = useState<{ month: string; total: number }[]>([]);
+  const [crewOnBoard, setCrewOnBoard] = useState<{ id: string; full_name: string; position: string; department: string; status: string; photo_url: string | null }[]>([]);
 
-  useEffect(() => { if (companyId) loadCosts(); }, [companyId]);
+  useEffect(() => { if (companyId) { loadCosts(); loadCrew(); } }, [companyId, selectedVesselId]);
 
   const loadCosts = async () => {
     setLoadingCosts(true);
@@ -436,6 +437,21 @@ const CaptainDashboard: React.FC<{
       setDeptInventory(DEPT_ORDER.filter(d => byDeptInv[d]).map(d => ({ dept: d, value: byDeptInv[d] })));
     } catch { /* cost data is supplementary, silent fail is acceptable */ }
     finally { setLoadingCosts(false); }
+  };
+
+  const loadCrew = async () => {
+    try {
+      let query = supabase.from('crew_members')
+        .select('id, full_name, position, department, status, photo_url')
+        .eq('company_id', companyId)
+        .in('status', ['active', 'on_leave'])
+        .order('department').order('position');
+      if (selectedVesselId && selectedVesselId !== 'all') {
+        query = query.eq('vessel_id', selectedVesselId);
+      }
+      const { data } = await query;
+      setCrewOnBoard(data || []);
+    } catch { /* silent */ }
   };
 
   const totalExpenses       = expenses.reduce((s, e) => s + e.amount, 0);
@@ -615,6 +631,56 @@ const CaptainDashboard: React.FC<{
           )}
         </div>
       </div>
+
+      {/* CREW ON BOARD */}
+      {crewOnBoard.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 20, border: '1px solid #e5e7eb', padding: '20px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UsersIcon size={16} style={{ color: '#3b82f6' }} />
+                Crew On Board
+              </h2>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                <span style={{ fontWeight: 600, color: '#374151' }}>{crewOnBoard.filter(c => c.status === 'active').length}</span> active
+                {crewOnBoard.filter(c => c.status === 'on_leave').length > 0 && (
+                  <> · <span style={{ fontWeight: 600, color: '#f59e0b' }}>{crewOnBoard.filter(c => c.status === 'on_leave').length}</span> on leave</>
+                )}
+              </div>
+            </div>
+            <button onClick={() => onNavigate('crew')} style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>Manage crew →</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+            {crewOnBoard.map(member => {
+              const deptColor = DEPT_COLORS[member.department] || DEPT_COLORS.General;
+              const isOnLeave = member.status === 'on_leave';
+              return (
+                <div key={member.id} onClick={() => onNavigate('crew')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', background: isOnLeave ? '#fffbeb' : '#f9fafb', border: isOnLeave ? '1px solid #fde68a' : '1px solid transparent', transition: 'background 0.15s' }}
+                  onMouseEnter={e => { if (!isOnLeave) (e.currentTarget as HTMLDivElement).style.background = '#f3f4f6'; }}
+                  onMouseLeave={e => { if (!isOnLeave) (e.currentTarget as HTMLDivElement).style.background = '#f9fafb'; }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: deptColor.bg, border: `1.5px solid ${deptColor.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                    {member.photo_url ? (
+                      <img src={member.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: deptColor.text }}>
+                        {member.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.full_name}</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+                      {member.position}
+                      {isOnLeave && <span style={{ color: '#f59e0b', fontWeight: 600 }}> · On leave</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* COMPLIANCE ALERTS */}
       <div style={{ background: 'white', borderRadius: 20, border: expiredCerts > 0 || criticalCerts > 0 ? '1px solid #fecaca' : '1px solid #e5e7eb', padding: '20px 22px' }}>

@@ -286,6 +286,65 @@ export interface CrewMember {
   updated_at: string;
 }
 
+// ── Purchase Requests / Purchase Orders ──────────────────────────────────────
+
+export type PRStatus = 'draft' | 'pending_captain' | 'pending_fleet_manager' | 'approved' | 'rejected';
+export type POStatus = 'ordered' | 'partially_received' | 'received' | 'closed';
+
+export interface PurchaseRequest {
+  id: string;
+  pr_number: string;
+  company_id: string;
+  vessel_id: string;
+  department: OperationalExpenseDepartment;
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  status: PRStatus;
+  total_estimated_cost: number;
+  currency: string;
+  vendor_name?: string;
+  vendor_email?: string;
+  vendor_phone?: string;
+  justification?: string;
+  requested_by_id?: string;
+  requested_by_name?: string;
+  requested_by_role?: string;
+  current_approver_role?: string;
+  approved_by_captain_id?: string;
+  approved_by_captain_name?: string;
+  approved_by_captain_at?: string;
+  approved_by_fm_id?: string;
+  approved_by_fm_name?: string;
+  approved_by_fm_at?: string;
+  rejection_note?: string;
+  rejected_by_id?: string;
+  rejected_by_name?: string;
+  rejected_at?: string;
+  po_number?: string;
+  po_status?: POStatus;
+  ordered_at?: string;
+  received_at?: string;
+  received_by_id?: string;
+  received_by_name?: string;
+  expense_category?: string;
+  created_at: string;
+  updated_at: string;
+  items?: PurchaseRequestItem[];
+}
+
+export interface PurchaseRequestItem {
+  id: string;
+  purchase_request_id: string;
+  name: string;
+  part_number?: string;
+  quantity: number;
+  unit_cost: number;
+  unit_of_measure: string;
+  inventory_item_id?: string;
+  notes?: string;
+  received_quantity: number;
+  created_at: string;
+}
+
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
 export type UserRole = User['role'];

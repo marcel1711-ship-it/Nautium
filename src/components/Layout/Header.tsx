@@ -47,6 +47,12 @@ const getNotificationStyle = (type: string) => {
   switch (type) {
     case 'expense_approval':
       return { icon: DollarSign, bg: 'bg-amber-500/15', color: 'text-amber-400' };
+    case 'pr_pending':
+      return { icon: DollarSign, bg: 'bg-blue-500/15', color: 'text-blue-400' };
+    case 'pr_approved':
+      return { icon: DollarSign, bg: 'bg-green-500/15', color: 'text-green-400' };
+    case 'pr_rejected':
+      return { icon: DollarSign, bg: 'bg-red-500/15', color: 'text-red-400' };
     case 'new_customer':
       return { icon: Building2, bg: 'bg-emerald-500/15', color: 'text-emerald-400' };
     default:
@@ -97,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
     }
 
     if (currentUser?.role === 'captain') {
-      query = query.eq('type', 'expense_approval');
+      query = query.in('type', ['expense_approval', 'pr_pending', 'pr_approved', 'pr_rejected']);
     }
 
     const { data } = await query;
@@ -121,6 +127,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
     setShowNotifications(false);
     if (n.type === 'expense_approval') {
       onNavigate?.('costs');
+    } else if (n.type.startsWith('pr_')) {
+      onNavigate?.('procurement');
     } else if (n.type === 'new_customer') {
       onNavigate?.('customers');
     }
@@ -182,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const pendingApprovalCount = notifications.filter(
-    n => n.type === 'expense_approval' && !n.read
+    n => (n.type === 'expense_approval' || n.type === 'pr_pending') && !n.read
   ).length;
 
   return (

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DollarSign, Plus, Trash2, Filter, TrendingDown, Fuel, Wrench, Package,
   Anchor, Zap, Droplets, Wifi, Trash, Ship, Shield, MoreHorizontal, Calendar,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
-  Clock
+  Clock, AlertTriangle, ShoppingCart
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -658,6 +658,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
           companyId={currentUser?.company_id || ''}
           defaultDepartment={userDepartment as OperationalExpenseDepartment | null}
           onClose={() => setShowAddModal(false)}
+          onNavigate={onNavigate}
           onSaved={(result?: string) => {
             setShowAddModal(false);
             if (currentUser) {
@@ -748,12 +749,14 @@ const AddExpenseModal: React.FC<{
   defaultDepartment?: OperationalExpenseDepartment | null;
   onClose: () => void;
   onSaved: (result?: string) => void;
-}> = ({ vessels, companyId, defaultDepartment, onClose, onSaved }) => {
+  onNavigate: (page: string, params?: any) => void;
+}> = ({ vessels, companyId, defaultDepartment, onClose, onSaved, onNavigate }) => {
   const { currentUser } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
+  const [thresholdBlock, setThresholdBlock] = useState<{ threshold: number; amount: number } | null>(null);
 
   const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
 
@@ -806,14 +809,13 @@ const AddExpenseModal: React.FC<{
     }
 
     try {
-      // ── Pieza 1: verificar threshold ──────────────────────────────────
+      // ── Verificar threshold — si supera, bloquear y pedir PR ─────────
       const { data: vesselData } = await supabase
         .from('vessels')
         .select('requires_approval, approval_chain')
         .eq('id', form.vessel_id)
         .single();
 
-      let status = 'approved';
       const amount = parseFloat(form.amount);
 
       if (vesselData?.requires_approval) {
@@ -825,15 +827,19 @@ const AddExpenseModal: React.FC<{
           .maybeSingle();
 
         const threshold = thresholdData?.threshold;
-        const needsApproval =
+        const needsPR =
           threshold !== null &&
           threshold !== undefined &&
           amount >= threshold;
 
-        if (needsApproval) status = 'pending_approval';
+        if (needsPR) {
+          setThresholdBlock({ threshold, amount });
+          setSaving(false);
+          return;
+        }
       }
 
-      // ── Guardar ───────────────────────────────────────────────────────
+      // ── Guardar (bajo el umbral, aprobado directo) ────────────────────
       await dbInsert('operational_expenses', {
         vessel_id:          form.vessel_id,
         company_id:         companyId,
@@ -846,23 +852,12 @@ const AddExpenseModal: React.FC<{
         expense_date:       form.expense_date,
         department:         form.department,
         created_by:         currentUser.id,
-        status,
+        status:             'approved',
         requested_by:       currentUser.id,
         requested_by_name:  currentUser.full_name,
       });
 
-      // ── Notificar si quedó pendiente ──────────────────────────────────
-      if (status === 'pending_approval') {
-        await supabase.from('admin_notifications').insert({
-          company_id: companyId,
-          type:    'expense_approval',
-          title:   'Expense requires approval',
-          message: `${form.category} — ${form.currency} ${form.amount}${form.description ? ` · ${form.description}` : ''} submitted by ${currentUser.full_name}`,
-          read:    false,
-        });
-      }
-
-      onSaved(status === 'pending_approval' ? 'pending' : 'approved');
+      onSaved('approved');
 
     } catch (err) {
       console.error('AddExpenseModal error:', err);
@@ -881,7 +876,49 @@ const AddExpenseModal: React.FC<{
             <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        {thresholdBlock && (
+          <div className="p-6 space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-800">Amount exceeds approval threshold</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  This expense of <strong>{form.currency} {thresholdBlock.amount.toLocaleString()}</strong> exceeds
+                  the <strong>{form.currency} {thresholdBlock.threshold.toLocaleString()}</strong> threshold
+                  for <strong>{form.category}</strong>. A Purchase Request is required.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setThresholdBlock(null)}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigate('procurement', {
+                    createPR: true,
+                    category: form.category,
+                    amount: String(thresholdBlock.amount),
+                    description: form.description || customCategory,
+                    vesselId: form.vessel_id,
+                    department: form.department,
+                  });
+                }}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" /> Create Purchase Request
+              </button>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={`p-6 space-y-5 ${thresholdBlock ? 'hidden' : ''}`}>
 
           {/* Vessel */}
           {vessels.length > 1 && (

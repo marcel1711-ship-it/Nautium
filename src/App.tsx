@@ -34,6 +34,7 @@ const Budget = lazy(() => import('./pages/Budget').then(m => ({ default: m.Budge
 const Financials = lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
 const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ default: m.Contractors })));
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
+const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 
 const PageLoader = () => (
@@ -66,6 +67,7 @@ const PAGES_REQUIRING_VESSEL = [
   'manuals',
   'fuel',
   'costs',
+  'procurement',
   'compliance',
 ];
 
@@ -238,6 +240,9 @@ const AppContent: React.FC = () => {
 
       case 'fuel':
         return <Fuel onNavigate={handleNavigate} params={pageParams} />;
+
+      case 'procurement':
+        return <Procurement onNavigate={handleNavigate} />;
 
       case 'costs':
         return (

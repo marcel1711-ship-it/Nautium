@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
+  ShoppingCart,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { id: 'equipment',              labelKey: 'nav.equipment',             icon: Boxes,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'history',                labelKey: 'nav.history',               icon: History,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'fuel',                   labelKey: 'nav.fuel',                  icon: Fuel,            roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'engineer'] },
+  { id: 'procurement',             labelKey: 'nav.procurement',           icon: ShoppingCart,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
   { id: 'costs',                  labelKey: 'nav.costs',                 icon: DollarSign,      roles: ['standard_user', 'captain', 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
   { id: 'budget',                 labelKey: 'nav.budget',                icon: DollarSign,      roles: ['captain'] },
   { id: 'compliance',             labelKey: 'nav.compliance',            icon: ShieldCheck,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
@@ -66,6 +68,7 @@ const FLEET_MANAGER_PRIMARY = [
 
 // ── Items secundarios para fleet manager — bajo "More" ────────────────────
 const FLEET_MANAGER_SECONDARY = [
+  'procurement',
   'maintenance',
   'inventory',
   'equipment',

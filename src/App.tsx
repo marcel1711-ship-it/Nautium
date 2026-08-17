@@ -1,4 +1,5 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { Ship, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -54,7 +55,6 @@ const DEPT_ROLES: UserRole[]         = [
   'crew',
 ];
 
-// Páginas que hacen queries con vessel_id directo y no soportan 'all'
 const PAGES_REQUIRING_VESSEL = [
   'dashboard',
   'maintenance',
@@ -70,37 +70,69 @@ const PAGES_REQUIRING_VESSEL = [
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, currentUser, selectedVesselId, setSelectedVesselId } = useAuth();
+  const location = useLocation();
+  const nav = useNavigate();
 
-  const getInitialPage = () => {
-    const params = new URLSearchParams(window.location.search);
-    const loc = params.get('location');
-    if (loc) return { page: 'location-view', params: { location: decodeURIComponent(loc) } };
-    return { page: 'dashboard', params: null };
-  };
-
-  const initial    = getInitialPage();
-  const isDeepLink = initial.page !== 'dashboard';
-  const [currentPage, setCurrentPage]       = useState(initial.page);
-  const [pageParams, setPageParams]         = useState<any>(initial.params);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [showLanding, setShowLanding]       = useState(!isDeepLink);
-  const [pendingPage]                       = useState(initial);
+  const [showLanding, setShowLanding] = useState(true);
+  const [pageParams, setPageParams] = useState<any>(null);
+  const programmaticNav = useRef(false);
 
+  // ── Derive currentPage from URL ──────────────────────────────────────
+  const currentPage = location.pathname.replace(/^\//, '') || 'dashboard';
+
+  // ── QR deep-link redirect: /?location=xxx → /location-view?location=xxx
+  useEffect(() => {
+    if (location.pathname === '/' && location.search) {
+      const params = new URLSearchParams(location.search);
+      const loc = params.get('location');
+      if (loc) {
+        nav(`/location-view?location=${encodeURIComponent(loc)}`, { replace: true });
+      }
+    }
+  }, []);
+
+  // ── Sync pageParams from URL on browser back/forward ─────────────────
+  useEffect(() => {
+    if (programmaticNav.current) {
+      programmaticNav.current = false;
+      return;
+    }
+    const searchParams = new URLSearchParams(location.search);
+    const urlParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => { urlParams[key] = value; });
+    setPageParams(Object.keys(urlParams).length > 0 ? urlParams : null);
+  }, [location]);
+
+  // ── Navigate: updates URL + keeps params for child components ────────
   const handleNavigate = (page: string, params?: any) => {
-    setCurrentPage(page);
+    programmaticNav.current = true;
     setPageParams(params || null);
+
+    let url = `/${page}`;
+    if (params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && typeof value !== 'object') {
+          searchParams.set(key, String(value));
+        }
+      });
+      const qs = searchParams.toString();
+      if (qs) url += `?${qs}`;
+    }
+    nav(url);
     setMobileSidebarOpen(false);
   };
 
   const handleLogin = () => {
-    if (pendingPage.page !== 'dashboard') {
-      setCurrentPage(pendingPage.page);
-      setPageParams(pendingPage.params);
+    if (currentPage && currentPage !== 'login' && currentPage !== 'dashboard') {
+      // User was on a deep link, stay there
     } else {
-      setCurrentPage('dashboard');
+      nav('/dashboard');
     }
   };
 
+  // ── Unauthenticated: Landing / Login ────────────────────────────────
   if (!isAuthenticated) {
     if (showLanding) return <Suspense fallback={<PageLoader />}><Landing onEnterApp={() => setShowLanding(false)} /></Suspense>;
     return <Suspense fallback={<PageLoader />}><Login onLogin={handleLogin} onBack={() => setShowLanding(true)} /></Suspense>;
@@ -313,13 +345,15 @@ const IS_ONBOARDING = window.location.pathname.startsWith('/onboarding');
 function App() {
   if (IS_ONBOARDING) return <Suspense fallback={<PageLoader />}><Onboarding /></Suspense>;
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </LanguageProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <LanguageProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

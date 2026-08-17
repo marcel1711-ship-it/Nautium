@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { AddUserModal } from '../components/Users/AddUserModal';
 import { EditUserModal } from '../components/Users/EditUserModal';
+import { generateSecurePassword } from '../lib/security';
 
 interface UsersProps {
   onNavigate: (page: string, params?: any) => void;
@@ -144,10 +145,7 @@ export const Users: React.FC<UsersProps> = ({ onNavigate, companyId, openAddUser
     }
   };
 
-  const generatePassword = () => {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
-    return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  };
+  const generatePassword = () => generateSecurePassword();
 
   const openResetPassword = (user: AuthUser) => {
     setResetPasswordUser(user);

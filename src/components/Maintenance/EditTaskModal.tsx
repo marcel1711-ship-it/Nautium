@@ -6,6 +6,7 @@ import { demoEquipment, demoVessels, demoUsers } from '../../data/demoData';
 import { MaintenanceTask } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../UI/Toast';
+import { validateImageFile } from '../../lib/security';
 
 interface EditTaskModalProps {
   task: MaintenanceTask;
@@ -131,7 +132,9 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const selected = files.slice(0, 5 - totalPhotos);
+    const valid = files.filter(f => !validateImageFile(f));
+    if (valid.length < files.length) showToast('Some files were skipped (invalid type or too large).', 'warning');
+    const selected = valid.slice(0, 5 - totalPhotos);
     setNewPhotoFiles(prev => [...prev, ...selected]);
     selected.forEach(file => { const reader = new FileReader(); reader.onload = (ev) => setNewPhotoPreviews(prev => [...prev, ev.target?.result as string]); reader.readAsDataURL(file); });
     if (photoInputRef.current) photoInputRef.current.value = '';

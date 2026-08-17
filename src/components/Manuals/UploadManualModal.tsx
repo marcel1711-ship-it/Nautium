@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import { demoVessels, demoEquipment } from '../../data/demoData';
 import { useToast } from '../UI/Toast';
+import { validateDocumentFile } from '../../lib/security';
 
 interface UploadManualModalProps {
   onClose: () => void;
@@ -81,6 +82,8 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
     if (isDemoUser(currentUser.email)) { onClose(); return; }
 
     if (!file) { showToast('Please select a file to upload', 'warning'); return; }
+    const valErr = validateDocumentFile(file);
+    if (valErr) { showToast(valErr, 'warning'); return; }
 
     setUploading(true);
 

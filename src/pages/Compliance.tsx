@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany, dbInsert, dbUpdate } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
+import { validateDocumentFile } from '../lib/security';
 
 interface ComplianceProps {
   onNavigate: (page: string, params?: any) => void;
@@ -109,6 +110,8 @@ const ComplianceModal: React.FC<{
   const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const valErr = validateDocumentFile(file);
+    if (valErr) { showToast(valErr, 'warning'); return; }
     setDocFile(file);
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();

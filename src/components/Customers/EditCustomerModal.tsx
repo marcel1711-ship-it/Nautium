@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Building2, AlertCircle, Ship, Camera, Upload, Bell, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { validateImageFile } from '../../lib/security';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Company {
@@ -192,6 +193,8 @@ export const EditCustomerModal: React.FC<EditCustomerModalProps> = ({
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { setError(err); return; }
     setVesselPhoto(file);
     const reader = new FileReader();
     reader.onloadend = () => setVesselPhotoPreview(reader.result as string);

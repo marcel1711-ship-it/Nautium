@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { Ship, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
@@ -330,9 +331,11 @@ const AppContent: React.FC = () => {
           onMenuToggle={() => setMobileSidebarOpen(prev => !prev)}
         />
         <main className="pt-20 px-4 pb-4 lg:pt-20 lg:px-6 lg:pb-6">
-          <Suspense fallback={<PageLoader />}>
-            <div className="max-w-[1600px] mx-auto">{renderPage()}</div>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <div className="max-w-[1600px] mx-auto">{renderPage()}</div>
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
       <Suspense fallback={null}><NautiusChat /></Suspense>

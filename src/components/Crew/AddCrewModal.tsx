@@ -3,6 +3,7 @@ import { X, Camera } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../UI/Toast';
+import { validateImageFile } from '../../lib/security';
 import { POSITIONS, DEPARTMENTS } from '../../pages/Crew';
 import { UserRole } from '../../types';
 
@@ -30,6 +31,8 @@ export const AddCrewModal: React.FC<AddCrewModalProps> = ({ vessels, defaultVess
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { showToast(err, 'warning'); return; }
     setPhoto(file);
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result as string);

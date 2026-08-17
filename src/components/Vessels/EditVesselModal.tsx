@@ -52,10 +52,9 @@ const APPROVAL_CHAINS = [
   { value: 'captain_then_fleet_manager', label: 'Captain, then Fleet Manager' },
 ];
 
-const generatePassword = () => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-};
+import { generateSecurePassword, validateImageFile } from '../../lib/security';
+
+const generatePassword = () => generateSecurePassword();
 
 export const EditVesselModal: React.FC<EditVesselModalProps> = ({ vessel, onClose, onSuccess, onOpenApprovalThresholds }) => {
   const [form, setForm] = useState({
@@ -97,6 +96,8 @@ export const EditVesselModal: React.FC<EditVesselModalProps> = ({ vessel, onClos
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { setError(err); return; }
     setPhoto(file);
     setRemovePhoto(false);
     const reader = new FileReader();

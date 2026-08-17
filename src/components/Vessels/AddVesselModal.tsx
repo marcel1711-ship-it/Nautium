@@ -36,10 +36,9 @@ const defaultForm = {
   approval_chain: 'captain_only',
 };
 
-const generatePassword = () => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-};
+import { generateSecurePassword, validateImageFile } from '../../lib/security';
+
+const generatePassword = () => generateSecurePassword();
 
 export const AddVesselModal: React.FC<AddVesselModalProps> = ({
   companyId, vesselLimit, currentCount, onClose, onSuccess,
@@ -54,6 +53,8 @@ export const AddVesselModal: React.FC<AddVesselModalProps> = ({
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const err = validateImageFile(file);
+    if (err) { setError(err); return; }
     setPhoto(file);
     const reader = new FileReader();
     reader.onloadend = () => setPhotoPreview(reader.result as string);

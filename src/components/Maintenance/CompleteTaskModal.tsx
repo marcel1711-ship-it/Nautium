@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { demoInventoryItems } from '../../data/demoData';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { validateImageFile } from '../../lib/security';
 
 interface CompleteTaskModalProps {
   task: MaintenanceTask;
@@ -152,7 +153,8 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const selected = files.slice(0, 5 - photoFiles.length);
+    const valid = files.filter(f => !validateImageFile(f));
+    const selected = valid.slice(0, 5 - photoFiles.length);
     setPhotoFiles(prev => [...prev, ...selected]);
     selected.forEach(file => { const reader = new FileReader(); reader.onload = (ev) => setPhotoPreviews(prev => [...prev, ev.target?.result as string]); reader.readAsDataURL(file); });
     if (photoInputRef.current) photoInputRef.current.value = '';

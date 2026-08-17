@@ -77,7 +77,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
       let filtered = demoInventoryItems.map(i =>
         sessionEdits[i.id] ? { ...i, ...sessionEdits[i.id] } : i
       );
-      if (selectedVesselId) {
+      if (selectedVesselId && selectedVesselId !== 'all') {
         filtered = filtered.filter(i => i.vessel_id === selectedVesselId);
       } else if (currentUser.role !== 'master_admin') {
         filtered = filtered.filter(i => currentUser.vessel_ids.includes(i.vessel_id));

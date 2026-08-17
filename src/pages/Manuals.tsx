@@ -57,7 +57,7 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
         : demoVessels.filter(v => currentUser.vessel_ids.includes(v.id));
       const vesselIds = userVessels.map(v => v.id);
 
-      if (selectedVesselId) {
+      if (selectedVesselId && selectedVesselId !== 'all') {
         filtered = filtered.filter(m => m.vessel_id === selectedVesselId);
       } else if (currentUser.role !== 'master_admin') {
         filtered = filtered.filter(m => vesselIds.includes(m.vessel_id));

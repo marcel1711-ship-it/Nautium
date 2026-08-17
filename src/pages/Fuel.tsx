@@ -119,7 +119,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       const vesselIds = currentUser.role === 'master_admin'
         ? demoVessels.map(v => v.id)
         : currentUser.vessel_ids;
-      const filterVid = selectedVesselId || null;
+      const filterVid = (selectedVesselId && selectedVesselId !== 'all') ? selectedVesselId : null;
 
       let mergedRes: FuelResource[] = [
         ...demoFuelResources.map(r => resEdits[r.id] ? { ...r, ...resEdits[r.id] } : r),
@@ -154,7 +154,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       resQuery = resQuery.eq('company_id', effectiveCompanyId);
       logQuery = logQuery.eq('company_id', effectiveCompanyId);
       vesselQuery = vesselQuery.eq('company_id', effectiveCompanyId);
-    } else if (currentUser.role === 'standard_user' && selectedVesselId) {
+    } else if (currentUser.role === 'standard_user' && selectedVesselId && selectedVesselId !== 'all') {
       resQuery = resQuery.eq('vessel_id', selectedVesselId);
       logQuery = logQuery.eq('vessel_id', selectedVesselId);
       vesselQuery = vesselQuery.in('id', currentUser.vessel_ids);

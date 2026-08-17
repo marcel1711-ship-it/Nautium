@@ -59,16 +59,6 @@ const DEPT_ROLES: UserRole[]         = [
 
 const PAGES_REQUIRING_VESSEL = [
   'dashboard',
-  'maintenance',
-  'inventory',
-  'inventory-detail',
-  'history',
-  'equipment',
-  'manuals',
-  'fuel',
-  'costs',
-  'procurement',
-  'compliance',
 ];
 
 const AppContent: React.FC = () => {

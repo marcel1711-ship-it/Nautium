@@ -247,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
                       {isFleetRole && (
                         <>
                           <button
-                            onClick={() => { setSelectedVesselId('all'); setShowVesselMenu(false); onNavigate?.('dashboard'); }}
+                            onClick={() => { setSelectedVesselId('all'); setShowVesselMenu(false); }}
                             className={`w-full px-4 py-2.5 text-left transition-colors flex items-center gap-3 ${isAllFleet ? 'bg-emerald-500/10' : 'hover:bg-white/[0.04]'}`}
                           >
                             <Layers className={`w-4 h-4 ${isAllFleet ? 'text-emerald-400' : 'text-slate-500'}`} />

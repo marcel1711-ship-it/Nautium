@@ -639,15 +639,19 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           <p className="text-sm text-gray-400">{new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
         <div className="flex items-center gap-2">
-          {activeFilter !== 'all' && (
-            <button
-              onClick={() => handleExportReport(activeFilter)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <FileDown className="w-4 h-4" />
-              Export Report
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (activeFilter !== 'all') {
+                handleExportReport(activeFilter);
+              } else if (vesselStats.length > 0) {
+                handleExportReport(vesselStats[0].vessel.id);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            Export Report
+          </button>
           <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
             Manage vessels <ChevronRight className="w-3.5 h-3.5" />
           </button>

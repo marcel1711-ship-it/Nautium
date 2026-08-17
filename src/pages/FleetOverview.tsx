@@ -45,7 +45,6 @@ const getCurrentMonth = () => new Date().getMonth() + 1;
 const getCurrentYear = () => new Date().getFullYear();
 const getDaysUntilExpiry = (date: string) => { const t = new Date(); t.setHours(0,0,0,0); return Math.ceil((new Date(date).getTime() - t.getTime()) / 86400000); };
 
-const VESSEL_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2'];
 
 const CATEGORY_LABELS: Record<string, string> = {
   mooring: 'Mooring', electricity: 'Electricity', water: 'Water',
@@ -731,34 +730,6 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
               onNavigate={onNavigate}
             />
           )}
-
-          {/* ── VESSEL PILLS ── */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1 flex items-center gap-1">
-              <Ship className="w-3.5 h-3.5" /> Viewing:
-            </span>
-            <button
-              onClick={() => setSelectedVesselId('all')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${activeFilter === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-            >
-              All Fleet
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${activeFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                {vesselStats.length}
-              </span>
-            </button>
-            {vesselStats.map((v, i) => {
-              const isActive = activeFilter === v.vessel.id;
-              const color = VESSEL_COLORS[i % VESSEL_COLORS.length];
-              return (
-                <button key={v.vessel.id} onClick={() => setSelectedVesselId(v.vessel.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${isActive ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-                  style={isActive ? { background: color } : undefined}>
-                  <span className="w-2 h-2 rounded-full" style={{ background: isActive ? 'white' : color }} />
-                  {v.vessel.name}
-                </button>
-              );
-            })}
-          </div>
 
           {/* ── KPI ROW ── */}
           <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">

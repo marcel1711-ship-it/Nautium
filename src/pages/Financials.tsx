@@ -38,7 +38,7 @@ type Tab = 'overview' | 'expenses' | 'budget';
 
 export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   // ── selectedVesselId del Header es la fuente de verdad ──────────────────
-  const { currentUser, selectedVesselId, setSelectedVesselId } = useAuth();
+  const { currentUser, selectedVesselId } = useAuth();
 
   const [tab, setTab] = useState<Tab>('overview');
   const [vessels, setVessels] = useState<VesselOption[]>([]);
@@ -182,13 +182,6 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     setActiveVessels(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
   };
 
-  // ── Ahora llama setSelectedVesselId para sincronizar con el Header ───────
-  const handleOverviewVesselChange = (id: string) => {
-    setSelectedVesselId(id);
-    if (id === 'all') setActiveVessels(vessels.map(v => v.id));
-    else setActiveVessels([id]);
-  };
-
   const budgetUsedPct = periodBudget > 0 ? Math.round((periodSpend / periodBudget) * 100) : 0;
   const periodLabel = filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
   const vesselLabel = overviewVessel === 'all' ? 'All Vessels' : vessels.find(v => v.id === overviewVessel)?.name || '';
@@ -242,37 +235,6 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
       {tab === 'overview' && (
         <div className="space-y-6">
-          {/* ── VESSEL PILLS — sincronizan con el Header via AuthContext ── */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1 flex items-center gap-1">
-              <Ship className="w-3.5 h-3.5" /> Vessel:
-            </span>
-            <button
-              onClick={() => handleOverviewVesselChange('all')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${overviewVessel === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-            >
-              All Fleet
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${overviewVessel === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
-                {vessels.length}
-              </span>
-            </button>
-            {vessels.map((v, i) => {
-              const isActive = overviewVessel === v.id;
-              const color = VESSEL_COLORS[i % VESSEL_COLORS.length];
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => handleOverviewVesselChange(v.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${isActive ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-                  style={isActive ? { background: color } : undefined}
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ background: isActive ? 'white' : color }} />
-                  {v.name}
-                </button>
-              );
-            })}
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-3"><DollarSign className="w-5 h-5 text-blue-600" /></div>

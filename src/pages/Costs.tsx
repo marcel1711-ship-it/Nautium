@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Plus, Trash2, Filter, TrendingDown, Fuel, Wrench, Package,
+import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
   Anchor, Zap, Droplets, Wifi, Trash, Ship, Shield, MoreHorizontal, Calendar,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
   Clock, AlertTriangle, ShoppingCart
@@ -92,7 +92,7 @@ function fmtDate(d: string) {
 type Tab = 'period' | 'inventory';
 
 export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilter, controlledPeriod }) => {
-  const { currentUser, selectedVesselId, setSelectedVesselId } = useAuth();
+  const { currentUser, selectedVesselId } = useAuth();
   const { t } = useLanguage();
   const companyId: string | undefined = params?.companyId;
   const companyName: string | undefined = params?.companyName;
@@ -395,13 +395,6 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <select value={selectedVessel} onChange={e => setSelectedVesselId(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
-            <option value="all">{t('common.allVessels')}</option>
-            {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-        </div>
         {tab === 'period' && (
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
             <Calendar className="w-4 h-4 text-gray-400" />

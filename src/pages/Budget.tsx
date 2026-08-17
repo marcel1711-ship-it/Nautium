@@ -43,7 +43,7 @@ const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', c
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, controlledMonth, isFullYear }) => {
-  const { currentUser, selectedVesselId, setSelectedVesselId } = useAuth();
+  const { currentUser, selectedVesselId } = useAuth();
   const { showToast } = useToast();
   const role = currentUser?.role as UserRole;
   const userCanEdit = canCreate(role);
@@ -213,28 +213,6 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
             <div style={{ height: '100%', width: `${Math.min(fleetPct, 100)}%`, background: fleetPct > 90 ? '#ef4444' : fleetPct > 75 ? '#f59e0b' : '#3b82f6', borderRadius: 100, transition: 'width 0.7s ease' }} />
           </div>
         </div>
-      </div>
-
-      {/* ── Vessel filter pills — sincronizan con el Header ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setSelectedVesselId('all')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${budgetVesselFilter === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-        >
-          All vessels
-          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${budgetVesselFilter === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
-            {vessels.length}
-          </span>
-        </button>
-        {vessels.map(v => (
-          <button
-            key={v.id}
-            onClick={() => setSelectedVesselId(v.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${budgetVesselFilter === v.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}
-          >
-            <Ship className="w-3.5 h-3.5" />{v.name}
-          </button>
-        ))}
       </div>
 
       {/* Vessel budget cards */}

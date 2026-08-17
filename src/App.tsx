@@ -166,6 +166,10 @@ const AppContent: React.FC = () => {
     // ── Guard "All Fleet" ────────────────────────────────────────────────
     if (selectedVesselId === 'all' && PAGES_REQUIRING_VESSEL.includes(currentPage)) {
       if (isAdminRole || isFleetManagerRole) {
+        if (currentPage !== 'dashboard') {
+          setCurrentPage('dashboard');
+          return null;
+        }
         return <FleetOverview onNavigate={handleNavigate} />;
       }
       return (

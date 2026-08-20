@@ -228,9 +228,10 @@ export const NautiusChat: React.FC = () => {
       const data = await response.json();
 
       if (data.error) {
+        console.error('[NautiusChat] API error:', data.error);
         const errMsg = data.error.includes('not configured')
           ? t('chat.notConfigured')
-          : t('chat.genericError');
+          : `${t('chat.genericError')} (${typeof data.error === 'string' ? data.error.slice(0, 120) : 'unknown'})`;
         setMessages(prev =>
           prev.map(m => m.loading ? { ...m, content: errMsg, loading: false } : m)
         );

@@ -211,9 +211,14 @@ export const NautiusChat: React.FC = () => {
         { role: 'user', content: userContent },
       ];
 
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(CHAT_EDGE_URL, {
         method: 'POST',
-        headers: EDGE_HEADERS,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+          'Apikey': SUPABASE_ANON_KEY,
+        },
         body: JSON.stringify({
           system: systemWithContext,
           messages: messagesPayload,

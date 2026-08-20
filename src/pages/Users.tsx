@@ -47,7 +47,7 @@ export const Users: React.FC<UsersProps> = ({ onNavigate, companyId, openAddUser
   const [resetError, setResetError] = useState<string | null>(null);
   const [copiedPassword, setCopiedPassword] = useState(false);
 
-  const canManageUsers = currentUser?.role === 'master_admin' || currentUser?.role === 'customer_admin';
+  const canManageUsers = currentUser?.role === 'master_admin' || currentUser?.role === 'customer_admin' || currentUser?.role === 'captain';
   const isMasterAdmin = currentUser?.role === 'master_admin';
   const isFilteredByCompany = !!companyId && isMasterAdmin;
 

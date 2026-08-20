@@ -186,29 +186,9 @@ export const NautiusChat: React.FC = () => {
         : 'IMPORTANT: Always respond in English. The user interface is in English.';
       const systemWithContext = `${SYSTEM_PROMPT}\n\n${vesselContext} ${manualContext} ${roleContext} ${langContext}`;
 
-      const manualContents: { title: string; base64: string }[] = [];
-      for (const manual of manuals.slice(0, 2)) {
-        const base64 = await fetchManualContent(manual);
-        if (base64) manualContents.push({ title: manual.title, base64 });
-      }
-
-      let userContent: any = userMessage;
-      if (manualContents.length > 0) {
-        userContent = [
-          ...manualContents.map(mc => ({
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: mc.base64 },
-            title: mc.title,
-          })),
-          { type: 'text', text: userMessage },
-        ];
-      }
-
-      // ✅ FIX 2: El array de messages siempre tiene al menos el mensaje del usuario,
-      // nunca llega vacío a la Edge Function
       const messagesPayload = [
         ...conversationHistory,
-        { role: 'user', content: userContent },
+        { role: 'user', content: userMessage },
       ];
 
       const { data: { session } } = await supabase.auth.getSession();

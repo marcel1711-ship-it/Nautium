@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
-  ShoppingCart,
+  ShoppingCart, Compass,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -262,7 +262,22 @@ const SidebarContent: React.FC<SidebarProps & { onClose?: () => void }> = ({
       </nav>
 
       {/* ── Footer ── */}
-      <div className="p-4 border-t border-white/[0.07]">
+      <div className="p-4 border-t border-white/[0.07] space-y-3">
+        {(isFleetManager || role === 'captain') && (
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('nautium:open-tour'));
+              onClose?.();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-sky-500/10 border border-cyan-500/25 text-cyan-400 hover:from-cyan-500/25 hover:to-sky-500/20 transition-all text-left group"
+          >
+            <Compass className="w-5 h-5 text-cyan-400 group-hover:rotate-45 transition-transform" />
+            <div>
+              <p className="text-sm font-semibold">Take a Tour</p>
+              <p className="text-[11px] text-slate-500">Explore the platform</p>
+            </div>
+          </button>
+        )}
         <div className="bg-gradient-to-br from-sky-500/10 to-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
           <p className="text-sm font-medium text-white/90">{t('nav.needHelp')}</p>
           <p className="text-xs text-slate-400 mt-1">{t('nav.contactSupport')}</p>

@@ -1115,6 +1115,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const isCaptainView  = CAPTAIN_ROLES.includes(role);
 
   useEffect(() => {
+    const openTour = () => setShowGuide(true);
+    window.addEventListener('nautium:open-tour', openTour);
+    return () => window.removeEventListener('nautium:open-tour', openTour);
+  }, []);
+
+  useEffect(() => {
     if (currentUser?.role === 'master_admin') return;
     loadData();
   }, [currentUser, selectedVesselId]);

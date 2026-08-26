@@ -17,6 +17,7 @@ import { MaintenanceTask, InventoryItem, MaintenanceHistory, getRoleDepartment, 
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
+import { WelcomeGuide } from '../components/WelcomeGuide';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -1101,6 +1102,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [vessel, setVessel]         = useState<VesselInfo | null>(null);
   const [compliance, setCompliance] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
+  const guideKey = `nautium_guide_seen_${currentUser?.id}`;
+  const [showGuide, setShowGuide]   = useState(() => {
+    if (!currentUser) return false;
+    const role = currentUser.role;
+    if (role !== 'fleet_manager' && role !== 'captain' && role !== 'customer_admin') return false;
+    return !localStorage.getItem(guideKey);
+  });
 
   const role           = currentUser?.role as UserRole;
   const userDepartment = getRoleDepartment(role);
@@ -1189,16 +1197,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   // CAPTAIN VIEW
   if (isCaptainView) {
     return (
-      <CaptainDashboard
-        tasks={tasks} inventory={inventory} history={history}
-        loading={loading} overallHealth={overallHealth}
-        maintenanceHealth={maintenanceHealth} inventoryHealth={inventoryHealth}
-        complianceHealth={complianceHealth} complianceAlerts={complianceAlerts}
-        vessel={vessel} onNavigate={onNavigate} t={t}
-        companyId={currentUser?.company_id || ''}
-        currentUser={currentUser}
-        selectedVesselId={selectedVesselId}
-      />
+      <>
+        <CaptainDashboard
+          tasks={tasks} inventory={inventory} history={history}
+          loading={loading} overallHealth={overallHealth}
+          maintenanceHealth={maintenanceHealth} inventoryHealth={inventoryHealth}
+          complianceHealth={complianceHealth} complianceAlerts={complianceAlerts}
+          vessel={vessel} onNavigate={onNavigate} t={t}
+          companyId={currentUser?.company_id || ''}
+          currentUser={currentUser}
+          selectedVesselId={selectedVesselId}
+        />
+        {showGuide && (
+          <WelcomeGuide
+            onClose={() => { setShowGuide(false); localStorage.setItem(guideKey, '1'); }}
+            onNavigate={onNavigate}
+            userRole={role}
+            userName={currentUser?.full_name}
+          />
+        )}
+      </>
     );
   }
 
@@ -1333,6 +1351,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           ))}
         </div>
       </div>
+      {showGuide && (
+        <WelcomeGuide
+          onClose={() => { setShowGuide(false); localStorage.setItem(guideKey, '1'); }}
+          onNavigate={onNavigate}
+          userRole={role}
+          userName={currentUser?.full_name}
+        />
+      )}
     </div>
   );
 };

@@ -36,6 +36,7 @@ const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ defaul
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
+const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -69,6 +70,7 @@ const AppContent: React.FC = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
   const [pageParams, setPageParams] = useState<any>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const programmaticNav = useRef(false);
 
   // ── Derive currentPage from URL ──────────────────────────────────────
@@ -83,6 +85,22 @@ const AppContent: React.FC = () => {
         nav(`/location-view?location=${encodeURIComponent(loc)}`, { replace: true });
       }
     }
+  }, []);
+
+  // ── Welcome Guide (tour) ─────────────────────────────────────────────
+  const guideKey = currentUser ? `nautium_guide_seen_${currentUser.id}` : '';
+  useEffect(() => {
+    if (!currentUser) return;
+    const r = currentUser.role;
+    if (r === 'fleet_manager' || r === 'captain' || r === 'customer_admin') {
+      if (!localStorage.getItem(guideKey)) setShowGuide(true);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const openTour = () => setShowGuide(true);
+    window.addEventListener('nautium:open-tour', openTour);
+    return () => window.removeEventListener('nautium:open-tour', openTour);
   }, []);
 
   // ── Sync pageParams from URL on browser back/forward ─────────────────
@@ -334,6 +352,16 @@ const AppContent: React.FC = () => {
         </main>
       </div>
       <Suspense fallback={null}><NautiusChat /></Suspense>
+      {showGuide && currentUser && (
+        <Suspense fallback={null}>
+          <WelcomeGuide
+            onClose={() => { setShowGuide(false); localStorage.setItem(guideKey, '1'); }}
+            onNavigate={handleNavigate}
+            userRole={currentUser.role}
+            userName={currentUser.full_name}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

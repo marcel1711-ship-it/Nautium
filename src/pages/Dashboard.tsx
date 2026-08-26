@@ -17,7 +17,7 @@ import { MaintenanceTask, InventoryItem, MaintenanceHistory, getRoleDepartment, 
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
-import { WelcomeGuide } from '../components/WelcomeGuide';
+
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -1102,23 +1102,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [vessel, setVessel]         = useState<VesselInfo | null>(null);
   const [compliance, setCompliance] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
-  const guideKey = `nautium_guide_seen_${currentUser?.id}`;
-  const [showGuide, setShowGuide]   = useState(() => {
-    if (!currentUser) return false;
-    const role = currentUser.role;
-    if (role !== 'fleet_manager' && role !== 'captain' && role !== 'customer_admin') return false;
-    return !localStorage.getItem(guideKey);
-  });
 
   const role           = currentUser?.role as UserRole;
   const userDepartment = getRoleDepartment(role);
   const isCaptainView  = CAPTAIN_ROLES.includes(role);
 
-  useEffect(() => {
-    const openTour = () => setShowGuide(true);
-    window.addEventListener('nautium:open-tour', openTour);
-    return () => window.removeEventListener('nautium:open-tour', openTour);
-  }, []);
 
   useEffect(() => {
     if (currentUser?.role === 'master_admin') return;
@@ -1214,14 +1202,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           currentUser={currentUser}
           selectedVesselId={selectedVesselId}
         />
-        {showGuide && (
-          <WelcomeGuide
-            onClose={() => { setShowGuide(false); localStorage.setItem(guideKey, '1'); }}
-            onNavigate={onNavigate}
-            userRole={role}
-            userName={currentUser?.full_name}
-          />
-        )}
       </>
     );
   }
@@ -1357,14 +1337,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           ))}
         </div>
       </div>
-      {showGuide && (
-        <WelcomeGuide
-          onClose={() => { setShowGuide(false); localStorage.setItem(guideKey, '1'); }}
-          onNavigate={onNavigate}
-          userRole={role}
-          userName={currentUser?.full_name}
-        />
-      )}
     </div>
   );
 };

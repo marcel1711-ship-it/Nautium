@@ -37,6 +37,7 @@ const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })))
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
+const SupportModal = lazy(() => import('./components/SupportModal').then(m => ({ default: m.SupportModal })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -71,6 +72,7 @@ const AppContent: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
   const [pageParams, setPageParams] = useState<any>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
   const programmaticNav = useRef(false);
 
   // ── Derive currentPage from URL ──────────────────────────────────────
@@ -99,8 +101,13 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const openTour = () => setShowGuide(true);
+    const openSupport = () => setShowSupport(true);
     window.addEventListener('nautium:open-tour', openTour);
-    return () => window.removeEventListener('nautium:open-tour', openTour);
+    window.addEventListener('nautium:open-support', openSupport);
+    return () => {
+      window.removeEventListener('nautium:open-tour', openTour);
+      window.removeEventListener('nautium:open-support', openSupport);
+    };
   }, []);
 
   // ── Sync pageParams from URL on browser back/forward ─────────────────
@@ -360,6 +367,11 @@ const AppContent: React.FC = () => {
             userRole={currentUser.role}
             userName={currentUser.full_name}
           />
+        </Suspense>
+      )}
+      {showSupport && (
+        <Suspense fallback={null}>
+          <SupportModal onClose={() => setShowSupport(false)} />
         </Suspense>
       )}
     </div>

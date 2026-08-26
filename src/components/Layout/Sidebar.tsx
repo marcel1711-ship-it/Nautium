@@ -278,10 +278,16 @@ const SidebarContent: React.FC<SidebarProps & { onClose?: () => void }> = ({
             </div>
           </button>
         )}
-        <div className="bg-gradient-to-br from-sky-500/10 to-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20">
+        <button
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('nautium:open-support'));
+            onClose?.();
+          }}
+          className="w-full bg-gradient-to-br from-sky-500/10 to-cyan-500/5 rounded-2xl p-4 border border-cyan-500/20 text-left hover:from-sky-500/20 hover:to-cyan-500/10 transition-all"
+        >
           <p className="text-sm font-medium text-white/90">{t('nav.needHelp')}</p>
           <p className="text-xs text-slate-400 mt-1">{t('nav.contactSupport')}</p>
-        </div>
+        </button>
       </div>
     </div>
   );

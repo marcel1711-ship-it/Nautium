@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   DollarSign, Plus, Edit2, Check, X, TrendingUp, TrendingDown,
   AlertTriangle, ChevronDown, Ship, Settings, Anchor, Sofa,
-  ChefHat, Shield, Package,
+  ChefHat, Shield, Package, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
@@ -27,7 +27,7 @@ interface VesselBudget {
 
 interface VesselOption { id: string; name: string; photo_url: string | null; }
 
-const DEPARTMENTS = ['Total', 'Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
+const DEPARTMENTS = ['Total', 'Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Crew', 'General'];
 
 const DEPT_COLORS: Record<string, { bg: string; text: string; icon: React.ElementType; bar: string }> = {
   Total:       { bg: 'bg-blue-50',   text: 'text-blue-700',   icon: DollarSign, bar: 'bg-blue-500' },
@@ -36,6 +36,7 @@ const DEPT_COLORS: Record<string, { bg: string; text: string; icon: React.Elemen
   Interior:    { bg: 'bg-purple-50', text: 'text-purple-700', icon: Sofa,       bar: 'bg-purple-500' },
   Galley:      { bg: 'bg-green-50',  text: 'text-green-700',  icon: ChefHat,    bar: 'bg-green-500' },
   Safety:      { bg: 'bg-red-50',    text: 'text-red-700',    icon: Shield,     bar: 'bg-red-500' },
+  Crew:        { bg: 'bg-cyan-50',   text: 'text-cyan-700',   icon: Users,      bar: 'bg-cyan-500' },
   General:     { bg: 'bg-gray-50',   text: 'text-gray-700',   icon: Package,    bar: 'bg-gray-400' },
 };
 
@@ -61,6 +62,7 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
 
+  const [crewMembers, setCrewMembers]   = useState<any[]>([]);
   const [editingKey, setEditingKey]     = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
 
@@ -75,7 +77,7 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
     if (!currentUser || !companyId) return;
     setLoading(true);
     try {
-      const [vesselsData, budgetsRes, expensesRes] = await Promise.all([
+      const [vesselsData, budgetsRes, expensesRes, crewRes] = await Promise.all([
         fetchByCompany('vessels', companyId, 'name', true),
         supabase.from('vessel_budgets').select('*')
           .eq('company_id', companyId)
@@ -87,10 +89,14 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
           .lt('expense_date', selectedMonth === 12
             ? `${selectedYear + 1}-01-01`
             : `${selectedYear}-${String(selectedMonth + 1).padStart(2,'0')}-01`),
+        supabase.from('crew_members').select('vessel_id, monthly_salary')
+          .eq('company_id', companyId)
+          .eq('status', 'active'),
       ]);
       setVessels(vesselsData.map((v: any) => ({ id: v.id, name: v.name, photo_url: v.photo_url || null })));
       setBudgets(budgetsRes.data || []);
       setExpenses(expensesRes.data || []);
+      setCrewMembers(crewRes.data || []);
     } catch { showToast('Error loading budget data', 'error'); }
     finally { setLoading(false); }
   };
@@ -98,10 +104,16 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
   const getBudget = (vesselId: string, dept: string) =>
     budgets.find(b => b.vessel_id === vesselId && b.department === dept)?.budget_amount || 0;
 
+  const getCrewSalary = (vesselId: string) =>
+    crewMembers.filter(c => c.vessel_id === vesselId).reduce((s, c) => s + Number(c.monthly_salary || 0), 0);
+
   const getSpent = (vesselId: string, dept: string) => {
     const vesselExpenses = expenses.filter(e => e.vessel_id === vesselId);
-    if (dept === 'Total') return vesselExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-    return vesselExpenses.filter(e => (e.department || 'General') === dept).reduce((s, e) => s + Number(e.amount || 0), 0);
+    if (dept === 'Crew') return getCrewSalary(vesselId);
+    const expTotal = vesselExpenses.filter(e => dept === 'Total' || (e.department || 'General') === dept)
+      .reduce((s, e) => s + Number(e.amount || 0), 0);
+    if (dept === 'Total') return expTotal + getCrewSalary(vesselId);
+    return expTotal;
   };
 
   const saveBudget = async (vesselId: string, dept: string, amount: number) => {

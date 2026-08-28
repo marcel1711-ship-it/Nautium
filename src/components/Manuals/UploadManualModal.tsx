@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, FileText, ClipboardList, Users, Ship } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
@@ -17,11 +17,19 @@ interface EquipmentOption { id: string; name: string; vessel_id: string; }
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
+const UPLOAD_CATEGORIES = [
+  { key: 'Manuals',                icon: FileText,      label: 'Manuals',           labelEs: 'Manuales' },
+  { key: 'Clearances',             icon: ClipboardList, label: 'Clearances',        labelEs: 'Despachos' },
+  { key: 'Crew & Guest',           icon: Users,         label: 'Crew & Guest',      labelEs: 'Tripulación e Invitados' },
+  { key: 'Vessel Documentation',   icon: Ship,          label: 'Vessel Docs',       labelEs: 'Docs del Barco' },
+];
+
 export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, onSaved }) => {
   const { currentUser, selectedVesselId } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('Manuals');
   const [description, setDescription] = useState('');
   const [vesselId, setVesselId] = useState(selectedVesselId || '');
   const [equipmentId, setEquipmentId] = useState('');
@@ -108,6 +116,7 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
         vessel_id: vesselId,
         company_id: currentUser.company_id || null,
         equipment_id: equipmentId || null,
+        category,
         title,
         description,
         file_name: file.name,
@@ -150,6 +159,32 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
               placeholder="e.g., MTU Engine Operation Manual"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('manuals.category')} *</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {UPLOAD_CATEGORIES.map(cat => {
+                const Icon = cat.icon;
+                const isActive = category === cat.key;
+                const isEs = t('manuals.category') === 'Categoría';
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => setCategory(cat.key)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                      isActive
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{isEs ? cat.labelEs : cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>

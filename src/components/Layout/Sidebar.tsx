@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
-  Settings, History, FileText, Boxes, Fuel, DollarSign,
+  Settings, History, FileText, FolderOpen, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
   ShoppingCart, Compass,
 } from 'lucide-react';
@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
   { id: 'compliance',             labelKey: 'nav.compliance',            icon: ShieldCheck,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   // ── Contractors — fleet_manager / customer_admin primario, captain en More ──
   { id: 'contractors',            labelKey: 'nav.contractors',           icon: Building2,       roles: ['customer_admin', 'fleet_manager', 'captain'] },
-  { id: 'manuals',                labelKey: 'nav.manuals',               icon: FileText,        roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
+  { id: 'manuals',                labelKey: 'nav.manuals',               icon: FolderOpen,      roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'settings',               labelKey: 'nav.settings',              icon: Settings,        roles: [...FULL_ACCESS_ROLES, ...FLEET_ROLES, ...CREW_ROLES] },
 ];
 

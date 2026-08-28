@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink } from 'lucide-react';
+import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
@@ -18,6 +18,21 @@ interface EquipmentOption { id: string; name: string; vessel_id: string; }
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
+const CATEGORIES = [
+  { key: 'all',              labelKey: 'manuals.allCategories', icon: FolderOpen,    color: 'blue' },
+  { key: 'Manuals',          labelKey: 'manuals.catManuals',    icon: FileText,      color: 'blue' },
+  { key: 'Clearances',       labelKey: 'manuals.catClearances', icon: ClipboardList, color: 'amber' },
+  { key: 'Crew & Guest',     labelKey: 'manuals.catCrewGuest',  icon: Users,         color: 'cyan' },
+  { key: 'Vessel Documentation', labelKey: 'manuals.catVesselDocs', icon: ShipIcon,  color: 'emerald' },
+] as const;
+
+const CAT_COLORS: Record<string, string> = {
+  Manuals: 'bg-blue-100 text-blue-700',
+  Clearances: 'bg-amber-100 text-amber-700',
+  'Crew & Guest': 'bg-cyan-100 text-cyan-700',
+  'Vessel Documentation': 'bg-emerald-100 text-emerald-700',
+};
+
 const FILE_TYPE_COLORS: Record<string, string> = {
   pdf: 'bg-red-100 text-red-700',
   doc: 'bg-blue-100 text-blue-700',
@@ -33,6 +48,7 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
   const { t } = useLanguage();
   const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterVessel, setFilterVessel] = useState<string>('all');
   const [filterEquipment, setFilterEquipment] = useState<string>('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -97,6 +113,7 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
   const getFilteredManuals = () => {
     let filtered = manuals;
 
+    if (filterCategory !== 'all') filtered = filtered.filter(m => m.category === filterCategory);
     if (filterVessel !== 'all') filtered = filtered.filter(m => m.vessel_id === filterVessel);
     if (filterEquipment !== 'all') {
       filtered = filtered.filter(m => m.equipment_id === filterEquipment);
@@ -158,6 +175,34 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
             {manuals.filter(m => m.equipment_id).length}
           </p>
         </div>
+      </div>
+
+      {/* Category tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {CATEGORIES.map(cat => {
+          const Icon = cat.icon;
+          const isActive = filterCategory === cat.key;
+          const count = cat.key === 'all' ? manuals.length : manuals.filter(m => m.category === cat.key).length;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setFilterCategory(cat.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all border ${
+                isActive
+                  ? 'bg-gray-900 text-white border-gray-900 shadow-lg'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {t(cat.labelKey)}
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-7">
@@ -243,6 +288,9 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
               const ext = getFileExt(manual.file_name);
               const extColor = FILE_TYPE_COLORS[ext] || 'bg-gray-100 text-gray-700';
 
+              const category = manual.category || 'Manuals';
+              const catColor = CAT_COLORS[category] || 'bg-gray-100 text-gray-700';
+
               return (
                 <div
                   key={manual.id}
@@ -254,7 +302,10 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 leading-tight">{manual.title}</h3>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${catColor}`}>
+                          {category}
+                        </span>
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide ${extColor}`}>
                           {ext}
                         </span>

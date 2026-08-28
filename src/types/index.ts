@@ -160,6 +160,7 @@ export interface MaintenanceManual {
   vessel_id: string;
   company_id: string;
   equipment_id?: string;
+  category?: string;
   title: string;
   description?: string;
   file_url: string;

@@ -29,6 +29,14 @@ async function getEdgeHeaders(): Promise<Record<string, string>> {
     } catch { /* ignore */ }
   }
 
+  if (!token) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      token = data.session?.access_token ?? null;
+      if (token) cachedToken = token;
+    } catch { /* ignore */ }
+  }
+
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token ?? SUPABASE_ANON_KEY}`,
@@ -41,8 +49,13 @@ async function edgeFetch(body: Record<string, any>): Promise<any> {
   let res = await fetch(EDGE_URL, { method: 'POST', headers, body: JSON.stringify(body) });
 
   if (res.status === 401 || res.status === 403) {
-    await new Promise(r => setTimeout(r, 500));
     cachedToken = null;
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session) {
+        cachedToken = data.session.access_token;
+      }
+    } catch { /* ignore */ }
     headers = await getEdgeHeaders();
     res = await fetch(EDGE_URL, { method: 'POST', headers, body: JSON.stringify(body) });
   }

@@ -4,7 +4,7 @@ import {
   Wrench, Settings, Anchor, Zap, Droplets, Wind,
   Shield, Boxes, MoreHorizontal, Edit2, Trash2,
   X, AlertCircle, FileText, CheckCircle,
-  Download, Upload, FileDown,
+  Download, Upload, FileDown, Camera, ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -454,6 +454,13 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                           className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() => setExpandedId(isExpanded ? null : item.id)}
                         >
+                          {item.photo_url ? (
+                            <img src={item.photo_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                              <ImageIcon className="w-4 h-4 text-gray-300" />
+                            </div>
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3">
                               <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
@@ -500,6 +507,12 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                         {/* Expanded detail */}
                         {isExpanded && (
                           <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
+                            {item.photo_url && (
+                              <div className="mb-4">
+                                <img src={item.photo_url} alt={item.name}
+                                  className="w-full max-w-xs h-48 object-cover rounded-xl border border-gray-200 shadow-sm" />
+                              </div>
+                            )}
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                               {item.manufacturer && (
                                 <div>
@@ -611,6 +624,9 @@ const EquipmentModal: React.FC<{
   const [saving, setSaving] = useState(false);
   const [typeInput, setTypeInput] = useState(item?.type || '');
   const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(item?.photo_url || null);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     name:              item?.name || '',
@@ -625,6 +641,16 @@ const EquipmentModal: React.FC<{
     vessel_id:         item?.vessel_id || (selectedVesselId && selectedVesselId !== 'all' ? selectedVesselId : (vessels.length === 1 ? vessels[0].id : '')),
   });
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast('Photo must be under 5MB', 'warning'); return; }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const filteredTypes = EQUIPMENT_TYPES.filter(t =>
     t.toLowerCase().includes(typeInput.toLowerCase())
   );
@@ -634,6 +660,16 @@ const EquipmentModal: React.FC<{
     if (!currentUser || !form.name || !form.vessel_id) return;
     setSaving(true);
     try {
+      let photo_url = item?.photo_url || null;
+      if (photoFile) {
+        const ext = photoFile.name.split('.').pop();
+        const path = `equipment/${form.vessel_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('task-photos').upload(path, photoFile, { upsert: true });
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(path);
+          photo_url = urlData.publicUrl;
+        }
+      }
       const payload = {
         vessel_id:         form.vessel_id,
         company_id:        companyId,
@@ -646,6 +682,7 @@ const EquipmentModal: React.FC<{
         location_on_vessel:form.location_on_vessel || null,
         department:        form.department,
         notes:             form.notes || null,
+        photo_url,
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);
@@ -750,6 +787,32 @@ const EquipmentModal: React.FC<{
               onChange={e => setForm({ ...form, location_on_vessel: e.target.value })}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="e.g., Engine Room Deck 2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Photo</label>
+            <div className="flex items-center gap-4">
+              {photoPreview ? (
+                <div className="relative group">
+                  <img src={photoPreview} alt="Equipment" className="w-24 h-24 rounded-xl object-cover border border-gray-200" />
+                  <button type="button"
+                    onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => photoInputRef.current?.click()}
+                  className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer">
+                  <Camera className="w-5 h-5 text-gray-400" />
+                  <span className="text-[10px] text-gray-400 font-medium">Add Photo</span>
+                </button>
+              )}
+              {photoPreview && (
+                <button type="button" onClick={() => photoInputRef.current?.click()}
+                  className="text-xs text-blue-600 font-medium hover:underline">Change photo</button>
+              )}
+              <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{t('equipment.notes')}</label>

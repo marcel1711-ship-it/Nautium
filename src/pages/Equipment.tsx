@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, Search, Filter, ChevronDown, ChevronUp,
   Wrench, Settings, Anchor, Zap, Droplets, Wind,
@@ -92,7 +92,34 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Cost tracking per equipment
-  const [costMap, setCostMap] = useState<Record<string, { parts: number; service: number; count: number }>>({});
+  const [historyRaw, setHistoryRaw] = useState<any[]>([]);
+  const [costPeriod, setCostPeriod] = useState<'this_year' | 'last_year' | 'all'>('this_year');
+
+  const costMap = useMemo(() => {
+    const now = new Date();
+    const thisYearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1).toISOString().slice(0, 10);
+    const lastYearEnd = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+
+    const filtered = historyRaw.filter(h => {
+      if (!h.equipment_id || !h.completion_date) return false;
+      if (costPeriod === 'this_year') return h.completion_date >= thisYearStart;
+      if (costPeriod === 'last_year') return h.completion_date >= lastYearStart && h.completion_date < lastYearEnd;
+      return true;
+    });
+
+    const cm: Record<string, { parts: number; service: number; count: number }> = {};
+    for (const h of filtered) {
+      if (!cm[h.equipment_id]) cm[h.equipment_id] = { parts: 0, service: 0, count: 0 };
+      cm[h.equipment_id].count++;
+      cm[h.equipment_id].service += Number(h.external_service_cost || 0);
+      const parts: any[] = h.parts_used || [];
+      for (const p of parts) {
+        cm[h.equipment_id].parts += Number(p.unit_cost || 0) * Number(p.quantity || 0);
+      }
+    }
+    return cm;
+  }, [historyRaw, costPeriod]);
 
   // Import state
   const [importing, setImporting]           = useState(false);
@@ -128,19 +155,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       ? equipmentData.filter((e: any) => e.vessel_id === selectedVesselId)
       : equipmentData;
     setEquipment(filtered);
-
-    const cm: Record<string, { parts: number; service: number; count: number }> = {};
-    for (const h of historyData) {
-      if (!h.equipment_id) continue;
-      if (!cm[h.equipment_id]) cm[h.equipment_id] = { parts: 0, service: 0, count: 0 };
-      cm[h.equipment_id].count++;
-      cm[h.equipment_id].service += Number(h.external_service_cost || 0);
-      const parts: any[] = h.parts_used || [];
-      for (const p of parts) {
-        cm[h.equipment_id].parts += Number(p.unit_cost || 0) * Number(p.quantity || 0);
-      }
-    }
-    setCostMap(cm);
+    setHistoryRaw(historyData);
     setLoading(false);
   };
 
@@ -576,24 +591,37 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                                 <p className="text-sm text-gray-700 leading-relaxed">{item.notes}</p>
                               </div>
                             )}
-                            {costMap[item.id] && (
+                            {historyRaw.some(h => h.equipment_id === item.id) && (
                               <div className="mb-4 p-3 bg-white border border-gray-200 rounded-xl">
-                                <p className="text-xs text-gray-500 font-semibold mb-2 uppercase tracking-wide">Maintenance Cost History</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Maintenance Cost History</p>
+                                  <div className="flex gap-1">
+                                    {([['this_year', 'This Year'], ['last_year', 'Last Year'], ['all', 'All Time']] as const).map(([key, label]) => (
+                                      <button
+                                        key={key}
+                                        onClick={() => setCostPeriod(key)}
+                                        className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors ${costPeriod === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                                 <div className="flex gap-6">
                                   <div>
-                                    <p className="text-lg font-bold text-gray-900">${(costMap[item.id].parts + costMap[item.id].service).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                    <p className="text-lg font-bold text-gray-900">${((costMap[item.id]?.parts ?? 0) + (costMap[item.id]?.service ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                     <p className="text-[10px] text-gray-400 font-medium">TOTAL SPENT</p>
                                   </div>
                                   <div>
-                                    <p className="text-sm font-semibold text-blue-600">${costMap[item.id].parts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                    <p className="text-sm font-semibold text-blue-600">${(costMap[item.id]?.parts ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                     <p className="text-[10px] text-gray-400 font-medium">PARTS</p>
                                   </div>
                                   <div>
-                                    <p className="text-sm font-semibold text-orange-600">${costMap[item.id].service.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                    <p className="text-sm font-semibold text-orange-600">${(costMap[item.id]?.service ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                     <p className="text-[10px] text-gray-400 font-medium">EXTERNAL SERVICE</p>
                                   </div>
                                   <div>
-                                    <p className="text-sm font-semibold text-gray-600">{costMap[item.id].count}</p>
+                                    <p className="text-sm font-semibold text-gray-600">{costMap[item.id]?.count ?? 0}</p>
                                     <p className="text-[10px] text-gray-400 font-medium">COMPLETIONS</p>
                                   </div>
                                 </div>

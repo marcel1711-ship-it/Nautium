@@ -106,21 +106,34 @@ export const downloadCSV = (rows: string[][], filename: string): void => {
 
 export const downloadPDF = async (html: string, filename: string): Promise<void> => {
   const html2pdf = (await import('html2pdf.js')).default;
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
   const pdfFilename = filename.replace(/\.html$/i, '.pdf');
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '1100px';
+  iframe.style.height = '900px';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) { document.body.removeChild(iframe); return; }
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  await new Promise(r => setTimeout(r, 300));
+
   await html2pdf().set({
-    margin: 0,
+    margin: [5, 5, 5, 5],
     filename: pdfFilename,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
     pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-  }).from(container).save();
-  document.body.removeChild(container);
+  }).from(doc.body).save();
+
+  document.body.removeChild(iframe);
 };
 
 export const sortTasksByUrgency = (tasks: MaintenanceTask[]): MaintenanceTask[] => {

@@ -104,36 +104,16 @@ export const downloadCSV = (rows: string[][], filename: string): void => {
   URL.revokeObjectURL(url);
 };
 
-export const downloadPDF = async (html: string, filename: string): Promise<void> => {
-  const html2pdf = (await import('html2pdf.js')).default;
-  const pdfFilename = filename.replace(/\.html$/i, '.pdf');
-
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.left = '-10000px';
-  iframe.style.top = '0';
-  iframe.style.width = '1100px';
-  iframe.style.height = '900px';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) { document.body.removeChild(iframe); return; }
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  await new Promise(r => setTimeout(r, 300));
-
-  await html2pdf().set({
-    margin: [5, 5, 5, 5],
-    filename: pdfFilename,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-  }).from(doc.body).save();
-
-  document.body.removeChild(iframe);
+export const downloadHTML = (html: string, filename: string): void => {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 export const sortTasksByUrgency = (tasks: MaintenanceTask[]): MaintenanceTask[] => {

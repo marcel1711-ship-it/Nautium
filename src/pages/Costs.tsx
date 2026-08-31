@@ -10,7 +10,7 @@ import { supabase, fetchByCompany, dbInsert, dbDelete } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
-import { downloadPDF } from '../utils/helpers';
+import { downloadHTML } from '../utils/helpers';
 import { useToast } from '../components/UI/Toast';
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
@@ -389,7 +389,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       <div class="footer">Nautium — Cost Report — ${dateLabel}</div>
     </body></html>`;
 
-    downloadPDF(html, `cost-report-${dateStr}.pdf`);
+    downloadHTML(html, `cost-report-${dateStr}.html`);
   };
 
   const handleExportInventoryPDF = () => {
@@ -418,7 +418,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       <div class="footer">Nautium — Inventory Value Report — ${dateLabel}</div>
     </body></html>`;
 
-    downloadPDF(html, `inventory-value-${filterDepartment}-${dateStr}.pdf`);
+    downloadHTML(html, `inventory-value-${filterDepartment}-${dateStr}.html`);
   };
 
   return (

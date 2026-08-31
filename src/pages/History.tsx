@@ -3,7 +3,7 @@ import { History as HistoryIcon, Search, CheckCircle, Calendar, User, Filter, Ch
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
-import { formatDate, downloadCSV, downloadPDF } from '../utils/helpers';
+import { formatDate, downloadCSV, downloadHTML } from '../utils/helpers';
 import { MaintenanceHistory } from '../types';
 import { Pagination } from '../components/UI/Pagination';
 
@@ -255,7 +255,7 @@ export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
 </body>
 </html>`;
 
-    downloadPDF(html, `maintenance-history-${now.toISOString().slice(0, 10)}.pdf`);
+    downloadHTML(html, `maintenance-history-${now.toISOString().slice(0, 10)}.html`);
   };
 
   const openLightbox = (photos: string[], index: number) => setLightbox({ photos, index });

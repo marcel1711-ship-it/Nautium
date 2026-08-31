@@ -26,7 +26,7 @@ import { AddResourceModal, NewResourceData } from '../components/Fuel/AddResourc
 import { EditResourceModal } from '../components/Fuel/EditResourceModal';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
-import { downloadPDF } from '../utils/helpers';
+import { downloadHTML } from '../utils/helpers';
 
 interface FuelProps {
   onNavigate: (page: string, params?: any) => void;
@@ -411,7 +411,7 @@ ${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alert
 <div class="footer">Nautium &mdash; Fuel &amp; Consumables Report &mdash; ${dateStr}</div>
 </body></html>`;
 
-    downloadPDF(html, `fuel-report-${now.toISOString().slice(0, 10)}.pdf`);
+    downloadHTML(html, `fuel-report-${now.toISOString().slice(0, 10)}.html`);
   };
 
   return (

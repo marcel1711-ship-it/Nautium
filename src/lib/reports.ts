@@ -1,5 +1,5 @@
 import { MaintenanceTask, InventoryItem } from '../types';
-import { calculateDaysUntilDue, isLowStock, downloadPDF } from '../utils/helpers';
+import { calculateDaysUntilDue, isLowStock, downloadHTML } from '../utils/helpers';
 
 interface VesselReport {
   vesselName: string;
@@ -419,5 +419,5 @@ ${expiredCerts.length > 0 ? `
 
 export function downloadReport(html: string, vesselName: string) {
   const now = new Date();
-  downloadPDF(html, `${vesselName.replace(/\s+/g, '-')}-report-${now.toISOString().slice(0, 10)}.pdf`);
+  downloadHTML(html, `${vesselName.replace(/\s+/g, '-')}-report-${now.toISOString().slice(0, 10)}.html`);
 }

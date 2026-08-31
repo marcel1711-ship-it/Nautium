@@ -9,7 +9,6 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, dbInsert, dbDelete } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
-import { downloadCSV } from '../utils/helpers';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
 
@@ -328,23 +327,108 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
 
   const dateStr = new Date().toISOString().slice(0, 10);
 
-  const handleExportPeriodCSV = () => {
-    const rows: string[][] = [['Vessel', 'Category', 'Description', 'Department', 'Date', 'Amount', 'Currency']];
-    for (const r of filteredOpExpenses) rows.push([getVesselName(r.vessel_id), 'Operational', r.description || r.category, r.department || 'General', r.expense_date, String(r.amount), r.currency]);
-    if (!isDeptLocked) {
-      for (const r of fuelCosts) rows.push([getVesselName(r.vessel_id), 'Fuel', r.resource_name, 'Engineering', r.date, String(r.total_cost), r.currency]);
-      for (const r of serviceCosts) rows.push([getVesselName(r.vessel_id), 'External Service', r.task_title, 'Engineering', r.date, String(r.amount), 'USD']);
-    }
-    for (const r of sparePartCosts) rows.push([getVesselName(r.vessel_id), 'Spare Parts', `${r.name} × ${r.quantity} (${r.task_title})`, '', r.date, String(r.total), 'USD']);
-    downloadCSV(rows, `costs-${departmentFilter || 'all'}-${dateStr}.csv`);
+  const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const downloadHTML = (html: string, filename: string) => {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  const handleExportInventoryCSV = () => {
-    const rows: string[][] = [['Name', 'Type', 'Department', 'Vessel', 'Stock', 'Unit', 'Unit Cost (USD)', 'Total Value (USD)']];
-    [...filteredInventory].sort((a, b) => b.total_value - a.total_value).forEach(i =>
-      rows.push([i.name, i.type, i.department, i.vessel_name, String(i.current_stock), i.unit_of_measure, String(i.unit_cost), String(i.total_value)])
-    );
-    downloadCSV(rows, `inventory-value-${filterDepartment}-${dateStr}.csv`);
+  const reportStyles = `
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; color:#1a1a1a; background:#fff; font-size:12px; }
+    .header { background:#1e3a5f; color:#fff; padding:28px 32px 24px; }
+    .header h1 { font-size:22px; font-weight:700; margin-bottom:4px; }
+    .header p { font-size:12px; opacity:0.75; }
+    .meta { display:flex; gap:32px; padding:14px 32px; background:#f4f7fa; border-bottom:1px solid #dde3eb; flex-wrap:wrap; }
+    .meta-item { display:flex; flex-direction:column; gap:2px; }
+    .meta-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:#6b7280; }
+    .meta-value { font-size:13px; font-weight:600; color:#1a1a1a; }
+    .summary { display:flex; gap:16px; padding:16px 32px; }
+    .summary-card { flex:1; padding:12px 16px; border-radius:8px; border:1px solid #e5e7eb; }
+    .summary-card .num { font-size:24px; font-weight:700; color:#1d4ed8; }
+    .summary-card .lbl { font-size:11px; color:#6b7280; margin-top:2px; }
+    .table-wrap { padding:8px 32px 32px; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    th { background:#f8fafc; text-align:left; padding:10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:#4b5563; border-bottom:2px solid #e5e7eb; }
+    td { padding:9px 10px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+    td.amount { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+    .footer { margin-top:24px; padding:12px 32px; border-top:1px solid #e5e7eb; font-size:10px; color:#9ca3af; text-align:center; }
+    @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+  `;
+
+  const handleExportPeriodPDF = () => {
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+    const timeLabel = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const vesselLabel = selectedVessel !== 'all' ? getVesselName(selectedVessel) : 'All Vessels';
+
+    const allRows: { vessel: string; category: string; description: string; department: string; date: string; amount: number; currency: string }[] = [];
+    for (const r of filteredOpExpenses) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Operational', description: r.description || r.category, department: r.department || 'General', date: r.expense_date, amount: r.amount, currency: r.currency });
+    if (!isDeptLocked) {
+      for (const r of fuelCosts) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Fuel', description: r.resource_name, department: 'Engineering', date: r.date, amount: r.total_cost, currency: r.currency });
+      for (const r of serviceCosts) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'External Service', description: r.task_title, department: 'Engineering', date: r.date, amount: r.amount, currency: 'USD' });
+    }
+    for (const r of sparePartCosts) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Spare Parts', description: `${r.name} × ${r.quantity} (${r.task_title})`, department: '', date: r.date, amount: r.total, currency: 'USD' });
+
+    const rows = allRows.map(r => `<tr><td>${r.vessel}</td><td>${r.category}</td><td>${r.description}</td><td>${r.department}</td><td>${r.date}</td><td class="amount">${fmt(r.amount)}</td><td>${r.currency}</td></tr>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Cost Report</title><style>${reportStyles}</style></head><body>
+      <div class="header"><h1>Cost Report</h1><p>Generated on ${dateLabel} at ${timeLabel}</p></div>
+      <div class="meta">
+        <div class="meta-item"><span class="meta-label">Vessel</span><span class="meta-value">${vesselLabel}</span></div>
+        <div class="meta-item"><span class="meta-label">Department</span><span class="meta-value">${departmentFilter || 'All'}</span></div>
+      </div>
+      <div class="summary">
+        <div class="summary-card"><div class="num">${fmt(grandTotal)}</div><div class="lbl">Total Costs</div></div>
+        <div class="summary-card"><div class="num">${fmt(totalOp)}</div><div class="lbl">Operational</div></div>
+        <div class="summary-card"><div class="num">${fmt(totalFuel)}</div><div class="lbl">Fuel</div></div>
+        <div class="summary-card"><div class="num">${fmt(totalParts)}</div><div class="lbl">Spare Parts</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Vessel</th><th>Category</th><th>Description</th><th>Department</th><th>Date</th><th style="text-align:right">Amount</th><th>Currency</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <div class="footer">Nautium — Cost Report — ${dateLabel}</div>
+    </body></html>`;
+
+    downloadHTML(html, `cost-report-${dateStr}.html`);
+  };
+
+  const handleExportInventoryPDF = () => {
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+    const timeLabel = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const sorted = [...filteredInventory].sort((a, b) => b.total_value - a.total_value);
+
+    const rows = sorted.map(i => `<tr><td>${i.name}</td><td>${i.type}</td><td>${i.department}</td><td>${i.vessel_name}</td><td class="amount">${i.current_stock}</td><td>${i.unit_of_measure}</td><td class="amount">${fmt(i.unit_cost)}</td><td class="amount">${fmt(i.total_value)}</td></tr>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Inventory Value Report</title><style>${reportStyles}</style></head><body>
+      <div class="header"><h1>Inventory Value Report</h1><p>Generated on ${dateLabel} at ${timeLabel}</p></div>
+      <div class="meta">
+        <div class="meta-item"><span class="meta-label">Department</span><span class="meta-value">${filterDepartment === 'all' ? 'All Departments' : filterDepartment}</span></div>
+        <div class="meta-item"><span class="meta-label">Items</span><span class="meta-value">${sorted.length}</span></div>
+      </div>
+      <div class="summary">
+        <div class="summary-card"><div class="num">$${fmt(totalInventoryValue)}</div><div class="lbl">Total Value</div></div>
+        <div class="summary-card"><div class="num">$${fmt(sparesValue)}</div><div class="lbl">Spare Parts</div></div>
+        <div class="summary-card"><div class="num">$${fmt(consumablesValue)}</div><div class="lbl">Consumables</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Department</th><th>Vessel</th><th style="text-align:right">Stock</th><th>Unit</th><th style="text-align:right">Unit Cost</th><th style="text-align:right">Total Value</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <div class="footer">Nautium — Inventory Value Report — ${dateLabel}</div>
+    </body></html>`;
+
+    downloadHTML(html, `inventory-value-${filterDepartment}-${dateStr}.html`);
   };
 
   return (
@@ -368,13 +452,13 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
         </div>
         <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">
           {tab === 'period' && grandTotal > 0 && (
-            <button onClick={handleExportPeriodCSV} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
-              <FileDown className="w-4 h-4" />CSV
+            <button onClick={handleExportPeriodPDF} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
+              <FileDown className="w-4 h-4" />{t('common.exportPDF')}
             </button>
           )}
           {tab === 'inventory' && filteredInventory.length > 0 && (
-            <button onClick={handleExportInventoryCSV} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
-              <FileDown className="w-4 h-4" />CSV {filterDepartment !== 'all' && `— ${filterDepartment}`}
+            <button onClick={handleExportInventoryPDF} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
+              <FileDown className="w-4 h-4" />{t('common.exportPDF')} {filterDepartment !== 'all' && `— ${filterDepartment}`}
             </button>
           )}
           {tab === 'period' && (

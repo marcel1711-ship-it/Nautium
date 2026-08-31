@@ -220,39 +220,83 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
     return acc;
   }, {} as Record<string, number>);
 
-  // ── EXPORT CSV ────────────────────────────────────────────────────────────
-  const handleExportCSV = () => {
-    const SEP = ',';
-    const headers = [
-      'name', 'part_number', 'category', 'type', 'department',
-      'vessel_name', 'current_stock', 'minimum_stock', 'unit_of_measure',
-      'unit_cost', 'total_value', 'storage_location', 'status', 'notes',
-    ];
-    const escape = (v: string | number | null | undefined) => {
-      const s = v === null || v === undefined ? '' : String(v);
-      return s.includes(SEP) || s.includes('"') || s.includes('\n')
-        ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const rows = filtered.map(item => {
+  // ── EXPORT PDF (HTML) ─────────────────────────────────────────────────────
+  const handleExportPDF = () => {
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeLabel = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const lowStockCount = filtered.filter(i => isLowStock(i)).length;
+    const totalValue = filtered.reduce((s, i) => s + (i.unit_cost ? i.unit_cost * i.current_stock : 0), 0);
+
+    const tableRows = filtered.map(item => {
       const vesselName = getVesselName(item.vessel_id);
       const dept = (item as any).department || 'Engineering';
-      const totalValue = item.unit_cost ? (item.unit_cost * item.current_stock).toFixed(2) : '';
-      const status = isLowStock(item) ? 'Low Stock' : 'In Stock';
-      return [
-        item.name, item.part_number, item.category, item.type, dept,
-        vesselName, item.current_stock, item.minimum_stock, item.unit_of_measure,
-        item.unit_cost ?? '', totalValue, item.storage_location || '', status, item.notes || '',
-      ].map(escape).join(SEP);
-    });
-    const csv = '\uFEFF' + [headers.join(SEP), ...rows].join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const val = item.unit_cost ? item.unit_cost * item.current_stock : 0;
+      const low = isLowStock(item);
+      return `<tr${low ? ' style="background:#fffbeb"' : ''}>
+        <td><strong>${item.name}</strong>${item.part_number ? `<br/><small>${item.part_number}</small>` : ''}</td>
+        <td>${item.category}</td><td>${dept}</td><td>${vesselName}</td>
+        <td class="amount"${low ? ' style="color:#b45309;font-weight:700"' : ''}>${item.current_stock}${low ? ' ⚠' : ''}</td>
+        <td>${item.unit_of_measure}</td>
+        <td class="amount">${item.unit_cost ? fmt(item.unit_cost) : '—'}</td>
+        <td class="amount">${val > 0 ? fmt(val) : '—'}</td>
+        <td>${item.storage_location || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Inventory Report</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;font-size:11px}
+      .header{background:#1e3a5f;color:#fff;padding:28px 32px 24px}
+      .header h1{font-size:22px;font-weight:700;margin-bottom:4px}
+      .header p{font-size:12px;opacity:.75}
+      .meta{display:flex;gap:32px;padding:14px 32px;background:#f4f7fa;border-bottom:1px solid #dde3eb;flex-wrap:wrap}
+      .meta-item{display:flex;flex-direction:column;gap:2px}
+      .meta-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6b7280}
+      .meta-value{font-size:13px;font-weight:600;color:#1a1a1a}
+      .summary{display:flex;gap:16px;padding:16px 32px}
+      .summary-card{flex:1;padding:12px 16px;border-radius:8px;border:1px solid #e5e7eb}
+      .summary-card .num{font-size:24px;font-weight:700;color:#1d4ed8}
+      .summary-card.warn .num{color:#d97706}
+      .summary-card .lbl{font-size:11px;color:#6b7280;margin-top:2px}
+      .table-wrap{padding:8px 32px 32px}
+      table{width:100%;border-collapse:collapse;margin-top:8px}
+      th{background:#f8fafc;text-align:left;padding:8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#4b5563;border-bottom:2px solid #e5e7eb}
+      td{padding:7px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+      td small{color:#6b7280;font-size:10px}
+      td.amount,th.amount{text-align:right;font-variant-numeric:tabular-nums}
+      .footer{margin-top:24px;padding:12px 32px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center}
+      @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body>
+      <div class="header"><h1>Inventory Report</h1><p>Generated on ${dateLabel} at ${timeLabel}</p></div>
+      <div class="meta">
+        <div class="meta-item"><span class="meta-label">Department</span><span class="meta-value">${filterDepartment === 'all' ? 'All Departments' : filterDepartment}</span></div>
+        <div class="meta-item"><span class="meta-label">Items</span><span class="meta-value">${filtered.length}</span></div>
+      </div>
+      <div class="summary">
+        <div class="summary-card"><div class="num">${filtered.length}</div><div class="lbl">Total Items</div></div>
+        <div class="summary-card"><div class="num">$${fmt(totalValue)}</div><div class="lbl">Total Value</div></div>
+        <div class="summary-card${lowStockCount > 0 ? ' warn' : ''}"><div class="num">${lowStockCount}</div><div class="lbl">Low Stock</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Category</th><th>Dept</th><th>Vessel</th><th class="amount">Stock</th><th>Unit</th><th class="amount">Unit Cost</th><th class="amount">Total</th><th>Location</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>
+      <div class="footer">Nautium — Inventory Report — ${dateLabel}</div>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const now = new Date();
     a.href = url;
-    a.download = `inventory-${filterDepartment}-${now.toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+    a.download = `inventory-report-${filterDepartment}-${now.toISOString().slice(0, 10)}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -270,9 +314,9 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {activeTab === 'items' && (
-            <button onClick={handleExportCSV} disabled={filtered.length === 0}
+            <button onClick={handleExportPDF} disabled={filtered.length === 0}
               className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              <FileDown className="w-5 h-5" />Export CSV
+              <FileDown className="w-5 h-5" />{t('common.exportPDF')}
             </button>
           )}
           {/* Import and Add only for users who can create */}

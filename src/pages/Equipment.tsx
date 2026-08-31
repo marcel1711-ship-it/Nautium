@@ -257,16 +257,16 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       try {
         await dbInsert('equipment', {
           vessel_id:         selectedVesselId,
-          company_id:        currentUser.company_id,
+          company_id:        companyId || currentUser.company_id,
           name,
           type,
           manufacturer:      manufacturerIdx !== -1 ? cols[manufacturerIdx] || null : null,
           model:             modelIdx !== -1 ? cols[modelIdx] || null : null,
           serial_number:     serialIdx !== -1 ? cols[serialIdx] || null : null,
           installation_date: installIdx !== -1 && cols[installIdx] ? cols[installIdx] : null,
-          location_on_vessel:locationIdx !== -1 ? cols[locationIdx] || null : null,
+          location:          locationIdx !== -1 ? cols[locationIdx] || null : null,
           department:        deptIdx !== -1 ? cols[deptIdx] || 'Engineering' : 'Engineering',
-          notes:             notesIdx !== -1 ? cols[notesIdx] || null : null,
+          description:       notesIdx !== -1 ? cols[notesIdx] || null : null,
         });
         results.success++;
       } catch {
@@ -764,10 +764,9 @@ const EquipmentModal: React.FC<{
         model:             form.model || null,
         serial_number:     form.serial_number || null,
         installation_date: form.installation_date || null,
-        location_on_vessel:form.location_on_vessel || null,
+        location:          form.location_on_vessel || null,
         department:        form.department,
-        notes:             form.notes || null,
-        photo_url,
+        description:       form.notes || null,
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);

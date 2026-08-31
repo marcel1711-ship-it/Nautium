@@ -10,6 +10,7 @@ import { supabase, fetchByCompany, dbInsert, dbDelete } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
+import { downloadPDF } from '../utils/helpers';
 import { useToast } from '../components/UI/Toast';
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
@@ -329,17 +330,6 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
 
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const downloadHTML = (html: string, filename: string) => {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const reportStyles = `
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -399,7 +389,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       <div class="footer">Nautium — Cost Report — ${dateLabel}</div>
     </body></html>`;
 
-    downloadHTML(html, `cost-report-${dateStr}.html`);
+    downloadPDF(html, `cost-report-${dateStr}.pdf`);
   };
 
   const handleExportInventoryPDF = () => {
@@ -428,7 +418,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       <div class="footer">Nautium — Inventory Value Report — ${dateLabel}</div>
     </body></html>`;
 
-    downloadHTML(html, `inventory-value-${filterDepartment}-${dateStr}.html`);
+    downloadPDF(html, `inventory-value-${filterDepartment}-${dateStr}.pdf`);
   };
 
   return (

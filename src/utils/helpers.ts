@@ -104,16 +104,23 @@ export const downloadCSV = (rows: string[][], filename: string): void => {
   URL.revokeObjectURL(url);
 };
 
-export const openPrintWindow = (html: string, filename: string): void => {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export const downloadPDF = async (html: string, filename: string): Promise<void> => {
+  const html2pdf = (await import('html2pdf.js')).default;
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  document.body.appendChild(container);
+  const pdfFilename = filename.replace(/\.html$/i, '.pdf');
+  await html2pdf().set({
+    margin: 0,
+    filename: pdfFilename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+  }).from(container).save();
+  document.body.removeChild(container);
 };
 
 export const sortTasksByUrgency = (tasks: MaintenanceTask[]): MaintenanceTask[] => {

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { demoInventoryItems, demoVessels } from '../data/demoData';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
-import { isLowStock } from '../utils/helpers';
+import { isLowStock, downloadPDF } from '../utils/helpers';
 import { useToast } from '../components/UI/Toast';
 import { AddInventoryModal, NewInventoryData } from '../components/Inventory/AddInventoryModal';
 import { ImportInventoryModal } from '../components/Inventory/ImportInventoryModal';
@@ -288,15 +288,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
       <div class="footer">Nautium — Inventory Report — ${dateLabel}</div>
     </body></html>`;
 
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inventory-report-${filterDepartment}-${now.toISOString().slice(0, 10)}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadPDF(html, `inventory-report-${filterDepartment}-${now.toISOString().slice(0, 10)}.pdf`);
   };
 
   return (

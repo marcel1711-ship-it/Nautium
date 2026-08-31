@@ -4,7 +4,7 @@ import {
   Wrench, Settings, Anchor, Zap, Droplets, Wind,
   Shield, Boxes, MoreHorizontal, Edit2, Trash2,
   X, AlertCircle, FileText, CheckCircle,
-  Download, Upload, FileDown, Camera, ImageIcon,
+  Download, Upload, FileDown, Camera, ImageIcon, Building2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -74,6 +74,8 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const { t } = useLanguage();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const companyId: string | undefined = params?.companyId;
+  const companyName: string | undefined = params?.companyName;
 
   const role = currentUser?.role as UserRole;
   const userDepartment = departmentFilter || getRoleDepartment(role) || null;
@@ -126,7 +128,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const [importResults, setImportResults]   = useState<{ success: number; errors: string[] } | null>(null);
   const [showImportResults, setShowImportResults] = useState(false);
 
-  useEffect(() => { if (currentUser) loadData(); }, [currentUser, selectedVesselId]);
+  useEffect(() => { if (currentUser) loadData(); }, [currentUser, selectedVesselId, companyId]);
 
   const loadData = async () => {
     if (!currentUser) return;
@@ -143,7 +145,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       setLoading(false);
       return;
     }
-    const cid = currentUser.company_id;
+    const cid = companyId || currentUser.company_id;
     if (!cid) { setLoading(false); return; }
     const [vesselsData, equipmentData, historyData] = await Promise.all([
       fetchByCompany('vessels', cid, 'name', true),
@@ -310,11 +312,21 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   return (
     <div className="space-y-6 pt-4">
 
+      {companyId && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => onNavigate('customers')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            <Building2 className="w-4 h-4" />Back to Customers
+          </button>
+          <span className="text-gray-400">/</span>
+          <span className="text-sm font-medium text-gray-900">{companyName || 'Customer'} — Equipment</span>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {t('equipment.title')}
+            {companyId && companyName ? `${companyName} — ${t('equipment.title')}` : t('equipment.title')}
             {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
           </h1>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('equipment.subtitle')}</p>

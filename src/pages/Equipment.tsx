@@ -671,7 +671,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
           item={editingItem}
           vessels={vessels}
           selectedVesselId={selectedVesselId}
-          companyId={currentUser?.company_id || ''}
+          companyId={companyId || currentUser?.company_id || ''}
           onClose={() => { setShowModal(false); setEditingItem(null); }}
           onSaved={() => { setShowModal(false); setEditingItem(null); loadData(); showToast(editingItem ? 'Equipment updated' : 'Equipment added', 'success'); }}
         />
@@ -750,9 +750,14 @@ const EquipmentModal: React.FC<{
           photo_url = urlData.publicUrl;
         }
       }
+      let effectiveCompanyId = companyId;
+      if (!effectiveCompanyId && form.vessel_id) {
+        const { data: v } = await supabase.from('vessels').select('company_id').eq('id', form.vessel_id).single();
+        if (v) effectiveCompanyId = v.company_id;
+      }
       const payload = {
         vessel_id:         form.vessel_id,
-        company_id:        companyId,
+        company_id:        effectiveCompanyId,
         name:              form.name,
         type:              form.type || null,
         manufacturer:      form.manufacturer || null,

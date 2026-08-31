@@ -767,6 +767,7 @@ const EquipmentModal: React.FC<{
         location:          form.location_on_vessel || null,
         department:        form.department,
         description:       form.notes || null,
+        photo_url,
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);

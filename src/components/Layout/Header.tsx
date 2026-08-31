@@ -151,13 +151,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
       setUserVessels(vessels.map(v => ({ id: v.id, name: v.name, type: v.type })));
       return;
     }
-    if (currentUser.role === 'master_admin') { setUserVessels([]); return; }
-
-    // FIX: customer_admin y fleet_manager cargan TODOS los vessels de su company
     const isAdminRole = ['customer_admin', 'fleet_manager'].includes(currentUser.role);
 
     let query = supabase.from('vessels').select('id, name, type');
-    if (isAdminRole && currentUser.company_id) {
+    if (currentUser.role === 'master_admin') {
+      // no filter — master admin sees all vessels
+    } else if (isAdminRole && currentUser.company_id) {
       query = query.eq('company_id', currentUser.company_id);
     } else if (currentUser.vessel_ids.length > 0) {
       query = query.in('id', currentUser.vessel_ids);

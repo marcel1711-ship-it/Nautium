@@ -322,11 +322,39 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       external_service_cost: completionData.external_service_cost ?? null,
     });
 
-    // 2. Actualizar status de la tarea
-    await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
-      status: 'completed',
-      last_completed_date: new Date().toISOString().split('T')[0],
-    });
+    // 2. Actualizar tarea — reschedule si es recurrente
+    const completionDate = completionData.completion_date || new Date().toISOString().split('T')[0];
+    const isRecurring = (selectedTaskObj as any).is_recurring !== false;
+    const intervalDays = (selectedTaskObj as any).custom_interval_days;
+    const frequency = (selectedTaskObj as any).frequency;
+
+    if (isRecurring && (intervalDays || frequency)) {
+      let daysToAdd = intervalDays || 30;
+      if (!intervalDays && frequency) {
+        const freqMap: Record<string, number> = {
+          daily: 1, weekly: 7, monthly: 30, quarterly: 90,
+          semi_annual: 180, annual: 365,
+        };
+        daysToAdd = freqMap[frequency] || 30;
+      }
+      const nextDate = new Date(completionDate);
+      nextDate.setDate(nextDate.getDate() + daysToAdd);
+      const nextDueStr = nextDate.toISOString().split('T')[0];
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const nextStatus = diffDays < 0 ? 'overdue' : diffDays <= 7 ? 'due_soon' : 'upcoming';
+
+      await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
+        status: nextStatus,
+        last_completed_date: completionDate,
+        next_due_date: nextDueStr,
+      });
+    } else {
+      await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
+        status: 'completed',
+        last_completed_date: completionDate,
+      });
+    }
 
     // 3. Descontar stock — UNA sola query antes del loop
     const partsUsed: { inventory_id: string; quantity: number; name: string }[] =

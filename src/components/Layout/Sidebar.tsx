@@ -64,6 +64,7 @@ const FLEET_MANAGER_PRIMARY = [
   'vessels',        // Vessels
   'users-customer', // Users
   'crew',           // Crew Management
+  'guest-list',     // Guest List / Voyages
   'compliance',     // Compliance
   'contractors',    // Preferred Contractors
   'settings',       // Settings — siempre al final

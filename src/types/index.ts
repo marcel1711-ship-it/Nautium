@@ -71,7 +71,33 @@ export interface Equipment {
   location?: string;
   installation_date?: string;
   photo_url?: string;
+  water_toy_id?: string;
   created_at: string;
+}
+
+export type WaterToyType = 'Tender' | 'Jet Ski' | 'SeaBob' | 'Kayak' | 'Paddleboard' | 'Wakeboard' | 'Inflatable' | 'Other';
+export type WaterToyStatus = 'active' | 'in_service' | 'retired';
+
+export interface WaterToy {
+  id: string;
+  vessel_id: string;
+  company_id?: string;
+  name: string;
+  type: WaterToyType;
+  manufacturer?: string;
+  model?: string;
+  year?: number;
+  engine_type?: string;
+  engine_power?: string;
+  capacity?: number;
+  serial_number?: string;
+  value?: number;
+  insurance_info?: string;
+  photo_url?: string;
+  notes?: string;
+  status: WaterToyStatus;
+  created_at: string;
+  water_toy_id?: string;
 }
 
 export interface MaintenanceTask {
@@ -79,6 +105,7 @@ export interface MaintenanceTask {
   vessel_id: string;
   company_id: string;
   equipment_id?: string;
+  water_toy_id?: string;
   title: string;
   description?: string;
   category?: string;

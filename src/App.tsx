@@ -20,6 +20,7 @@ const InventoryDetail = lazy(() => import('./pages/InventoryDetail').then(m => (
 const LocationView = lazy(() => import('./pages/LocationView').then(m => ({ default: m.LocationView })));
 const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
 const Equipment = lazy(() => import('./pages/Equipment').then(m => ({ default: m.Equipment })));
+const WaterToys = lazy(() => import('./pages/WaterToys').then(m => ({ default: m.WaterToys })));
 const Manuals = lazy(() => import('./pages/Manuals').then(m => ({ default: m.Manuals })));
 const Vessels = lazy(() => import('./pages/Vessels').then(m => ({ default: m.Vessels })));
 const Customers = lazy(() => import('./pages/Customers').then(m => ({ default: m.Customers })));
@@ -249,6 +250,9 @@ const AppContent: React.FC = () => {
             departmentFilter={userDepartment ?? undefined}
           />
         );
+
+      case 'water-toys':
+        return <WaterToys onNavigate={handleNavigate} params={pageParams} />;
 
       case 'manuals':
         return <Manuals onNavigate={handleNavigate} />;

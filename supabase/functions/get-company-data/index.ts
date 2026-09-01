@@ -20,6 +20,7 @@ const ALLOWED_TABLES = [
   'operational_expenses',
   'customers',
   'master_admin_notifications',
+  'water_toys',
 ];
 
 Deno.serve(async (req: Request) => {

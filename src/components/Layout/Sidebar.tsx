@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, FolderOpen, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
-  ShoppingCart, Compass,
+  ShoppingCart, Compass, Waves,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
   { id: 'maintenance',            labelKey: 'nav.maintenance',           icon: Wrench,          roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'inventory',              labelKey: 'nav.inventory',             icon: Package,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'equipment',              labelKey: 'nav.equipment',             icon: Boxes,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
+  { id: 'water-toys',             labelKey: 'nav.waterToys',             icon: Waves,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'history',                labelKey: 'nav.history',               icon: History,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'fuel',                   labelKey: 'nav.fuel',                  icon: Fuel,            roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'engineer'] },
   { id: 'procurement',             labelKey: 'nav.procurement',           icon: ShoppingCart,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
@@ -72,6 +73,7 @@ const FLEET_MANAGER_SECONDARY = [
   'maintenance',
   'inventory',
   'equipment',
+  'water-toys',
   'history',
   'fuel',
   'manuals',

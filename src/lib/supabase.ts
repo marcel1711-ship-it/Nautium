@@ -1,4 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  buildCacheKey, getCachedData, setCachedData,
+  addToSyncQueue,
+} from './offlineStore';
 
 export const SUPABASE_URL = 'https://fsxjbgopxxbtidlkkafc.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzeGpiZ29weHhidGlkbGtrYWZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTQ4NDQsImV4cCI6MjA5MzU3MDg0NH0.6EHgsE9jvSyfC9aNDuq4bTOCj3r4qWS-OHlM5fS7-U4';
@@ -63,34 +67,104 @@ async function edgeFetch(body: Record<string, any>): Promise<any> {
   return res.json();
 }
 
+// ── Reads with offline cache ─────────────────────────────────────────────────
+
 export async function fetchByCompany(
   table: string,
   company_id: string,
   order_by?: string,
   ascending = true
 ): Promise<any[]> {
-  const json = await edgeFetch({ action: 'select', table, company_id, filters: order_by ? { order_by, ascending } : undefined });
-  return json.data || [];
+  const cacheKey = buildCacheKey(table, company_id, order_by ? { order_by, ascending: String(ascending) } : undefined);
+
+  if (!navigator.onLine) {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'select', table, company_id, filters: order_by ? { order_by, ascending } : undefined });
+    const data = json.data || [];
+    setCachedData(cacheKey, data);
+    return data;
+  } catch {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
 }
 
+// ── Writes with offline queue ────────────────────────────────────────────────
+
 export async function dbInsert(table: string, data: Record<string, any>): Promise<any> {
-  const json = await edgeFetch({ action: 'insert', table, data });
-  if (json.error) throw new Error(json.error);
-  return json.data;
+  if (!navigator.onLine) {
+    await addToSyncQueue({ action: 'insert', table, payload: { data } });
+    return { ...data, id: `offline-${Date.now()}`, _offline: true };
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'insert', table, data });
+    if (json.error) throw new Error(json.error);
+    return json.data;
+  } catch (err) {
+    if (!navigator.onLine) {
+      await addToSyncQueue({ action: 'insert', table, payload: { data } });
+      return { ...data, id: `offline-${Date.now()}`, _offline: true };
+    }
+    throw err;
+  }
 }
 
 export async function dbUpdate(table: string, id: string, data: Record<string, any>): Promise<any> {
-  const json = await edgeFetch({ action: 'update', table, id, data });
-  if (json.error) throw new Error(json.error);
-  return json.data;
+  if (!navigator.onLine) {
+    await addToSyncQueue({ action: 'update', table, payload: { id, data } });
+    return { ...data, id, _offline: true };
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'update', table, id, data });
+    if (json.error) throw new Error(json.error);
+    return json.data;
+  } catch (err) {
+    if (!navigator.onLine) {
+      await addToSyncQueue({ action: 'update', table, payload: { id, data } });
+      return { ...data, id, _offline: true };
+    }
+    throw err;
+  }
 }
 
 export async function dbDelete(table: string, id: string): Promise<void> {
-  const json = await edgeFetch({ action: 'delete', table, id });
-  if (json.error) throw new Error(json.error);
+  if (!navigator.onLine) {
+    await addToSyncQueue({ action: 'delete', table, payload: { id } });
+    return;
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'delete', table, id });
+    if (json.error) throw new Error(json.error);
+  } catch (err) {
+    if (!navigator.onLine) {
+      await addToSyncQueue({ action: 'delete', table, payload: { id } });
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function dbDeleteWhere(table: string, field: string, value: string): Promise<void> {
-  const json = await edgeFetch({ action: 'delete_where', table, field, value });
-  if (json.error) throw new Error(json.error);
+  if (!navigator.onLine) {
+    await addToSyncQueue({ action: 'delete_where', table, payload: { field, value } });
+    return;
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'delete_where', table, field, value });
+    if (json.error) throw new Error(json.error);
+  } catch (err) {
+    if (!navigator.onLine) {
+      await addToSyncQueue({ action: 'delete_where', table, payload: { field, value } });
+      return;
+    }
+    throw err;
+  }
 }

@@ -7,6 +7,8 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
 import { ToastProvider } from './components/UI/Toast';
+import { OfflineBanner } from './components/OfflineBanner';
+import { initOfflineSync } from './lib/offlineSync';
 import { getRoleDepartment, UserRole } from './types';
 
 const Landing = lazy(() => import('./pages/Landing').then(m => ({ default: m.Landing })));
@@ -76,6 +78,8 @@ const AppContent: React.FC = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const programmaticNav = useRef(false);
+
+  useEffect(() => { initOfflineSync(); }, []);
 
   // ── Derive currentPage from URL ──────────────────────────────────────
   const currentPage = location.pathname.replace(/^\//, '') || 'dashboard';
@@ -345,6 +349,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <OfflineBanner />
       <Sidebar
         currentPage={currentPage}
         onNavigate={handleNavigate}

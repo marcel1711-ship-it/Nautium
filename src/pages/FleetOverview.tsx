@@ -606,13 +606,13 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
       if (v.expiringSoonCerts > 0) items.push({ severity: 'warning', vessel: v.vessel.name, message: `${v.expiringSoonCerts} certificate${v.expiringSoonCerts === 1 ? '' : 's'} expiring within 90 days`, nav: 'compliance', category: 'Compliance' });
     });
     scopedStats.forEach(v => {
-      if (v.criticalOverdueCount > 0) items.push({ severity: 'warning', vessel: v.vessel.name, message: `${v.criticalOverdueCount} high-priority maintenance task${v.criticalOverdueCount === 1 ? '' : 's'} overdue`, nav: 'maintenance', category: 'Maintenance' });
+      if (v.overdueCount > 0) items.push({ severity: v.criticalOverdueCount > 0 ? 'critical' : 'warning', vessel: v.vessel.name, message: `${v.overdueCount} maintenance task${v.overdueCount === 1 ? '' : 's'} overdue`, nav: 'maintenance', category: 'Maintenance' });
     });
     return items;
   }, [scopedStats]);
 
   const hasCriticalBanner = !dismissedBanner && (
-    totals.totalExpiredCerts > 0 || totals.totalCriticalOverdue > 0
+    totals.totalExpiredCerts > 0 || totals.totalOverdue > 0
   );
 
   // Map vessel id → name para mostrar en la card de aprobaciones
@@ -688,12 +688,12 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
                           <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
                         </button>
                       )}
-                      {totals.totalCriticalOverdue > 0 && (
+                      {totals.totalOverdue > 0 && (
                         <button onClick={() => onNavigate('maintenance')}
                           className="flex items-center gap-2 px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-all group">
                           <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0" />
                           <div className="text-left">
-                            <p className="text-sm font-semibold text-gray-900">{totals.totalCriticalOverdue} overdue task{totals.totalCriticalOverdue > 1 ? 's' : ''}</p>
+                            <p className="text-sm font-semibold text-gray-900">{totals.totalOverdue} overdue task{totals.totalOverdue > 1 ? 's' : ''}</p>
                             <p className="text-xs text-amber-600">View maintenance</p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
@@ -737,7 +737,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
             <KpiCard label="Budget used" value={totals.totalBudget > 0 ? `${totals.fleetBudgetUsedPct}%` : '—'} sub={totals.totalBudget > 0 ? getBudgetTone(totals.fleetBudgetUsedPct).label : 'No budget set'} icon={BarChart3} tone={totals.totalBudget === 0 ? 'gray' : totals.fleetBudgetUsedPct > 100 ? 'red' : totals.fleetBudgetUsedPct >= 85 ? 'amber' : 'green'} onClick={() => onNavigate('financials')} />
             <KpiCard label="Expired certs" value={String(totals.totalExpiredCerts)} sub={totals.totalExpiredCerts > 0 ? 'Needs immediate action' : 'None expired'} icon={ShieldAlert} tone={totals.totalExpiredCerts > 0 ? 'red' : 'gray'} onClick={() => onNavigate('compliance')} />
             <KpiCard label="Fleet health" value={`${totals.fleetHealth}%`} sub={getScoreTone(totals.fleetHealth).label} icon={ShieldCheck} tone={totals.fleetHealth >= 85 ? 'green' : totals.fleetHealth >= 70 ? 'amber' : 'red'} />
-            <KpiCard label="Maintenance" value={String(totals.totalCriticalOverdue)} sub={totals.totalCriticalOverdue > 0 ? 'High-priority overdue' : `${totals.totalOpenTasks} open tasks`} icon={Wrench} tone={totals.totalCriticalOverdue > 0 ? 'red' : 'gray'} onClick={() => onNavigate('maintenance')} />
+            <KpiCard label="Maintenance" value={String(totals.totalOverdue)} sub={totals.totalOverdue > 0 ? 'Overdue' : `${totals.totalOpenTasks} open tasks`} icon={Wrench} tone={totals.totalOverdue > 0 ? 'red' : 'gray'} onClick={() => onNavigate('maintenance')} />
           </section>
 
           {/* ── NEEDS ATTENTION ── */}
@@ -903,7 +903,7 @@ const VesselCommandCard: React.FC<{
           <div className="flex items-center gap-1.5">
             <Wrench className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-xs text-gray-500">{stats.openTaskCount} open</span>
-            {stats.criticalOverdueCount > 0 && <span className="text-xs font-semibold text-red-600">{stats.criticalOverdueCount} critical</span>}
+            {stats.overdueCount > 0 && <span className="text-xs font-semibold text-red-600">{stats.overdueCount} overdue</span>}
           </div>
           {stats.lowStockCount > 0 && (
             <div className="flex items-center gap-1.5">

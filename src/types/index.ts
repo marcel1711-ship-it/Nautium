@@ -72,6 +72,7 @@ export interface Equipment {
   installation_date?: string;
   photo_url?: string;
   water_toy_id?: string;
+  equipment_hours?: number;
   created_at: string;
 }
 

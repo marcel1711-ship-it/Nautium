@@ -4,7 +4,7 @@ import {
   Wrench, Settings, Anchor, Zap, Droplets, Wind,
   Shield, Boxes, MoreHorizontal, Edit2, Trash2,
   X, AlertCircle, FileText, CheckCircle,
-  Download, Upload, FileDown, Camera, ImageIcon, Building2,
+  Download, Upload, FileDown, Camera, ImageIcon, Building2, Clock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -521,6 +521,11 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                               {item.location_on_vessel && ` · ${item.location_on_vessel}`}
                             </p>
                           </div>
+                          {(item as any).equipment_hours != null && (item as any).equipment_hours > 0 && (
+                            <span className="text-xs text-blue-600 font-semibold hidden sm:flex items-center gap-1 flex-shrink-0">
+                              <Clock className="w-3 h-3" />{Number((item as any).equipment_hours).toLocaleString()} hrs
+                            </span>
+                          )}
                           {item.serial_number && (
                             <span className="text-xs text-gray-400 font-mono hidden sm:block flex-shrink-0">
                               S/N {item.serial_number}
@@ -588,6 +593,12 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                                 <div>
                                   <p className="text-xs text-gray-500 font-medium mb-0.5">Location</p>
                                   <p className="text-sm font-semibold text-gray-900">{item.location_on_vessel}</p>
+                                </div>
+                              )}
+                              {(item as any).equipment_hours != null && (
+                                <div>
+                                  <p className="text-xs text-gray-500 font-medium mb-0.5">Equipment Hours</p>
+                                  <p className="text-sm font-semibold text-blue-700">{Number((item as any).equipment_hours).toLocaleString()} hrs</p>
                                 </div>
                               )}
                               {vesselName && (
@@ -718,6 +729,7 @@ const EquipmentModal: React.FC<{
     location_on_vessel:item?.location_on_vessel || '',
     department:        (item as any)?.department || 'Engineering',
     notes:             item?.notes || '',
+    equipment_hours:   item?.equipment_hours?.toString() || '',
     vessel_id:         item?.vessel_id || (selectedVesselId && selectedVesselId !== 'all' ? selectedVesselId : (vessels.length === 1 ? vessels[0].id : '')),
   });
 
@@ -768,6 +780,7 @@ const EquipmentModal: React.FC<{
         department:        form.department,
         description:       form.notes || null,
         photo_url,
+        equipment_hours:   form.equipment_hours ? Number(form.equipment_hours) : 0,
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);
@@ -866,12 +879,22 @@ const EquipmentModal: React.FC<{
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t('equipment.location')}</label>
-            <input type="text" value={form.location_on_vessel}
-              onChange={e => setForm({ ...form, location_on_vessel: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., Engine Room Deck 2" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('equipment.location')}</label>
+              <input type="text" value={form.location_on_vessel}
+                onChange={e => setForm({ ...form, location_on_vessel: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Engine Room Deck 2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Equipment Hours</label>
+              <input type="number" value={form.equipment_hours}
+                onChange={e => setForm({ ...form, equipment_hours: e.target.value })}
+                min="0" step="0.1"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., 1250" />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Photo</label>

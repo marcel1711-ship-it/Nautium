@@ -348,7 +348,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
   const alertResources = filteredResources.filter(r => {
     if (r.low_level_alert <= 0) return false;
     if (isWasteTank(r.resource_type)) {
-      return r.current_level >= (r.capacity - r.low_level_alert);
+      return r.current_level >= r.low_level_alert;
     }
     return r.current_level <= r.low_level_alert;
   });
@@ -402,7 +402,7 @@ td{padding:7px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;word-wrap:
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style></head><body>
 <div class="header"><h1>Fuel & Consumables Report</h1><p>Generated ${dateStr}</p></div>
-${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alertResources.length})</strong>${alertResources.map(r => `${r.name}: ${r.current_level.toLocaleString()} / ${r.capacity.toLocaleString()} ${r.unit}`).join(' &bull; ')}</div>` : ''}
+${alertResources.length ? `<div class="alerts"><strong>Level Alerts (${alertResources.length})</strong>${alertResources.map(r => `${r.name}: ${r.current_level.toLocaleString()} / ${r.capacity.toLocaleString()} ${r.unit}`).join(' &bull; ')}</div>` : ''}
 <div class="summary">
   <div class="sc"><div class="num">${filteredLog.length}</div><div class="lbl">Total Log Entries</div></div>
   <div class="sc"><div class="num">${filteredLog.filter(l => l.entry_type === 'refill').length}</div><div class="lbl">Refills</div></div>
@@ -465,17 +465,20 @@ ${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alert
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-3">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
-            <h3 className="font-bold text-amber-900">{t('fuel.lowLevelAlerts')}</h3>
+            <h3 className="font-bold text-amber-900">{t('fuel.levelAlerts')}</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {alertResources.map(r => (
-              <div key={r.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-3">
-                <span className="text-sm font-medium text-amber-900">{r.name}</span>
-                <span className="text-sm font-bold text-amber-700">
-                  {r.current_level.toLocaleString()} {r.unit}
-                </span>
-              </div>
-            ))}
+            {alertResources.map(r => {
+              const waste = isWasteTank(r.resource_type);
+              return (
+                <div key={r.id} className={`flex items-center justify-between bg-white rounded-xl px-4 py-3 ${waste ? 'border border-red-200' : 'border border-amber-200'}`}>
+                  <span className={`text-sm font-medium ${waste ? 'text-red-900' : 'text-amber-900'}`}>{r.name}</span>
+                  <span className={`text-sm font-bold ${waste ? 'text-red-700' : 'text-amber-700'}`}>
+                    {r.current_level.toLocaleString()} {r.unit}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -548,7 +551,7 @@ ${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alert
                 const isWaste = isWasteTank(resource.resource_type);
                 const isLow = resource.low_level_alert > 0 && (
                   isWaste
-                    ? resource.current_level >= (resource.capacity - resource.low_level_alert)
+                    ? resource.current_level >= resource.low_level_alert
                     : resource.current_level <= resource.low_level_alert
                 );
                 const colors = RESOURCE_COLORS[resource.resource_type as ResourceType] ?? RESOURCE_COLORS.other;

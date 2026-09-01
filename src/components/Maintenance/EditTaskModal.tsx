@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, ChevronDown, Image, XCircle, Upload, Package, Plus, Trash2, CheckSquare, RefreshCw, Pin } from 'lucide-react';
+import { X, Calendar, ChevronDown, Image, XCircle, Upload, Package, Plus, Trash2, CheckSquare, RefreshCw, Pin, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY, dbUpdate } from '../../lib/supabase';
 import { demoEquipment, demoVessels, demoUsers } from '../../data/demoData';
@@ -36,7 +36,9 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
     assigned_user_id: task.assigned_user_id || '',
     next_due_date: task.next_due_date,
     status: task.status,
-    is_recurring: (task as any).is_recurring !== false, // ← default true for existing tasks
+    is_recurring: (task as any).is_recurring !== false,
+    hours_interval: (task as any).hours_interval?.toString() || '',
+    next_due_hours: (task as any).next_due_hours?.toString() || '',
   });
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [companyUsers, setCompanyUsers] = useState<UserOption[]>([]);
@@ -172,7 +174,9 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
         next_due_date: formData.next_due_date, status: autoStatus,
         photos: [...existingPhotos, ...uploadedUrls],
         checklist_items: checklistItems, required_parts: requiredParts,
-        is_recurring: formData.is_recurring, // ← save is_recurring
+        is_recurring: formData.is_recurring,
+        hours_interval: formData.hours_interval ? Number(formData.hours_interval) : null,
+        next_due_hours: formData.next_due_hours ? Number(formData.next_due_hours) : null,
       });
       showToast('Task updated', 'success'); onSaved(); onClose();
     } catch { showToast('Error saving task. Please try again.', 'error'); }
@@ -322,6 +326,34 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
               </select>
             </div>
           </div>
+
+          {/* Hours-based schedule */}
+          {formData.is_recurring && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <label className="block text-sm font-medium text-blue-700 flex items-center gap-2">
+                <Clock className="w-4 h-4" />Hours-Based Schedule (optional)
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-blue-600 mb-1">Every X hours</label>
+                  <input type="number" value={formData.hours_interval}
+                    onChange={e => setFormData({ ...formData, hours_interval: e.target.value })}
+                    min="0" step="1"
+                    className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    placeholder="e.g., 250" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-blue-600 mb-1">Next due at hours</label>
+                  <input type="number" value={formData.next_due_hours}
+                    onChange={e => setFormData({ ...formData, next_due_hours: e.target.value })}
+                    min="0" step="1"
+                    className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    placeholder="e.g., 500" />
+                </div>
+              </div>
+              <p className="text-xs text-blue-500">Leave empty if this task is only time-based. Hours are read from the equipment's hourmeter.</p>
+            </div>
+          )}
 
           {/* Checklist */}
           <div>

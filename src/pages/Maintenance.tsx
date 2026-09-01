@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle2, Filter, Plus, Search,
   ChevronDown, Building2, Wand2, X, FileText, Loader2,
   AlertCircle, Anchor, Sofa, Settings, ChefHat, Shield,
-  RefreshCw, Pin
+  RefreshCw, Pin, Clock
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -25,7 +25,7 @@ interface MaintenanceProps {
   departmentFilter?: string;
 }
 interface VesselOption { id: string; name: string; }
-interface EquipmentOption { id: string; name: string; vessel_id: string; }
+interface EquipmentOption { id: string; name: string; vessel_id: string; equipment_hours?: number; }
 interface UserOption { id: string; full_name: string; }
 interface ManualOption { id: string; title: string; file_url: string; file_name: string; }
 interface ExtractedTask {
@@ -279,15 +279,18 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
     const status = diffDays < 0 ? 'overdue' : diffDays <= 7 ? 'due_soon' : 'upcoming';
     const effectiveCompanyId = companyId || currentUser.company_id || null;
     try {
+      const isHoursBased = taskData.interval_type === 'hours';
       await dbInsert('maintenance_tasks', {
         title: taskData.title, description: taskData.description, category: taskData.category, priority: taskData.priority,
         vessel_id: taskData.vessel_id, equipment_id: taskData.equipment_id || null, assigned_user_id: taskData.assigned_user_id || null,
         next_due_date: taskData.next_due_date,
-        frequency: taskData.interval_type === 'hours' ? 'custom' : taskData.interval_type === 'months' ? 'monthly' : 'custom',
+        frequency: isHoursBased ? 'custom' : taskData.interval_type === 'months' ? 'monthly' : 'custom',
         custom_interval_days: taskData.interval_type === 'days' ? taskData.interval_value : null,
+        hours_interval: isHoursBased ? taskData.interval_value : null,
+        next_due_hours: isHoursBased ? taskData.interval_value : null,
         status, company_id: effectiveCompanyId, reminder_days_before: [],
         required_parts: taskData.required_parts || [], checklist_items: taskData.checklist_items || [],
-        is_recurring: taskData.is_recurring ?? true, // ← save is_recurring
+        is_recurring: taskData.is_recurring ?? true,
         department: taskData.department || 'Engineering',
       });
       setShowNewTaskModal(false);
@@ -344,11 +347,18 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const nextStatus = diffDays < 0 ? 'overdue' : diffDays <= 7 ? 'due_soon' : 'upcoming';
 
-      await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
+      const hoursUpdate: Record<string, any> = {
         status: nextStatus,
         last_completed_date: completionDate,
         next_due_date: nextDueStr,
-      });
+      };
+      if ((selectedTaskObj as any).hours_interval && selectedTaskObj.equipment_id) {
+        const eq = equipmentMap[selectedTaskObj.equipment_id];
+        const currentHours = Number((eq as any)?.equipment_hours || 0);
+        hoursUpdate.last_hours_reading = currentHours;
+        hoursUpdate.next_due_hours = currentHours + Number((selectedTaskObj as any).hours_interval);
+      }
+      await dbUpdate('maintenance_tasks', selectedTaskObj.id, hoursUpdate);
     } else {
       await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
         status: 'completed',
@@ -602,6 +612,17 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
                           {equipment && <div className="flex items-center gap-1"><span className="font-semibold text-gray-700">{t('maintenance.equipmentLabel')}</span><span>{equipment.name}</span></div>}
                           {vessel && <div className="flex items-center gap-1"><span className="font-semibold text-gray-700">{t('maintenance.vesselLabel')}</span><span>{vessel.name}</span></div>}
                           {assignedUser && <div className="flex items-center gap-1"><span className="font-semibold text-gray-700">{t('maintenance.assignedLabel')}</span><span>{assignedUser.full_name}</span></div>}
+                          {(task as any).hours_interval && (
+                            <div className="flex items-center gap-1 text-blue-600">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span className="font-semibold">Every {Number((task as any).hours_interval).toLocaleString()} hrs</span>
+                              {(task as any).next_due_hours && equipment && (equipment as any).equipment_hours != null && (
+                                <span className={`ml-1 ${Number((equipment as any).equipment_hours) >= Number((task as any).next_due_hours) ? 'text-red-600 font-bold' : ''}`}>
+                                  ({Number((equipment as any).equipment_hours).toLocaleString()} / {Number((task as any).next_due_hours).toLocaleString()} hrs)
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex sm:flex-col sm:text-right items-center sm:items-end gap-3 sm:gap-0 sm:ml-6 shrink-0">

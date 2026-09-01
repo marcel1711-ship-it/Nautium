@@ -3,7 +3,7 @@ import {
   ArrowLeft, User, Wrench, FileText, CheckSquare,
   Package, AlertCircle, Pencil, Image, X, ChevronLeft, ChevronRight,
   Check, Trash2, Anchor, Sofa, Settings, ChefHat, Shield,
-  RefreshCw, Pin
+  RefreshCw, Pin, Clock
 } from 'lucide-react';
 import { MaintenanceTask, MaintenanceHistory } from '../../types';
 import { formatDate, calculateDaysUntilDue, getTaskStatusColor, getPriorityColor } from '../../utils/helpers';
@@ -274,6 +274,35 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                   {daysUntil < 0 ? `${Math.abs(daysUntil)} days overdue` : `${daysUntil} days remaining`}
                 </p>
               </div>
+              {(task as any).hours_interval && (
+                <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                  <label className="text-sm font-medium text-blue-700 flex items-center gap-1.5"><Clock className="w-4 h-4" />Hours-Based Schedule</label>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-blue-500 font-medium">Interval</p>
+                      <p className="font-semibold text-blue-900">Every {Number((task as any).hours_interval).toLocaleString()} hrs</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-500 font-medium">Next Due</p>
+                      <p className="font-semibold text-blue-900">{(task as any).next_due_hours ? `${Number((task as any).next_due_hours).toLocaleString()} hrs` : '—'}</p>
+                    </div>
+                    {(task as any).last_hours_reading != null && (
+                      <div>
+                        <p className="text-xs text-blue-500 font-medium">Last Reading</p>
+                        <p className="font-semibold text-blue-900">{Number((task as any).last_hours_reading).toLocaleString()} hrs</p>
+                      </div>
+                    )}
+                    {equipment && (equipment as any).equipment_hours != null && (task as any).next_due_hours && (
+                      <div>
+                        <p className="text-xs text-blue-500 font-medium">Current / Due</p>
+                        <p className={`font-semibold ${Number((equipment as any).equipment_hours) >= Number((task as any).next_due_hours) ? 'text-red-600' : Number((equipment as any).equipment_hours) >= Number((task as any).next_due_hours) * 0.9 ? 'text-amber-600' : 'text-blue-900'}`}>
+                          {Number((equipment as any).equipment_hours).toLocaleString()} / {Number((task as any).next_due_hours).toLocaleString()} hrs
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {task.last_completed_date && (
                 <div>
                   <label className="text-sm font-medium text-gray-600">Last Completed</label>

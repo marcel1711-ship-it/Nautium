@@ -114,6 +114,9 @@ export interface MaintenanceTask {
   priority: 'low' | 'medium' | 'high' | 'critical';
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'custom' | 'one_time';
   custom_interval_days?: number;
+  hours_interval?: number;
+  last_hours_reading?: number;
+  next_due_hours?: number;
   last_completed_date?: string;
   next_due_date?: string;
   status: 'upcoming' | 'due_soon' | 'overdue' | 'completed';

@@ -466,7 +466,7 @@ const CertificateDetail: React.FC<{
 
 // ── MAIN PAGE ────────────────────────────────────────────────────────────────
 export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, selectedVesselId } = useAuth();
   const { showToast } = useToast();
   const [items, setItems] = useState<ComplianceItem[]>([]);
   const [vessels, setVessels] = useState<VesselOption[]>([]);
@@ -485,7 +485,11 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const userCanCreate = canCreate(role);
   const companyId = currentUser?.company_id || '';
 
-  useEffect(() => { loadData(); }, [currentUser]);
+  useEffect(() => { loadData(); }, [currentUser, selectedVesselId]);
+
+  useEffect(() => {
+    setFilterVessel(selectedVesselId && selectedVesselId !== 'all' ? selectedVesselId : 'all');
+  }, [selectedVesselId]);
 
   const loadData = async () => {
     if (!currentUser) return;
@@ -528,10 +532,11 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     return true;
   });
 
-  const expired  = items.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'expired').length;
-  const critical = items.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'critical').length;
-  const expiring = items.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'expiring').length;
-  const valid    = items.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'valid').length;
+  const vesselFilteredItems = filterVessel !== 'all' ? items.filter(i => i.vessel_id === filterVessel) : items;
+  const expired  = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'expired').length;
+  const critical = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'critical').length;
+  const expiring = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'expiring').length;
+  const valid    = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'valid').length;
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (selectedItem) {

@@ -318,6 +318,44 @@ export interface CrewMember {
   updated_at: string;
 }
 
+// ── Voyages / Guest Lists ────────────────────────────────────────────────────
+
+export interface Voyage {
+  id: string;
+  vessel_id: string;
+  company_id: string;
+  name: string;
+  departure_port: string;
+  arrival_port: string;
+  departure_date?: string;
+  arrival_date?: string;
+  status: 'planned' | 'active' | 'completed';
+  notes: string;
+  created_at: string;
+}
+
+export interface VoyageGuest {
+  id: string;
+  voyage_id: string;
+  vessel_id: string;
+  company_id: string;
+  full_name: string;
+  nationality: string;
+  date_of_birth?: string;
+  document_type: 'passport' | 'id_card' | 'seamans_book' | 'other';
+  document_number: string;
+  document_expiry?: string;
+  port_of_embarkation: string;
+  port_of_disembarkation: string;
+  embark_date?: string;
+  disembark_date?: string;
+  guest_type: 'guest' | 'owner' | 'vip';
+  phone: string;
+  email: string;
+  notes: string;
+  created_at: string;
+}
+
 // ── Purchase Requests / Purchase Orders ──────────────────────────────────────
 
 export type PRStatus = 'draft' | 'pending_captain' | 'pending_fleet_manager' | 'approved' | 'rejected';

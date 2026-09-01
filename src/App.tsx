@@ -35,6 +35,7 @@ const Budget = lazy(() => import('./pages/Budget').then(m => ({ default: m.Budge
 const Financials = lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
 const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ default: m.Contractors })));
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
+const GuestList = lazy(() => import('./pages/GuestList').then(m => ({ default: m.GuestList })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
@@ -287,6 +288,9 @@ const AppContent: React.FC = () => {
 
       case 'crew':
         return <Crew onNavigate={handleNavigate} />;
+
+      case 'guest-list':
+        return <GuestList onNavigate={handleNavigate} />;
 
       // ── CONTRACTORS — fleet_manager, customer_admin, captain (read-only) ──
       case 'contractors':

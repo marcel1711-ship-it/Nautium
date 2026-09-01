@@ -21,6 +21,8 @@ const ALLOWED_TABLES = [
   'customers',
   'master_admin_notifications',
   'water_toys',
+  'voyages',
+  'voyage_guests',
 ];
 
 Deno.serve(async (req: Request) => {

@@ -36,6 +36,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.budget' : 'Budget',
      'nav.financials' : 'Financials',
      'nav.crew' : 'Crew',
+     'nav.guestList' : 'Guest List',
      'nav.procurement' : 'Procurement',
 
     // ── Header ──
@@ -670,6 +671,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.close': 'Cerrar menú',
     'nav.onboardingSubmissions': 'Solicitudes',
     'nav.crew': 'Tripulación',
+    'nav.guestList': 'Lista de Invitados',
     'nav.procurement': 'Compras',
 
     // ── Encabezado ──

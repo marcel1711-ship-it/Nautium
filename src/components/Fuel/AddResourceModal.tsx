@@ -278,7 +278,7 @@ export const AddResourceModal: React.FC<AddResourceModalProps> = ({ onClose, onS
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Low Level Alert ({form.unit})
+                {selectedType === 'grey_water' || selectedType === 'black_water' ? 'High Level Alert' : 'Low Level Alert'} ({form.unit})
               </label>
               <input
                 type="number"

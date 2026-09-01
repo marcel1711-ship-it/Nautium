@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Fuel, Droplets, Plus, Minus } from 'lucide-react';
+import { X, Fuel, Plus, Minus, Droplets } from 'lucide-react';
 import { FuelResource } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -24,9 +24,21 @@ interface LogFuelEntryModalProps {
 export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, initialEntryType, onClose, onSave }) => {
   const { t } = useLanguage();
   const today = new Date().toISOString().split('T')[0];
-  const [entryType, setEntryType] = useState<'refill' | 'consumption'>(initialEntryType ?? 'refill');
+
+  const isWaste = resource.resource_type === 'grey_water' || resource.resource_type === 'black_water';
+
+  const resolveInitialType = (): 'refill' | 'consumption' => {
+    if (!isWaste) return initialEntryType ?? 'refill';
+    // For waste tanks: "Pump Out" maps to 'consumption' (decreases level), "Level Update" maps to 'refill' (increases level)
+    if (initialEntryType === 'refill') return 'consumption'; // Pump Out button
+    if (initialEntryType === 'consumption') return 'refill'; // Level Update button
+    return 'consumption'; // default to Pump Out
+  };
+
+  const [entryType, setEntryType] = useState<'refill' | 'consumption'>(resolveInitialType());
   const [quantity, setQuantity] = useState('');
   const [pricePerUnit, setPricePerUnit] = useState('');
+  const [serviceCost, setServiceCost] = useState('');
   const [currency, setCurrency] = useState('EUR');
   const [supplier, setSupplier] = useState('');
   const [location, setLocation] = useState('');
@@ -37,10 +49,12 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
 
   const qty = parseFloat(quantity) || 0;
   const ppu = parseFloat(pricePerUnit) || null;
-  const totalCost = ppu && qty ? parseFloat((ppu * qty).toFixed(2)) : null;
+  const totalCost = isWaste
+    ? (parseFloat(serviceCost) || null)
+    : (ppu && qty ? parseFloat((ppu * qty).toFixed(2)) : null);
 
-  const isConsumable = ['fresh_water', 'grey_water', 'black_water'].includes(resource.resource_type);
   const isDiesel = resource.resource_type === 'diesel_main' || resource.resource_type === 'diesel_generator';
+  const isConsumable = ['fresh_water', 'grey_water', 'black_water'].includes(resource.resource_type);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +63,7 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
     await onSave({
       entry_type: entryType,
       quantity: qty,
-      price_per_unit: ppu,
+      price_per_unit: isWaste ? null : ppu,
       total_cost: totalCost,
       currency,
       supplier,
@@ -64,14 +78,26 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
   const maxRefill = resource.capacity - resource.current_level;
   const maxConsume = resource.current_level;
 
+  // For waste tanks: consumption = pump out (level goes down), refill = level update (level goes up)
+  const isPumpOut = isWaste && entryType === 'consumption';
+  const isLevelUpdate = isWaste && entryType === 'refill';
+
+  const fillRatio = resource.current_level / resource.capacity;
+  const barColor = isWaste
+    ? (fillRatio > 0.8 ? 'bg-red-500' : fillRatio > 0.6 ? 'bg-amber-400' : 'bg-green-500')
+    : (fillRatio < 0.2 ? 'bg-red-500' : fillRatio < 0.4 ? 'bg-amber-400' : 'bg-green-500');
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-xl">
-              <Fuel className="w-5 h-5 text-blue-600" />
+            <div className={`p-2 rounded-xl ${isWaste ? 'bg-slate-100' : 'bg-blue-100'}`}>
+              {isWaste
+                ? <Droplets className="w-5 h-5 text-slate-600" />
+                : <Fuel className="w-5 h-5 text-blue-600" />
+              }
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{t('fuel.logEntry')}</h2>
@@ -93,46 +119,69 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${
-                resource.current_level / resource.capacity < 0.2
-                  ? 'bg-red-500'
-                  : resource.current_level / resource.capacity < 0.4
-                  ? 'bg-amber-400'
-                  : 'bg-green-500'
-              }`}
-              style={{ width: `${Math.min(100, (resource.current_level / resource.capacity) * 100)}%` }}
+              className={`h-full rounded-full transition-all ${barColor}`}
+              style={{ width: `${Math.min(100, fillRatio * 100)}%` }}
             />
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Entry type toggle */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setEntryType('refill')}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                entryType === 'refill'
-                  ? 'bg-white text-green-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              {t('fuel.refillType')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEntryType('consumption')}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                entryType === 'consumption'
-                  ? 'bg-white text-orange-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Minus className="w-4 h-4" />
-              {t('fuel.consumptionType')}
-            </button>
-          </div>
+          {/* Entry type toggle — different labels for waste vs normal */}
+          {isWaste ? (
+            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setEntryType('consumption')}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  entryType === 'consumption'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Minus className="w-4 h-4" />
+                {t('fuel.pumpOut')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('refill')}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  entryType === 'refill'
+                    ? 'bg-white text-slate-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+                {t('fuel.levelUpdate')}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setEntryType('refill')}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  entryType === 'refill'
+                    ? 'bg-white text-green-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+                {t('fuel.refillType')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('consumption')}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  entryType === 'consumption'
+                    ? 'bg-white text-orange-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Minus className="w-4 h-4" />
+                {t('fuel.consumptionType')}
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             {/* Quantity */}
@@ -153,8 +202,8 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               />
             </div>
 
-            {/* Price per unit — only for refills that cost money */}
-            {entryType === 'refill' && !isConsumable && (
+            {/* Price per unit — only for non-waste refills that cost money */}
+            {!isWaste && entryType === 'refill' && !isConsumable && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -185,11 +234,51 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               </>
             )}
 
-            {/* Total cost display */}
-            {totalCost !== null && (
+            {/* Service cost — only for waste tank pump outs */}
+            {isWaste && isPumpOut && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.serviceCost')}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={serviceCost}
+                    onChange={e => setServiceCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.currency')}</label>
+                  <select
+                    value={currency}
+                    onChange={e => setCurrency(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                  >
+                    {['EUR', 'USD', 'GBP', 'CHF'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Total cost display — non-waste */}
+            {!isWaste && totalCost !== null && (
               <div className="col-span-2 flex items-center justify-between px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
                 <span className="text-sm text-green-700">Total cost</span>
                 <span className="text-base font-bold text-green-800">
+                  {currency} {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
+            {/* Service cost display — waste pump out */}
+            {isWaste && isPumpOut && totalCost !== null && (
+              <div className="col-span-2 flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <span className="text-sm text-blue-700">{t('fuel.serviceCost')}</span>
+                <span className="text-base font-bold text-blue-800">
                   {currency} {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -208,8 +297,8 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               />
             </div>
 
-            {/* Engine hours — only for diesel */}
-            {isDiesel && (
+            {/* Engine hours — only for diesel, never for waste */}
+            {!isWaste && isDiesel && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.engineHours')}</label>
                 <input
@@ -224,8 +313,8 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               </div>
             )}
 
-            {/* Supplier */}
-            {entryType === 'refill' && (
+            {/* Supplier — for non-waste refills */}
+            {!isWaste && entryType === 'refill' && (
               <div className={isDiesel ? '' : 'col-span-2'}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.supplierLabel')}</label>
                 <input
@@ -238,14 +327,32 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               </div>
             )}
 
+            {/* Service provider — for waste pump outs */}
+            {isWaste && isPumpOut && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.serviceProvider')}</label>
+                <input
+                  type="text"
+                  value={supplier}
+                  onChange={e => setSupplier(e.target.value)}
+                  placeholder="e.g. Marina Port Vell"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+            )}
+
             {/* Location */}
-            <div className={entryType === 'refill' && isDiesel ? 'col-span-2' : entryType === 'refill' ? '' : 'col-span-2'}>
+            <div className={
+              isWaste
+                ? (isPumpOut ? '' : 'col-span-2')
+                : (entryType === 'refill' && isDiesel ? 'col-span-2' : entryType === 'refill' ? '' : 'col-span-2')
+            }>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('fuel.locationLabel')}</label>
               <input
                 type="text"
                 value={location}
                 onChange={e => setLocation(e.target.value)}
-                placeholder={entryType === 'refill' ? 'e.g. Palma de Mallorca' : 'e.g. Palma → Ibiza'}
+                placeholder={isWaste ? 'e.g. Marina Port Vell' : (entryType === 'refill' ? 'e.g. Palma de Mallorca' : 'e.g. Palma → Ibiza')}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
@@ -275,9 +382,9 @@ export const LogFuelEntryModal: React.FC<LogFuelEntryModalProps> = ({ resource, 
               type="submit"
               disabled={saving || !qty || qty <= 0}
               className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all disabled:opacity-50 ${
-                entryType === 'refill'
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-orange-500 hover:bg-orange-600 text-white'
+                isWaste
+                  ? (isPumpOut ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-600 hover:bg-slate-700 text-white')
+                  : (entryType === 'refill' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white')
               }`}
             >
               {saving ? t('common.loading') : t('fuel.saveEntry')}

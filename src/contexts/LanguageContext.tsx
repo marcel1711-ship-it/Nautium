@@ -410,6 +410,11 @@ const translations: Record<Language, Record<string, string>> = {
     'fuel.logDate': 'Date',
     'fuel.loggedBy': 'Logged By',
     'fuel.saveEntry': 'Save Entry',
+    'fuel.pumpOut': 'Pump Out',
+    'fuel.levelUpdate': 'Level Update',
+    'fuel.lastPumpOut': 'Last pump out:',
+    'fuel.serviceCost': 'Service Cost (optional)',
+    'fuel.serviceProvider': 'Service Provider (optional)',
 
     // ── Costs ──
     'costs.title': 'Cost Overview',
@@ -1046,6 +1051,11 @@ const translations: Record<Language, Record<string, string>> = {
     'fuel.logDate': 'Fecha',
     'fuel.loggedBy': 'Registrado por',
     'fuel.saveEntry': 'Guardar registro',
+    'fuel.pumpOut': 'Vaciado',
+    'fuel.levelUpdate': 'Actualizar Nivel',
+    'fuel.lastPumpOut': 'Último vaciado:',
+    'fuel.serviceCost': 'Costo del servicio (opcional)',
+    'fuel.serviceProvider': 'Proveedor del servicio (opcional)',
 
     // ── Costes ──
     'costs.title': 'Resumen de costes',

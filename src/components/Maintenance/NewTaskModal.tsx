@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, AlertCircle, ChevronDown, Plus, Trash2, CheckSquare, Package, Anchor, Sofa, Settings, ChefHat, Shield, RefreshCw, Pin } from 'lucide-react';
+import { X, Calendar, AlertCircle, ChevronDown, Plus, Trash2, CheckSquare, Package, Anchor, Sofa, Settings, ChefHat, Shield, RefreshCw, Pin, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { demoEquipment, demoVessels, demoUsers } from '../../data/demoData';
@@ -15,7 +15,7 @@ export interface NewTaskData {
   priority: 'low' | 'medium' | 'high' | 'critical';
   vessel_id: string; equipment_id: string; assigned_user_id: string;
   next_due_date: string; interval_type: 'hours' | 'days' | 'months';
-  interval_value: number; checklist_items: string[];
+  interval_value: number; reminder_hours_before: number; checklist_items: string[];
   required_parts: { inventory_id: string; name: string; quantity: number }[];
   department: string;
   is_recurring: boolean;
@@ -40,7 +40,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave }) =
   const [formData, setFormData] = useState<NewTaskData>({
     title: '', description: '', category: '', priority: 'medium',
     vessel_id: '', equipment_id: '', assigned_user_id: currentUser?.id || '',
-    next_due_date: '', interval_type: 'days', interval_value: 30,
+    next_due_date: '', interval_type: 'days', interval_value: 30, reminder_hours_before: 0,
     checklist_items: [], required_parts: [], department: 'Engineering',
     is_recurring: true,
   });
@@ -320,6 +320,17 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave }) =
                   <option value="months">Months</option>
                 </select>
               </div>
+              {formData.interval_type === 'hours' && (
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <label className="block text-xs font-medium text-blue-700 mb-1.5 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />Alert hours before due
+                  </label>
+                  <input type="number" value={formData.reminder_hours_before || ''} onChange={e => setFormData({ ...formData, reminder_hours_before: parseInt(e.target.value) || 0 })}
+                    min="0" step="1" placeholder="e.g., 50"
+                    className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm" />
+                  <p className="text-xs text-blue-500 mt-1">Task will show as "due soon" when equipment reaches this many hours before the service is due.</p>
+                </div>
+              )}
             </div>
           )}
 

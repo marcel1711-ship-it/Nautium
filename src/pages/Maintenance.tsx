@@ -320,6 +320,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
         custom_interval_days: taskData.interval_type === 'days' ? taskData.interval_value : null,
         hours_interval: isHoursBased ? taskData.interval_value : null,
         next_due_hours: isHoursBased ? taskData.interval_value : null,
+        reminder_hours_before: isHoursBased && taskData.reminder_hours_before ? taskData.reminder_hours_before : null,
         status, company_id: effectiveCompanyId, reminder_days_before: [],
         required_parts: taskData.required_parts || [], checklist_items: taskData.checklist_items || [],
         is_recurring: taskData.is_recurring ?? true,

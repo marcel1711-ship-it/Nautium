@@ -344,9 +344,14 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
     .filter(l => l.entry_type === 'refill' && l.total_cost)
     .reduce((sum, l) => sum + (l.total_cost || 0), 0);
 
-  const alertResources = filteredResources.filter(
-    r => r.current_level <= r.low_level_alert && r.low_level_alert > 0
-  );
+  const isWasteTank = (type: string) => type === 'grey_water' || type === 'black_water';
+  const alertResources = filteredResources.filter(r => {
+    if (r.low_level_alert <= 0) return false;
+    if (isWasteTank(r.resource_type)) {
+      return r.current_level >= (r.capacity - r.low_level_alert);
+    }
+    return r.current_level <= r.low_level_alert;
+  });
 
   const getVesselName = (vesselId: string) =>
     vessels.find(v => v.id === vesselId)?.name || 'Unknown';
@@ -540,7 +545,12 @@ ${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alert
                 const pct = resource.capacity > 0
                   ? Math.min(100, (resource.current_level / resource.capacity) * 100)
                   : 0;
-                const isLow = resource.current_level <= resource.low_level_alert && resource.low_level_alert > 0;
+                const isWaste = isWasteTank(resource.resource_type);
+                const isLow = resource.low_level_alert > 0 && (
+                  isWaste
+                    ? resource.current_level >= (resource.capacity - resource.low_level_alert)
+                    : resource.current_level <= resource.low_level_alert
+                );
                 const colors = RESOURCE_COLORS[resource.resource_type as ResourceType] ?? RESOURCE_COLORS.other;
                 const vessel = vessels.find(v => v.id === resource.vessel_id);
                 const lastConsumption = log.find(l => l.resource_id === resource.id && l.entry_type === 'consumption');
@@ -563,9 +573,9 @@ ${alertResources.length ? `<div class="alerts"><strong>Low Level Alerts (${alert
                       </div>
                       <div className="flex items-center gap-2">
                         {isLow && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[11px] font-semibold leading-5">
+                          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold leading-5 ${isWaste ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                             <AlertTriangle className="w-3 h-3" />
-                            {t('common.low')}
+                            {isWaste ? t('common.high') : t('common.low')}
                           </span>
                         )}
                         <button

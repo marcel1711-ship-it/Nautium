@@ -13,6 +13,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
 
       manifest: {
@@ -42,47 +45,8 @@ export default defineConfig({
         ],
       },
 
-      workbox: {
-        // Solo cachea JS, CSS, HTML y fuentes — NO imágenes
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,woff2}'],
-
-        navigateFallbackDenylist: [/^\/functions/, /^\/auth/],
-
-        runtimeCaching: [
-          // ── Supabase Storage (fotos, archivos) → NUNCA cachear ──
-          // Siempre carga desde la red — cambios visibles inmediatamente
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage/,
-            handler: 'NetworkOnly',
-          },
-
-          // ── Supabase Auth → NUNCA cachear ──
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/auth/,
-            handler: 'NetworkOnly',
-          },
-
-          // ── Supabase Edge Functions → NUNCA cachear ──
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/functions/,
-            handler: 'NetworkOnly',
-          },
-
-          // ── Supabase REST API (datos) → Network first ──
-          // Sin internet: muestra últimos datos cacheados
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-data',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24, // 24 horas
-              },
-              networkTimeoutSeconds: 5,
-            },
-          },
-        ],
       },
     }),
   ],

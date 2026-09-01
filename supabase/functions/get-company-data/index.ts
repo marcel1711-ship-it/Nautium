@@ -26,6 +26,7 @@ const ALLOWED_TABLES = [
   'compliance_items',
   'crew_members',
   'purchase_requests',
+  'push_subscriptions',
 ];
 
 Deno.serve(async (req: Request) => {

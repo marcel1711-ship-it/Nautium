@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Lock, Globe, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { User, Bell, Lock, Globe, Plus, Trash2, AlertCircle, Smartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { isPushSupported, getPermissionState, subscribeToPush, unsubscribeFromPush, isSubscribed } from '../lib/pushNotifications';
 import { demoCompanies, demoVessels } from '../data/demoData';
 import { supabase } from '../lib/supabase';
 import { formatDate } from '../utils/helpers';
@@ -45,12 +46,34 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {
   const [savingNotif, setSavingNotif] = useState(false);
   const [notifMsg, setNotifMsg] = useState('');
 
+  // Push notifications state
+  const [pushSupported] = useState(isPushSupported());
+  const [pushActive, setPushActive] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
   useEffect(() => {
     if (!currentUser) return;
     setFullName(currentUser.full_name);
     setPhone(currentUser.phone || '');
     loadCompanyAndVessels();
+    if (pushSupported) isSubscribed().then(setPushActive);
   }, [currentUser]);
+
+  const handleTogglePush = async () => {
+    if (!currentUser) return;
+    setPushLoading(true);
+    try {
+      if (pushActive) {
+        await unsubscribeFromPush(currentUser.id);
+        setPushActive(false);
+      } else {
+        const ok = await subscribeToPush(currentUser.id, currentUser.company_id);
+        setPushActive(ok);
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const loadCompanyAndVessels = async () => {
     if (!currentUser) return;
@@ -472,6 +495,46 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {
             </div>
           )}
         </div>
+
+          {/* Push Notifications — all users */}
+          {pushSupported && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-100 rounded-xl">
+                  <Smartphone className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Push Notifications</h2>
+                  <p className="text-sm text-gray-500">Get alerts on this device</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">
+                    {pushActive ? 'Notifications are active' : 'Enable push notifications'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {pushActive
+                      ? 'You will receive alerts for overdue tasks, low stock, and certificate expiry on this device.'
+                      : 'Receive real-time alerts even when the app is closed.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTogglePush}
+                  disabled={pushLoading || getPermissionState() === 'denied'}
+                  className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${pushActive ? 'bg-blue-500' : 'bg-gray-300'} disabled:opacity-50`}
+                >
+                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${pushActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              {getPermissionState() === 'denied' && (
+                <p className="mt-3 text-xs text-red-500">
+                  Notifications are blocked. Go to your browser settings to allow notifications for this site.
+                </p>
+              )}
+            </div>
+          )}
 
         <div className="space-y-6">
           {company && currentUser.role !== 'master_admin' && (

@@ -747,6 +747,33 @@ const EquipmentModal: React.FC<{
     t.toLowerCase().includes(typeInput.toLowerCase())
   );
 
+  const recalcTaskStatusByHours = async (equipmentId: string, currentHours: number) => {
+    try {
+      const { data: tasks } = await supabase
+        .from('maintenance_tasks')
+        .select('id, next_due_hours, hours_interval, reminder_hours_before, status, next_due_date')
+        .eq('equipment_id', equipmentId)
+        .not('next_due_hours', 'is', null);
+      if (!tasks || tasks.length === 0) return;
+      for (const task of tasks) {
+        if (task.status === 'completed') continue;
+        const nextDueHours = Number(task.next_due_hours);
+        const reminderBefore = Number(task.reminder_hours_before || 0);
+        let newStatus = task.status;
+        if (currentHours >= nextDueHours) {
+          newStatus = 'overdue';
+        } else if (currentHours >= nextDueHours - reminderBefore) {
+          newStatus = 'due_soon';
+        }
+        if (newStatus !== task.status) {
+          await dbUpdate('maintenance_tasks', task.id, { status: newStatus });
+        }
+      }
+    } catch (err) {
+      console.error('Error recalculating task status by hours:', err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !form.name || !form.vessel_id) return;
@@ -784,6 +811,9 @@ const EquipmentModal: React.FC<{
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);
+        if (payload.equipment_hours > 0) {
+          await recalcTaskStatusByHours(item.id, payload.equipment_hours);
+        }
       } else {
         await dbInsert('equipment', payload);
       }

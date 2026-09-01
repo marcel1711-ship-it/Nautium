@@ -260,11 +260,25 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       fetchByCompany('equipment', effectiveCompanyId, 'name', true),
       fetchByCompany('maintenance_history', effectiveCompanyId, 'completion_date', false),
     ]);
-    setTasks(tasks);
     setVessels(vessels.map((v: any) => ({ id: v.id, name: v.name })));
     const eqMap: Record<string, EquipmentOption> = {};
     equipment.forEach((e: any) => { eqMap[e.id] = e; });
     setEquipmentMap(eqMap);
+    const updatedTasks = tasks.map((task: any) => {
+      if (!task.next_due_hours || !task.equipment_id || task.status === 'completed') return task;
+      const eq = eqMap[task.equipment_id];
+      if (!eq || eq.equipment_hours == null) return task;
+      const currentHours = Number(eq.equipment_hours);
+      const nextDueHours = Number(task.next_due_hours);
+      const reminderBefore = Number(task.reminder_hours_before || 0);
+      if (currentHours >= nextDueHours && task.status !== 'overdue') {
+        return { ...task, status: 'overdue' };
+      } else if (reminderBefore > 0 && currentHours >= nextDueHours - reminderBefore && task.status === 'upcoming') {
+        return { ...task, status: 'due_soon' };
+      }
+      return task;
+    });
+    setTasks(updatedTasks);
     const lcMap: Record<string, MaintenanceHistory> = {};
     history.forEach((h: MaintenanceHistory) => { if (!lcMap[h.task_id!]) lcMap[h.task_id!] = h; });
     setLastCompletionMap(lcMap);

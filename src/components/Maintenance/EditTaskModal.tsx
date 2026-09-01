@@ -39,6 +39,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
     is_recurring: (task as any).is_recurring !== false,
     hours_interval: (task as any).hours_interval?.toString() || '',
     next_due_hours: (task as any).next_due_hours?.toString() || '',
+    reminder_hours_before: (task as any).reminder_hours_before?.toString() || '',
   });
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [companyUsers, setCompanyUsers] = useState<UserOption[]>([]);
@@ -177,6 +178,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
         is_recurring: formData.is_recurring,
         hours_interval: formData.hours_interval ? Number(formData.hours_interval) : null,
         next_due_hours: formData.next_due_hours ? Number(formData.next_due_hours) : null,
+        reminder_hours_before: formData.reminder_hours_before ? Number(formData.reminder_hours_before) : null,
       });
       showToast('Task updated', 'success'); onSaved(); onClose();
     } catch { showToast('Error saving task. Please try again.', 'error'); }
@@ -333,7 +335,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
               <label className="block text-sm font-medium text-blue-700 flex items-center gap-2">
                 <Clock className="w-4 h-4" />Hours-Based Schedule (optional)
               </label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-blue-600 mb-1">Every X hours</label>
                   <input type="number" value={formData.hours_interval}
@@ -349,6 +351,14 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
                     min="0" step="1"
                     className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                     placeholder="e.g., 500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-blue-600 mb-1">Alert X hrs before</label>
+                  <input type="number" value={formData.reminder_hours_before}
+                    onChange={e => setFormData({ ...formData, reminder_hours_before: e.target.value })}
+                    min="0" step="1"
+                    className="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    placeholder="e.g., 50" />
                 </div>
               </div>
               <p className="text-xs text-blue-500">Leave empty if this task is only time-based. Hours are read from the equipment's hourmeter.</p>

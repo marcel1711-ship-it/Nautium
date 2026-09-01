@@ -324,6 +324,7 @@ export const Customers: React.FC<CustomersProps> = ({ onNavigate }) => {
                   { label: 'Maintenance', page: 'maintenance', params: { companyId: customer.id, companyName: customer.name }, primary: false },
                   { label: 'History', page: 'history', params: { companyId: customer.id, companyName: customer.name }, primary: false },
                   { label: 'Equipment', page: 'equipment', params: { companyId: customer.id, companyName: customer.name }, primary: false },
+                  { label: 'Water Toys', page: 'water-toys', params: { companyId: customer.id, companyName: customer.name }, primary: false },
                   { label: 'Fuel', page: 'fuel', params: { companyId: customer.id, companyName: customer.name }, primary: false },
                   { label: 'Costs', page: 'costs', params: { companyId: customer.id, companyName: customer.name }, primary: false },
                   { label: t('customers.manageUsers'), page: 'users', params: { companyId: customer.id }, primary: false },

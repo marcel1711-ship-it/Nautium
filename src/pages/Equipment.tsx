@@ -753,20 +753,31 @@ const EquipmentModal: React.FC<{
         .from('maintenance_tasks')
         .select('id, next_due_hours, hours_interval, reminder_hours_before, status, next_due_date')
         .eq('equipment_id', equipmentId)
-        .not('next_due_hours', 'is', null);
+        .neq('status', 'completed');
       if (!tasks || tasks.length === 0) return;
+      const statusPriority: Record<string, number> = { overdue: 3, due_soon: 2, upcoming: 1 };
       for (const task of tasks) {
-        if (task.status === 'completed') continue;
-        const nextDueHours = Number(task.next_due_hours);
-        const reminderBefore = Number(task.reminder_hours_before || 0);
-        let newStatus = task.status;
-        if (currentHours >= nextDueHours) {
-          newStatus = 'overdue';
-        } else if (currentHours >= nextDueHours - reminderBefore) {
-          newStatus = 'due_soon';
+        // Time-based status
+        let timeStatus = 'upcoming';
+        if (task.next_due_date) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const dueDate = new Date(task.next_due_date);
+          const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0) timeStatus = 'overdue';
+          else if (diffDays <= 7) timeStatus = 'due_soon';
         }
-        if (newStatus !== task.status) {
-          await dbUpdate('maintenance_tasks', task.id, { status: newStatus });
+        // Hours-based status
+        let hoursStatus = 'upcoming';
+        if (task.next_due_hours) {
+          const nextDueHours = Number(task.next_due_hours);
+          const reminderBefore = Number(task.reminder_hours_before || 0);
+          if (currentHours >= nextDueHours) hoursStatus = 'overdue';
+          else if (reminderBefore > 0 && currentHours >= nextDueHours - reminderBefore) hoursStatus = 'due_soon';
+        }
+        // Whichever is more urgent wins
+        const finalStatus = (statusPriority[hoursStatus] || 0) >= (statusPriority[timeStatus] || 0) ? hoursStatus : timeStatus;
+        if (finalStatus !== task.status) {
+          await dbUpdate('maintenance_tasks', task.id, { status: finalStatus });
         }
       }
     } catch (err) {

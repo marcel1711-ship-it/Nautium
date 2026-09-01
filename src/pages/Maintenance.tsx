@@ -264,18 +264,36 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
     const eqMap: Record<string, EquipmentOption> = {};
     equipment.forEach((e: any) => { eqMap[e.id] = e; });
     setEquipmentMap(eqMap);
+    const statusPriority: Record<string, number> = { overdue: 3, due_soon: 2, upcoming: 1, completed: 0 };
     const updatedTasks = tasks.map((task: any) => {
-      if (!task.next_due_hours || !task.equipment_id || task.status === 'completed') return task;
-      const eq = eqMap[task.equipment_id];
-      if (!eq || eq.equipment_hours == null) return task;
-      const currentHours = Number(eq.equipment_hours);
-      const nextDueHours = Number(task.next_due_hours);
-      const reminderBefore = Number(task.reminder_hours_before || 0);
-      if (currentHours >= nextDueHours && task.status !== 'overdue') {
-        return { ...task, status: 'overdue' };
-      } else if (reminderBefore > 0 && currentHours >= nextDueHours - reminderBefore && task.status === 'upcoming') {
-        return { ...task, status: 'due_soon' };
+      if (task.status === 'completed') return task;
+
+      // Time-based status
+      let timeStatus = 'upcoming';
+      if (task.next_due_date) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(task.next_due_date);
+        const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) timeStatus = 'overdue';
+        else if (diffDays <= 7) timeStatus = 'due_soon';
       }
+
+      // Hours-based status
+      let hoursStatus = 'upcoming';
+      if (task.next_due_hours && task.equipment_id) {
+        const eq = eqMap[task.equipment_id];
+        if (eq && eq.equipment_hours != null) {
+          const currentHours = Number(eq.equipment_hours);
+          const nextDueHours = Number(task.next_due_hours);
+          const reminderBefore = Number(task.reminder_hours_before || 0);
+          if (currentHours >= nextDueHours) hoursStatus = 'overdue';
+          else if (reminderBefore > 0 && currentHours >= nextDueHours - reminderBefore) hoursStatus = 'due_soon';
+        }
+      }
+
+      // Whichever is more urgent wins
+      const finalStatus = (statusPriority[hoursStatus] || 0) >= (statusPriority[timeStatus] || 0) ? hoursStatus : timeStatus;
+      if (finalStatus !== task.status) return { ...task, status: finalStatus };
       return task;
     });
     setTasks(updatedTasks);

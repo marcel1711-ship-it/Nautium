@@ -116,6 +116,32 @@ export const downloadHTML = (html: string, filename: string): void => {
   URL.revokeObjectURL(url);
 };
 
+export const recalculateTaskStatuses = (tasks: MaintenanceTask[]): MaintenanceTask[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setDate(today.getDate() + 7);
+
+  return tasks.map(task => {
+    if (task.status === 'completed') return task;
+    if (!task.next_due_date) return task;
+
+    const dueDate = new Date(task.next_due_date);
+    dueDate.setHours(0, 0, 0, 0);
+
+    let newStatus: MaintenanceTask['status'];
+    if (dueDate < today) {
+      newStatus = 'overdue';
+    } else if (dueDate <= sevenDaysFromNow) {
+      newStatus = 'due_soon';
+    } else {
+      newStatus = 'upcoming';
+    }
+
+    return newStatus !== task.status ? { ...task, status: newStatus } : task;
+  });
+};
+
 export const sortTasksByUrgency = (tasks: MaintenanceTask[]): MaintenanceTask[] => {
   return [...tasks].sort((a, b) => {
     if (a.status === 'overdue' && b.status !== 'overdue') return -1;

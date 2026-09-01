@@ -12,7 +12,7 @@ import {
   demoMaintenanceHistory, demoVessels,
 } from '../data/demoData';
 import { supabase, fetchByCompany } from '../lib/supabase';
-import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency } from '../utils/helpers';
+import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency, recalculateTaskStatuses } from '../utils/helpers';
 import { MaintenanceTask, InventoryItem, MaintenanceHistory, getRoleDepartment, UserRole } from '../types';
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
@@ -1124,11 +1124,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const v = demoVessels.find(v => v.id === selectedVesselId) || demoVessels[0];
       if (v) setVessel({ id: v.id, name: v.name, photo_url: (v as any).photo_url || null });
       if (selectedVesselId) {
-        setTasks(mergedTasks.filter(t => t.vessel_id === selectedVesselId) as MaintenanceTask[]);
+        setTasks(recalculateTaskStatuses(mergedTasks.filter(t => t.vessel_id === selectedVesselId) as MaintenanceTask[]));
         setInventory(mergedInv.filter(i => i.vessel_id === selectedVesselId) as InventoryItem[]);
         setHistory(demoMaintenanceHistory.filter(h => h.vessel_id === selectedVesselId) as MaintenanceHistory[]);
       } else {
-        setTasks(mergedTasks.filter(t => currentUser.vessel_ids.includes(t.vessel_id)) as MaintenanceTask[]);
+        setTasks(recalculateTaskStatuses(mergedTasks.filter(t => currentUser.vessel_ids.includes(t.vessel_id)) as MaintenanceTask[]));
         setInventory(mergedInv.filter(i => currentUser.vessel_ids.includes(i.vessel_id)) as InventoryItem[]);
         setHistory(demoMaintenanceHistory.filter(h => currentUser.vessel_ids.includes(h.vessel_id)) as MaintenanceHistory[]);
       }
@@ -1145,7 +1145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         fetchByCompany('vessels', cid, 'name', true),
         fetchByCompany('compliance_items', cid, 'expiry_date', true),
       ]);
-      setTasks(tasksData);
+      setTasks(recalculateTaskStatuses(tasksData));
       setInventory(inventoryData);
       setHistory(historyData.slice(0, 5));
       setCompliance(complianceData);

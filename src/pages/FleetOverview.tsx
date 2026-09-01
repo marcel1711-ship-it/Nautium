@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoMaintenanceHistory, demoMaintenanceTasks, demoVessels } from '../data/demoData';
 import { supabase } from '../lib/supabase';
-import { formatDate, isLowStock } from '../utils/helpers';
+import { formatDate, isLowStock, recalculateTaskStatuses } from '../utils/helpers';
 import { InventoryItem, MaintenanceHistory, MaintenanceTask, OperationalExpense, Vessel } from '../types';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
@@ -395,7 +395,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
 
       if (isDemoUser(currentUser.email)) {
         const vessels   = demoVessels.filter(v => allowedVesselIds.includes(v.id));
-        const tasks     = demoMaintenanceTasks.filter(t => allowedVesselIds.includes(t.vessel_id)) as MaintenanceTask[];
+        const tasks     = recalculateTaskStatuses(demoMaintenanceTasks.filter(t => allowedVesselIds.includes(t.vessel_id)) as MaintenanceTask[]);
         const inventory = demoInventoryItems.filter(i => allowedVesselIds.includes(i.vessel_id)) as InventoryItem[];
         const history   = demoMaintenanceHistory.filter(h => allowedVesselIds.includes(h.vessel_id)) as MaintenanceHistory[];
         setVesselStats(computeVesselStats(vessels, tasks, inventory, history, [], [], []));
@@ -437,7 +437,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
       setAllCompliance(compliance);
       const crewSalaries = (crR.data || []) as { vessel_id: string; monthly_salary: number }[];
       setVesselStats(computeVesselStats(
-        (vR.data || []) as Vessel[], (tR.data || []) as MaintenanceTask[],
+        (vR.data || []) as Vessel[], recalculateTaskStatuses((tR.data || []) as MaintenanceTask[]),
         (iR.data || []) as InventoryItem[], (hR.data || []) as MaintenanceHistory[],
         (eR.data || []) as OperationalExpense[], compliance,
         (bR.data || []) as BudgetItem[], crewSalaries

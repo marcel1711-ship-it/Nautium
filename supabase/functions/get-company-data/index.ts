@@ -27,6 +27,7 @@ const ALLOWED_TABLES = [
   'crew_members',
   'purchase_requests',
   'push_subscriptions',
+  'vessel_telemetry',
 ];
 
 Deno.serve(async (req: Request) => {

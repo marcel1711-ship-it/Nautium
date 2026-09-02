@@ -5,6 +5,7 @@ import {
   Shield, Boxes, MoreHorizontal, Edit2, Trash2,
   X, AlertCircle, FileText, CheckCircle,
   Download, Upload, FileDown, Camera, ImageIcon, Building2, Clock,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -14,6 +15,7 @@ import { Equipment as EquipmentType, UserRole, getRoleDepartment, canCreate } fr
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
 import { downloadCSV } from '../utils/helpers';
+import { MonitorTab } from '../components/Equipment/MonitorTab';
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
@@ -92,6 +94,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const [showModal, setShowModal]           = useState(false);
   const [editingItem, setEditingItem]       = useState<EquipmentType | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab]           = useState<'list' | 'monitor'>('list');
 
   // Cost tracking per equipment
   const [historyRaw, setHistoryRaw] = useState<any[]>([]);
@@ -332,6 +335,25 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('equipment.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          {/* Tab toggle */}
+          <div className="flex bg-gray-100 rounded-xl p-1 mr-2">
+            <button
+              onClick={() => setActiveTab('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Boxes className="w-3.5 h-3.5" />Equipment
+            </button>
+            <button
+              onClick={() => setActiveTab('monitor')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'monitor' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />Monitor
+            </button>
+          </div>
 
           {/* Export */}
           {equipment.length > 0 && (
@@ -376,6 +398,18 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
           )}
         </div>
       </div>
+
+      {/* ── Monitor Tab ── */}
+      {activeTab === 'monitor' && (
+        <MonitorTab
+          vesselId={selectedVesselId || ''}
+          companyId={companyId || currentUser?.company_id || ''}
+          equipment={equipment}
+        />
+      )}
+
+      {/* ── Equipment List Tab ── */}
+      {activeTab === 'list' && (<>
 
       {/* ── Import results banner ── */}
       {showImportResults && importResults && (
@@ -675,6 +709,8 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
           })}
         </div>
       )}
+
+      </>)}
 
       {/* ── Modals ── */}
       {showModal && (

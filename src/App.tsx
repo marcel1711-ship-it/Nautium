@@ -39,6 +39,7 @@ const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ defaul
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const GuestList = lazy(() => import('./pages/GuestList').then(m => ({ default: m.GuestList })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
+const DataSim = lazy(() => import('./pages/DataSim').then(m => ({ default: m.DataSim })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
 const SupportModal = lazy(() => import('./components/SupportModal').then(m => ({ default: m.SupportModal })));
@@ -392,8 +393,10 @@ const AppContent: React.FC = () => {
 };
 
 const IS_ONBOARDING = window.location.pathname.startsWith('/onboarding');
+const IS_DATASIM = window.location.pathname.startsWith('/datasim');
 
 function App() {
+  if (IS_DATASIM) return <Suspense fallback={<PageLoader />}><DataSim /></Suspense>;
   if (IS_ONBOARDING) return <Suspense fallback={<PageLoader />}><Onboarding /></Suspense>;
   return (
     <BrowserRouter>

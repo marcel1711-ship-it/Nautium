@@ -166,6 +166,15 @@ export const MonitorTab: React.FC<MonitorTabProps> = ({ vesselId, companyId, equ
   const batteries = monEq.filter((e: any) => e.type === 'Battery Bank');
   const systems = monEq.filter((e: any) => !['Main Engine', 'Generator', 'Battery Bank'].includes(e.type));
 
+  const isPort = (name: string) => /port|babor|izq|left|1/i.test(name);
+  const isStbd = (name: string) => /star|stbd|estribor|der|right|2/i.test(name);
+  const portEngine = engines.find((e: any) => isPort(e.name)) || engines[0];
+  const stbdEngine = engines.find((e: any) => isStbd(e.name)) || engines[1];
+  const portGen = generators.find((e: any) => isPort(e.name) || e.name?.includes('1')) || generators[0];
+  const stbdGen = generators.find((e: any) => isStbd(e.name) || e.name?.includes('2')) || generators[1];
+  const portBat = batteries.find((e: any) => isPort(e.name) || e.name?.includes('1')) || batteries[0];
+  const stbdBat = batteries.find((e: any) => isStbd(e.name) || e.name?.includes('2')) || batteries[1];
+
   const alerts = useMemo<Alert[]>(() => {
     const a: Alert[] = [];
     for (const eq of [...engines, ...generators, ...batteries, ...systems]) {
@@ -255,174 +264,196 @@ export const MonitorTab: React.FC<MonitorTabProps> = ({ vesselId, companyId, equ
         </div>
       )}
 
-      {/* ── Two-column layout ───────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }} className="eicas-grid">
-        <style>{`@media(min-width:1200px){.eicas-grid{grid-template-columns:58% 1fr!important}}`}</style>
-
-        {/* LEFT: Propulsion + Power + Tanks */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* PROPULSION */}
-          {engines.length > 0 && (
-            <div style={card}>
-              <div style={sectionLabel}>PROPULSION</div>
-              {engines.map((eng: any, i: number) => {
-                const r = latest(eng.id);
-                const status = r.get('status');
-                const isRunning = status ? status.value === 1 : false;
-                const hours = r.get('hours')?.value ?? 0;
-                const rpm = r.get('rpm')?.value ?? 0;
-                const temp = r.get('temperature')?.value ?? 0;
-                const oil = r.get('oil_pressure')?.value ?? 0;
-                const nameTag = eng.name?.toUpperCase().includes('PORT') ? 'PORT' : eng.name?.toUpperCase().includes('STAR') ? 'STBD' : eng.name;
-                return (
-                  <div key={eng.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{nameTag}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{eng.manufacturer} {eng.model}</span>
-                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
-                      <div style={{ minWidth: 100 }}>
-                        <Metric label="RPM" value={String(Math.round(rpm))} color={isRunning && rpm > 2300 ? 'var(--alarm)' : undefined} />
-                        {isRunning && <ThinBar value={rpm} max={2500} color={rpm > 2300 ? 'var(--alarm)' : rpm > 2000 ? 'var(--warn)' : 'var(--ok)'} />}
-                      </div>
-                      <Metric label="COOLANT" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
-                      <Metric label="OIL" value={fmtVal(oil)} unit="bar" color={valueColor('oil_pressure', oil, rpm)} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* POWER */}
-          {generators.length > 0 && (
-            <div style={card}>
-              <div style={sectionLabel}>POWER</div>
-              {generators.map((gen: any, i: number) => {
-                const r = latest(gen.id);
-                const status = r.get('status');
-                const isRunning = status ? status.value === 1 : false;
-                const hours = r.get('hours')?.value ?? 0;
-                const volts = r.get('voltage')?.value ?? 0;
-                const loadPct = r.get('load')?.value ?? 0;
-                const temp = r.get('temperature')?.value ?? 0;
-                return (
-                  <div key={gen.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{gen.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{gen.manufacturer} {gen.model}</span>
-                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
-                      <Metric label="VOLTS" value={String(Math.round(volts))} unit="V" />
-                      <div style={{ minWidth: 100 }}>
-                        <Metric label="LOAD" value={String(Math.round(loadPct))} unit="%" color={valueColor('load', loadPct)} />
-                        {isRunning && <ThinBar value={loadPct} max={100} color={loadPct > 95 ? 'var(--alarm)' : loadPct > 80 ? 'var(--warn)' : 'var(--ok)'} />}
-                      </div>
-                      <Metric label="TEMP" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* TANKS */}
-          {resources.length > 0 && (
-            <div style={card}>
-              <div style={sectionLabel}>TANKS</div>
-              {resources.map(res => {
-                const lr = resLatest(res.id).get('level');
-                const cap = Number(res.capacity);
-                const cur = lr ? Math.round((lr.value / 100) * cap) : Number(res.current_level);
-                const pct = cap > 0 ? Math.min((cur / cap) * 100, 100) : 0;
-                const label = TANK_LABELS[res.resource_type] || res.name.toUpperCase();
-                return <TankRow key={res.id} name={label} pct={pct} capacity={cap} unit={res.unit} current={cur} />;
-              })}
-            </div>
-          )}
-
-          {/* SYSTEMS (HVAC etc) */}
-          {systems.length > 0 && (
-            <div style={card}>
-              <div style={sectionLabel}>SYSTEMS</div>
-              {systems.map((sys: any, i: number) => {
-                const r = latest(sys.id);
-                const status = r.get('status');
-                const isRunning = status ? status.value === 1 : false;
-                const hours = r.get('hours')?.value ?? 0;
-                const temp = r.get('temperature')?.value ?? 0;
-                return (
-                  <div key={sys.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{sys.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{sys.manufacturer} {sys.model}</span>
-                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
-                      <Metric label="TEMP" value={fmtVal(temp)} unit="°C" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: Electrical + Connection */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* ELECTRICAL */}
-          {batteries.length > 0 && (
-            <div style={card}>
-              <div style={sectionLabel}>ELECTRICAL</div>
-              {batteries.map((bat: any, i: number) => {
-                const r = latest(bat.id);
-                const soc = r.get('state_of_charge')?.value ?? 0;
-                const volts = r.get('battery_voltage')?.value ?? 0;
-                const amps = r.get('battery_current')?.value ?? 0;
-                const isCharging = amps > 0;
-                return (
-                  <div key={bat.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{bat.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{bat.manufacturer}</span>
-                      <StatePill label={isCharging ? 'CHARGING' : 'DISCHARGING'} state={isCharging ? 'charging' : 'discharging'} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-                      <Metric label="SOC" value={fmtVal(soc)} unit="%" color={valueColor('state_of_charge', soc)} />
-                      <Metric label="VOLTAGE" value={fmtVal(volts)} unit="V" />
-                      <Metric label="CURRENT" value={fmtVal(Math.abs(amps))} unit={`A ${isCharging ? '↑' : '↓'}`} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* CONNECTION */}
-          <div style={card}>
-            <div style={sectionLabel}>CONNECTION</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>NMEA 2000 Gateway</span>
-              <StatePill label={isLive ? 'CONNECTED' : 'STALE'} state={isLive ? 'running' : 'stale'} />
-            </div>
-            <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-              <Metric label="LAST PACKET" value={lastUpdate ? fmtAge(ageMs) : '—'} />
-              <Metric label="STATUS" value={isLive ? 'Receiving' : 'No data'} color={isLive ? 'var(--ok)' : 'var(--alarm)'} />
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 2 }}>REFRESH</div>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>{autoRefresh ? '10s interval' : 'Manual'}</div>
+      {/* ── Render helpers ─────────────────────────────────────────── */}
+      {(() => {
+        const renderEngine = (eng: any) => {
+          if (!eng) return null;
+          const r = latest(eng.id);
+          const status = r.get('status');
+          const isRunning = status ? status.value === 1 : false;
+          const hours = r.get('hours')?.value ?? 0;
+          const rpm = r.get('rpm')?.value ?? 0;
+          const temp = r.get('temperature')?.value ?? 0;
+          const oil = r.get('oil_pressure')?.value ?? 0;
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{eng.manufacturer} {eng.model}</span>
+                <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+              </div>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                <div style={{ minWidth: 90 }}>
+                  <Metric label="RPM" value={String(Math.round(rpm))} color={isRunning && rpm > 2300 ? 'var(--alarm)' : undefined} />
+                  {isRunning && <ThinBar value={rpm} max={2500} color={rpm > 2300 ? 'var(--alarm)' : rpm > 2000 ? 'var(--warn)' : 'var(--ok)'} />}
+                </div>
+                <Metric label="COOLANT" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
+                <Metric label="OIL" value={fmtVal(oil)} unit="bar" color={valueColor('oil_pressure', oil, rpm)} />
               </div>
             </div>
+          );
+        };
+
+        const renderGen = (gen: any) => {
+          if (!gen) return null;
+          const r = latest(gen.id);
+          const status = r.get('status');
+          const isRunning = status ? status.value === 1 : false;
+          const hours = r.get('hours')?.value ?? 0;
+          const volts = r.get('voltage')?.value ?? 0;
+          const loadPct = r.get('load')?.value ?? 0;
+          const temp = r.get('temperature')?.value ?? 0;
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{gen.manufacturer} {gen.model}</span>
+                <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+              </div>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                <Metric label="VOLTS" value={String(Math.round(volts))} unit="V" />
+                <div style={{ minWidth: 90 }}>
+                  <Metric label="LOAD" value={String(Math.round(loadPct))} unit="%" color={valueColor('load', loadPct)} />
+                  {isRunning && <ThinBar value={loadPct} max={100} color={loadPct > 95 ? 'var(--alarm)' : loadPct > 80 ? 'var(--warn)' : 'var(--ok)'} />}
+                </div>
+                <Metric label="TEMP" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
+              </div>
+            </div>
+          );
+        };
+
+        const renderBat = (bat: any) => {
+          if (!bat) return null;
+          const r = latest(bat.id);
+          const soc = r.get('state_of_charge')?.value ?? 0;
+          const volts = r.get('battery_voltage')?.value ?? 0;
+          const amps = r.get('battery_current')?.value ?? 0;
+          const isCharging = amps > 0;
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{bat.manufacturer}</span>
+                <StatePill label={isCharging ? 'CHARGING' : 'DISCHARGING'} state={isCharging ? 'charging' : 'discharging'} />
+              </div>
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <Metric label="SOC" value={fmtVal(soc)} unit="%" color={valueColor('state_of_charge', soc)} />
+                <Metric label="VOLTAGE" value={fmtVal(volts)} unit="V" />
+                <Metric label="CURRENT" value={fmtVal(Math.abs(amps))} unit={`A ${isCharging ? '↑' : '↓'}`} />
+              </div>
+            </div>
+          );
+        };
+
+        const sideCol = (side: 'PORT' | 'STBD', eng: any, gen: any, bat: any) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Side header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4, borderBottom: `2px solid ${side === 'PORT' ? '#E24B4A' : '#3DDC97'}` }}>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', color: side === 'PORT' ? '#E24B4A' : '#3DDC97' }}>{side}</span>
+            </div>
+
+            {/* Engine */}
+            {eng && (
+              <div style={card}>
+                <div style={sectionLabel}>ENGINE</div>
+                {renderEngine(eng)}
+              </div>
+            )}
+
+            {/* Generator */}
+            {gen && (
+              <div style={card}>
+                <div style={sectionLabel}>GENERATOR</div>
+                {renderGen(gen)}
+              </div>
+            )}
+
+            {/* Battery */}
+            {bat && (
+              <div style={card}>
+                <div style={sectionLabel}>BATTERY</div>
+                {renderBat(bat)}
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        );
+
+        return (
+          <>
+            {/* ── PORT | STBD columns ─────────────────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }} className="eicas-sides">
+              <style>{`@media(min-width:900px){.eicas-sides{grid-template-columns:1fr 1fr!important}}`}</style>
+              {sideCol('PORT', portEngine, portGen, portBat)}
+              {sideCol('STBD', stbdEngine, stbdGen, stbdBat)}
+            </div>
+
+            {/* ── Full-width: Tanks + Systems + Connection ────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, marginTop: 14 }} className="eicas-bottom">
+              <style>{`@media(min-width:900px){.eicas-bottom{grid-template-columns:1fr 1fr!important}}`}</style>
+
+              {/* TANKS */}
+              {resources.length > 0 && (
+                <div style={card}>
+                  <div style={sectionLabel}>TANKS</div>
+                  {resources.map(res => {
+                    const lr = resLatest(res.id).get('level');
+                    const cap = Number(res.capacity);
+                    const cur = lr ? Math.round((lr.value / 100) * cap) : Number(res.current_level);
+                    const pct = cap > 0 ? Math.min((cur / cap) * 100, 100) : 0;
+                    const label = TANK_LABELS[res.resource_type] || res.name.toUpperCase();
+                    return <TankRow key={res.id} name={label} pct={pct} capacity={cap} unit={res.unit} current={cur} />;
+                  })}
+                </div>
+              )}
+
+              {/* SYSTEMS + CONNECTION */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {systems.length > 0 && (
+                  <div style={card}>
+                    <div style={sectionLabel}>SYSTEMS</div>
+                    {systems.map((sys: any, i: number) => {
+                      const r = latest(sys.id);
+                      const status = r.get('status');
+                      const isRunning = status ? status.value === 1 : false;
+                      const hours = r.get('hours')?.value ?? 0;
+                      const temp = r.get('temperature')?.value ?? 0;
+                      return (
+                        <div key={sys.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{sys.name}</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{sys.manufacturer} {sys.model}</span>
+                            <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                            <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                            <Metric label="TEMP" value={fmtVal(temp)} unit="°C" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* CONNECTION */}
+                <div style={card}>
+                  <div style={sectionLabel}>CONNECTION</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>NMEA 2000 Gateway</span>
+                    <StatePill label={isLive ? 'CONNECTED' : 'STALE'} state={isLive ? 'running' : 'stale'} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                    <Metric label="LAST PACKET" value={lastUpdate ? fmtAge(ageMs) : '—'} />
+                    <Metric label="STATUS" value={isLive ? 'Receiving' : 'No data'} color={isLive ? 'var(--ok)' : 'var(--alarm)'} />
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 2 }}>REFRESH</div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>{autoRefresh ? '10s interval' : 'Manual'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 };

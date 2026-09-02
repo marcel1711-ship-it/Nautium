@@ -1,440 +1,428 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Activity, Wifi, WifiOff, Gauge, Clock,
-  Droplets, Zap, Fan, RefreshCw, Info, Battery, Anchor,
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Wifi, WifiOff, RefreshCw, Info } from 'lucide-react';
 import { fetchByCompany } from '../../lib/supabase';
 
-interface MonitorTabProps {
-  vesselId: string;
-  companyId: string;
-  equipment: any[];
+/* ── Types ─────────────────────────────────────────────────────────── */
+
+interface MonitorTabProps { vesselId: string; companyId: string; equipment: any[]; }
+interface TReading { equipment_id: string | null; resource_id: string | null; metric: string; value: number; unit: string; recorded_at: string; }
+interface FuelRes { id: string; name: string; resource_type: string; capacity: string; current_level: string; unit: string; vessel_id: string; }
+
+/* ── Theme tokens (scoped to .eicas) ───────────────────────────────── */
+
+const EICAS_STYLE = `
+.eicas{--bg:#0B1220;--card:#121A28;--border:#1F2A3A;--text:#E8EEF4;--muted:#8B9AAB;--ok:#3DDC97;--warn:#E8B84A;--alarm:#E24B4A;--accent:#2A9B8F;background:var(--bg);color:var(--text);font-variant-numeric:tabular-nums}
+.eicas *{box-sizing:border-box}
+`;
+
+/* ── Thresholds ────────────────────────────────────────────────────── */
+
+interface Alert { equipment: string; metric: string; value: number; unit: string; level: 'alarm' | 'advisory'; }
+
+function checkAlert(name: string, metric: string, val: number, unit: string, rpm?: number): Alert | null {
+  if (metric === 'temperature' && val > 95) return { equipment: name, metric: 'coolant', value: val, unit, level: 'alarm' };
+  if (metric === 'temperature' && val > 90) return { equipment: name, metric: 'coolant', value: val, unit, level: 'advisory' };
+  if (metric === 'oil_pressure' && val < 2.0 && rpm !== undefined && rpm > 600) return { equipment: name, metric: 'oil press', value: val, unit, level: 'alarm' };
+  if (metric === 'load' && val > 95) return { equipment: name, metric: 'load', value: val, unit, level: 'alarm' };
+  if (metric === 'load' && val > 80) return { equipment: name, metric: 'load', value: val, unit, level: 'advisory' };
+  if (metric === 'state_of_charge' && val < 20) return { equipment: name, metric: 'SOC', value: val, unit, level: 'alarm' };
+  if (metric === 'state_of_charge' && val < 30) return { equipment: name, metric: 'SOC', value: val, unit, level: 'advisory' };
+  return null;
 }
 
-interface TelemetryReading {
-  equipment_id: string | null;
-  resource_id: string | null;
-  metric: string;
-  value: number;
-  unit: string;
-  recorded_at: string;
+function valueColor(metric: string, val: number, rpm?: number): string {
+  if (metric === 'temperature' && val > 95) return 'var(--alarm)';
+  if (metric === 'temperature' && val > 90) return 'var(--warn)';
+  if (metric === 'oil_pressure' && val < 2.0 && rpm !== undefined && rpm > 600) return 'var(--alarm)';
+  if (metric === 'load' && val > 95) return 'var(--alarm)';
+  if (metric === 'load' && val > 80) return 'var(--warn)';
+  if (metric === 'state_of_charge' && val < 20) return 'var(--alarm)';
+  if (metric === 'state_of_charge' && val < 30) return 'var(--warn)';
+  if (metric === 'battery_temp' && val > 50) return 'var(--alarm)';
+  if (metric === 'battery_temp' && val > 40) return 'var(--warn)';
+  return 'var(--text)';
 }
 
-interface FuelResource {
-  id: string;
-  name: string;
-  resource_type: string;
-  capacity: string;
-  current_level: string;
-  unit: string;
-  vessel_id: string;
-}
+/* ── Primitives ────────────────────────────────────────────────────── */
 
-const MONITORABLE_TYPES = ['Main Engine', 'Generator', 'HVAC', 'Compressor', 'Battery Bank'];
-
-const METRIC_CONFIG: Record<string, { label: string; unit: string; max: number; warn: number; critical: number; color: string }> = {
-  hours:             { label: 'Hours',     unit: 'hrs', max: 20000, warn: 15000, critical: 18000, color: '#60a5fa' },
-  rpm:               { label: 'RPM',       unit: 'rpm', max: 2500,  warn: 2000,  critical: 2300,  color: '#22d3ee' },
-  temperature:       { label: 'Temp',      unit: '°C',  max: 120,   warn: 85,    critical: 100,   color: '#fbbf24' },
-  oil_pressure:      { label: 'Oil Press', unit: 'bar', max: 8,     warn: 2,     critical: 1,     color: '#a78bfa' },
-  voltage:           { label: 'Voltage',   unit: 'V',   max: 250,   warn: 210,   critical: 190,   color: '#34d399' },
-  load:              { label: 'Load',      unit: '%',   max: 100,   warn: 80,    critical: 95,    color: '#f472b6' },
-  coolant_temp:      { label: 'Coolant',   unit: '°C',  max: 110,   warn: 85,    critical: 95,    color: '#f87171' },
-  state_of_charge:   { label: 'SOC',       unit: '%',   max: 100,   warn: 25,    critical: 10,    color: '#4ade80' },
-  battery_voltage:   { label: 'Voltage',   unit: 'V',   max: 60,    warn: 23,    critical: 22,    color: '#facc15' },
-  battery_current:   { label: 'Current',   unit: 'A',   max: 200,   warn: 160,   critical: 180,   color: '#22d3ee' },
-  battery_temp:      { label: 'Temp',      unit: '°C',  max: 60,    warn: 40,    critical: 50,    color: '#fb923c' },
-};
-
-const TANK_CONFIG: Record<string, { color: string; label: string }> = {
-  diesel_main:      { color: '#f59e0b', label: 'Diesel Main' },
-  diesel_generator: { color: '#f97316', label: 'Diesel Gen' },
-  fresh_water:      { color: '#3b82f6', label: 'Fresh Water' },
-  grey_water:       { color: '#6b7280', label: 'Grey Water' },
-  black_water:      { color: '#374151', label: 'Black Water' },
-  gasoline:         { color: '#ef4444', label: 'Gasoline' },
-};
-
-function InstrumentGauge({ value, max, label, unit, color, warn, critical, size = 110 }: {
-  value: number; max: number; label: string; unit: string; color: string;
-  warn?: number; critical?: number; size?: number;
-}) {
-  const strokeW = 8;
-  const radius = (size - strokeW - 4) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const percentage = Math.min(Math.abs(value) / max, 1);
-  const arcLen = circumference * 0.75;
-  const offset = arcLen * (1 - percentage);
-  const cx = size / 2;
-  const cy = size / 2;
-
-  const lowIsWorse = label === 'Oil Press' || label === 'SOC';
-  let activeColor = color;
-  if (critical !== undefined && warn !== undefined) {
-    if (lowIsWorse ? value < critical : value > critical) activeColor = '#ef4444';
-    else if (lowIsWorse ? value < warn : value > warn) activeColor = '#f59e0b';
-  }
-
-  const formatValue = (v: number) => {
-    if (typeof v !== 'number') return '—';
-    if (v >= 10000) return `${(v / 1000).toFixed(1)}k`;
-    if (v >= 1000) return v.toLocaleString();
-    return v % 1 === 0 ? String(v) : v.toFixed(1);
-  };
-
+function StatePill({ label, state }: { label: string; state: 'running' | 'stopped' | 'charging' | 'discharging' | 'stale' }) {
+  const bg: Record<string, string> = { running: 'var(--ok)', stopped: 'var(--muted)', charging: 'var(--accent)', discharging: 'var(--warn)', stale: 'var(--alarm)' };
   return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Track */}
-        <circle
-          cx={cx} cy={cy} r={radius} fill="none" strokeWidth={strokeW}
-          className="stroke-gray-100 dark:stroke-gray-700/80"
-          strokeDasharray={`${arcLen} ${circumference - arcLen}`}
-          transform={`rotate(135 ${cx} ${cy})`} strokeLinecap="round"
-        />
-        {/* Value arc */}
-        <circle
-          cx={cx} cy={cy} r={radius} fill="none" strokeWidth={strokeW}
-          stroke={activeColor}
-          strokeDasharray={`${arcLen} ${circumference - arcLen}`}
-          strokeDashoffset={offset}
-          transform={`rotate(135 ${cx} ${cy})`} strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 1s ease-out, stroke 0.3s' }}
-        />
-        {/* Value text */}
-        <text x={cx} y={cy - 1} textAnchor="middle" className="fill-gray-900 dark:fill-gray-50"
-          style={{ fontSize: '17px', fontWeight: 700, fontFamily: "'SF Mono','Cascadia Code',ui-monospace,monospace", letterSpacing: '-0.5px' }}>
-          {formatValue(value)}
-        </text>
-        <text x={cx} y={cy + 14} textAnchor="middle" className="fill-gray-400 dark:fill-gray-500"
-          style={{ fontSize: '10px', fontFamily: 'system-ui' }}>
-          {unit}
-        </text>
-      </svg>
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 -mt-1">{label}</span>
-    </div>
+    <span style={{ background: bg[state] || 'var(--muted)', color: '#0B1220', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+      {label}
+    </span>
   );
 }
 
-function TankBar({ name, level, capacity, unit, color }: {
-  name: string; level: number; capacity: number; unit: string; color: string;
-}) {
-  const pct = capacity > 0 ? Math.min((level / capacity) * 100, 100) : 0;
-  const fillColor = pct < 10 ? '#ef4444' : pct < 20 ? '#f59e0b' : color;
-
+function Metric({ label, value, unit, color }: { label: string; value: string; unit?: string; color?: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 min-w-[72px]">
-      <div className="relative w-14 h-28 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 overflow-hidden">
-        <div
-          className="absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-out"
-          style={{ height: `${pct}%`, backgroundColor: fillColor, opacity: 0.85 }}
-        />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold font-mono text-gray-800 dark:text-gray-100 tabular-nums"
-            style={{ textShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            {Math.round(pct)}%
-          </span>
-        </div>
-        {pct < 10 && (
-          <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        )}
-      </div>
-      <div className="text-center">
-        <div className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">{name}</div>
-        <div className="text-[9px] text-gray-400 font-mono tabular-nums">{level.toLocaleString()}/{capacity.toLocaleString()} {unit}</div>
+    <div style={{ minWidth: 72 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 2 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+        <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: color || 'var(--text)', transition: 'color 0.3s' }}>{value}</span>
+        {unit && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{unit}</span>}
       </div>
     </div>
   );
 }
 
-function EquipmentCard({ equipment, readings, isOnline }: {
-  equipment: any; readings: Map<string, TelemetryReading>; isOnline: boolean;
-}) {
-  const type = equipment.type;
-  const isEngine = type === 'Main Engine';
-  const isGenerator = type === 'Generator';
-  const isBattery = type === 'Battery Bank';
-
-  const metricsToShow = isEngine
-    ? ['hours', 'rpm', 'temperature', 'oil_pressure']
-    : isGenerator
-    ? ['hours', 'voltage', 'load', 'temperature']
-    : isBattery
-    ? ['state_of_charge', 'battery_voltage', 'battery_current', 'battery_temp']
-    : ['hours', 'temperature'];
-
-  const status = readings.get('status');
-  const isRunning = status ? status.value === 1 : false;
-  const battCurrent = readings.get('battery_current')?.value ?? 0;
-  const isBatteryCharging = isBattery && battCurrent > 0;
-
-  const IconComponent = isEngine ? Gauge : isGenerator ? Zap : isBattery ? Battery : Fan;
-
-  const statusLabel = isBattery
-    ? (isBatteryCharging ? 'Charging' : 'Discharging')
-    : isRunning ? 'Running' : 'Off';
-
-  const isActive = isBattery || isRunning;
-
-  const statusClasses = isBattery
-    ? (isBatteryCharging
-      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
-      : 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400')
-    : isRunning
-    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
-
+function ThinBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = Math.min((value / max) * 100, 100);
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-150 dark:border-gray-700 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-700/50">
-        <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-            isActive ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-gray-50 dark:bg-gray-700'
-          }`}>
-            <IconComponent className={`w-4 h-4 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-50">{equipment.name}</h4>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">{equipment.manufacturer} {equipment.model}</p>
+    <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'var(--border)', marginTop: 4, overflow: 'hidden' }}>
+      <div style={{ height: '100%', borderRadius: 2, width: `${pct}%`, background: color, transition: 'width 0.8s ease-out' }} />
+    </div>
+  );
+}
+
+function TankRow({ name, pct, capacity, unit, current }: { name: string; pct: number; capacity: number; unit: string; current: number }) {
+  const color = pct < 10 ? 'var(--alarm)' : pct < 20 ? 'var(--warn)' : 'var(--accent)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ width: 100, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>{name}</div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: color, transition: 'width 1s ease-out' }} />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isOnline && (
-            <span className="relative flex h-2 w-2">
-              {isActive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isActive ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-            </span>
-          )}
-          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${statusClasses}`}>
-            {statusLabel}
-          </span>
-        </div>
+        <span style={{ fontSize: 18, fontWeight: 700, color: pct < 20 ? color : 'var(--text)', minWidth: 48, textAlign: 'right', transition: 'color 0.3s' }}>
+          {Math.round(pct)}%
+        </span>
       </div>
-      {/* Gauges */}
-      <div className="px-3 py-3 flex items-center justify-center gap-1 flex-wrap">
-        {metricsToShow.map(metric => {
-          const reading = readings.get(metric);
-          const config = METRIC_CONFIG[metric];
-          if (!config) return null;
-          return (
-            <InstrumentGauge
-              key={metric}
-              value={reading ? reading.value : 0}
-              max={config.max}
-              label={config.label}
-              unit={config.unit}
-              color={config.color}
-              warn={config.warn}
-              critical={config.critical}
-              size={108}
-            />
-          );
-        })}
+      <div style={{ fontSize: 11, color: 'var(--muted)', minWidth: 100, textAlign: 'right' }}>
+        {current.toLocaleString()} / {capacity.toLocaleString()} {unit}
       </div>
     </div>
   );
 }
 
-function SectionHeader({ icon: Icon, title }: { icon: React.FC<any>; title: string }) {
-  return (
-    <div className="flex items-center gap-2.5 mb-3">
-      <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-      <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">{title}</h3>
-      <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
-    </div>
-  );
+/* ── Format helpers ────────────────────────────────────────────────── */
+
+function fmtVal(v: number, decimals = 1): string {
+  if (v >= 1000) return v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return v % 1 === 0 ? String(v) : v.toFixed(decimals);
 }
+
+function fmtAge(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 5) return `${(ms / 1000).toFixed(1)}s ago`;
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
+}
+
+/* ── Main component ────────────────────────────────────────────────── */
+
+const MONITORABLE = ['Main Engine', 'Generator', 'HVAC', 'Compressor', 'Battery Bank'];
+const TANK_LABELS: Record<string, string> = { diesel_main: 'DIESEL MAIN', diesel_generator: 'DIESEL GEN', fresh_water: 'FRESH WATER', grey_water: 'GREY WATER', black_water: 'BLACK WATER', gasoline: 'GASOLINE' };
 
 export const MonitorTab: React.FC<MonitorTabProps> = ({ vesselId, companyId, equipment }) => {
-  const [telemetry, setTelemetry] = useState<TelemetryReading[]>([]);
-  const [resources, setResources] = useState<FuelResource[]>([]);
+  const [telemetry, setTelemetry] = useState<TReading[]>([]);
+  const [resources, setResources] = useState<FuelRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const monitorableEquipment = equipment.filter((e: any) =>
-    MONITORABLE_TYPES.includes(e.type) && e.vessel_id === vesselId
-  );
+  const monEq = equipment.filter((e: any) => MONITORABLE.includes(e.type) && e.vessel_id === vesselId);
 
-  const loadTelemetry = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!companyId || !vesselId || vesselId === 'all') return;
     try {
-      const [telData, resData] = await Promise.all([
+      const [td, rd] = await Promise.all([
         fetchByCompany('vessel_telemetry', companyId, 'recorded_at', false),
         fetchByCompany('fuel_resources', companyId, 'name', true),
       ]);
-
-      const vesselTelemetry = telData.filter((t: any) => t.vessel_id === vesselId);
-      setTelemetry(vesselTelemetry);
-      setResources(resData.filter((r: any) => r.vessel_id === vesselId));
-
-      if (vesselTelemetry.length > 0) {
-        setLastUpdate(new Date(vesselTelemetry[0].recorded_at));
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
+      const vt = td.filter((t: any) => t.vessel_id === vesselId);
+      setTelemetry(vt);
+      setResources(rd.filter((r: any) => r.vessel_id === vesselId));
+      if (vt.length > 0) setLastUpdate(new Date(vt[0].recorded_at));
+    } catch { /* silent */ } finally { setLoading(false); }
   }, [companyId, vesselId]);
 
-  useEffect(() => { loadTelemetry(); }, [loadTelemetry]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (!autoRefresh) return; const i = setInterval(load, 10000); return () => clearInterval(i); }, [autoRefresh, load]);
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(loadTelemetry, 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, loadTelemetry]);
+  const latest = useCallback((eqId: string): Map<string, TReading> => {
+    const m = new Map<string, TReading>();
+    for (const t of telemetry) { if (t.equipment_id === eqId && !m.has(t.metric)) m.set(t.metric, t); }
+    return m;
+  }, [telemetry]);
 
-  const getLatestReadings = (equipmentId: string): Map<string, TelemetryReading> => {
-    const map = new Map<string, TelemetryReading>();
-    for (const t of telemetry) {
-      if (t.equipment_id === equipmentId && !map.has(t.metric)) map.set(t.metric, t);
-    }
-    return map;
-  };
-
-  const getResourceReadings = (resourceId: string): Map<string, TelemetryReading> => {
-    const map = new Map<string, TelemetryReading>();
-    for (const t of telemetry) {
-      if (t.resource_id === resourceId && !map.has(t.metric)) map.set(t.metric, t);
-    }
-    return map;
-  };
+  const resLatest = useCallback((rId: string): Map<string, TReading> => {
+    const m = new Map<string, TReading>();
+    for (const t of telemetry) { if (t.resource_id === rId && !m.has(t.metric)) m.set(t.metric, t); }
+    return m;
+  }, [telemetry]);
 
   const hasData = telemetry.length > 0;
-  const isOnline = lastUpdate ? (Date.now() - lastUpdate.getTime()) < 10 * 60 * 1000 : false;
-  const timeSinceUpdate = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 60000) : null;
+  const ageMs = lastUpdate ? Date.now() - lastUpdate.getTime() : Infinity;
+  const isLive = ageMs < 5 * 60 * 1000;
+  const isStale = hasData && ageMs > 5 * 60 * 1000;
 
-  const engines = monitorableEquipment.filter((e: any) => e.type === 'Main Engine');
-  const generators = monitorableEquipment.filter((e: any) => e.type === 'Generator');
-  const batteries = monitorableEquipment.filter((e: any) => e.type === 'Battery Bank');
-  const systems = monitorableEquipment.filter((e: any) => !['Main Engine', 'Generator', 'Battery Bank'].includes(e.type));
+  const engines = monEq.filter((e: any) => e.type === 'Main Engine');
+  const generators = monEq.filter((e: any) => e.type === 'Generator');
+  const batteries = monEq.filter((e: any) => e.type === 'Battery Bank');
+  const systems = monEq.filter((e: any) => !['Main Engine', 'Generator', 'Battery Bank'].includes(e.type));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-blue-200 dark:border-blue-800 border-t-blue-500 rounded-full animate-spin" />
+  const alerts = useMemo<Alert[]>(() => {
+    const a: Alert[] = [];
+    for (const eq of [...engines, ...generators, ...batteries, ...systems]) {
+      const r = latest(eq.id);
+      const rpm = r.get('rpm')?.value;
+      r.forEach((reading, metric) => {
+        const al = checkAlert(eq.name, metric, reading.value, reading.unit, rpm);
+        if (al) a.push(al);
+      });
+    }
+    return a;
+  }, [engines, generators, batteries, systems, latest]);
+
+  const critCount = alerts.filter(a => a.level === 'alarm').length;
+  const advCount = alerts.filter(a => a.level === 'advisory').length;
+
+  /* ── Empty states ─────────────────────────────────────────────────── */
+
+  if (loading) return (
+    <div className="eicas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320, background: '#0B1220', borderRadius: 8 }}>
+      <style>{EICAS_STYLE}</style>
+      <div style={{ width: 24, height: 24, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (!vesselId || vesselId === 'all') return (
+    <div className="eicas" style={{ textAlign: 'center', padding: '80px 20px', background: '#0B1220', borderRadius: 8, border: '1px solid #1F2A3A' }}>
+      <style>{EICAS_STYLE}</style>
+      <div style={{ fontSize: 13, color: 'var(--muted)' }}>Select a vessel to view monitoring data</div>
+    </div>
+  );
+
+  if (!hasData) return (
+    <div className="eicas" style={{ textAlign: 'center', padding: '80px 20px', background: '#0B1220', borderRadius: 8, border: '1px dashed #1F2A3A' }}>
+      <style>{EICAS_STYLE}</style>
+      <WifiOff style={{ width: 32, height: 32, color: '#1F2A3A', margin: '0 auto 16px' }} />
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No live feed</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8, maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+        Connect a NMEA 2000 gateway to see live engine, tank, and battery data.
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!vesselId || vesselId === 'all') {
-    return (
-      <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-        <Anchor className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-400 dark:text-gray-500 text-sm">Select a vessel to view monitoring data</p>
-      </div>
-    );
-  }
+  /* ── Card style helper ────────────────────────────────────────────── */
 
-  if (!hasData) {
-    return (
-      <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-        <WifiOff className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
-        <p className="text-gray-800 dark:text-gray-100 font-semibold">No sensors connected</p>
-        <p className="text-gray-400 text-sm mt-1.5 max-w-sm mx-auto">
-          Connect a NMEA 2000 gateway to see live engine, tank, and battery data.
-        </p>
-        <div className="mt-5 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium">
-          <Info className="w-3.5 h-3.5" />
-          Equipment data is updated manually
-        </div>
-      </div>
-    );
-  }
+  const card: React.CSSProperties = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '14px 18px' };
+  const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--muted)', marginBottom: 10 };
 
   return (
-    <div className="space-y-6">
-      {/* Status bar */}
-      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wide ${
-            isOnline
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
-          }`}>
-            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {isOnline ? 'Live' : 'Offline'}
+    <div className="eicas" style={{ background: 'var(--bg)', borderRadius: 8, padding: 16 }}>
+      <style>{EICAS_STYLE}</style>
+
+      {/* ── Status bar ──────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '8px 14px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', background: isLive ? 'rgba(61,220,151,0.12)' : isStale ? 'rgba(226,75,74,0.12)' : 'rgba(139,154,171,0.12)', color: isLive ? 'var(--ok)' : isStale ? 'var(--alarm)' : 'var(--muted)' }}>
+            {isLive ? <Wifi style={{ width: 12, height: 12 }} /> : <WifiOff style={{ width: 12, height: 12 }} />}
+            {isLive ? 'LIVE' : isStale ? 'STALE' : 'OFFLINE'}
           </div>
-          {timeSinceUpdate !== null && (
-            <span className="text-[11px] text-gray-400 flex items-center gap-1 font-mono tabular-nums">
-              <Clock className="w-3 h-3" />
-              {timeSinceUpdate < 1 ? 'Just now' : timeSinceUpdate < 60 ? `${timeSinceUpdate}m ago` : `${Math.floor(timeSinceUpdate / 60)}h ago`}
-            </span>
-          )}
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>NMEA 2000</span>
+          {lastUpdate && <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{fmtAge(ageMs)}</span>}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors ${
-              autoRefresh ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' : 'bg-gray-50 text-gray-400 dark:bg-gray-700'
-            }`}
+            style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: autoRefresh ? 'rgba(42,155,143,0.15)' : 'var(--border)', color: autoRefresh ? 'var(--accent)' : 'var(--muted)' }}
           >
             Auto-refresh {autoRefresh ? 'ON' : 'OFF'}
           </button>
-          <button onClick={loadTelemetry} className="p-1.5 text-gray-400 hover:text-blue-500 rounded-md hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Refresh">
-            <RefreshCw className="w-3.5 h-3.5" />
+          <button onClick={load} style={{ padding: 4, border: 'none', cursor: 'pointer', background: 'none', color: 'var(--muted)', display: 'flex' }} title="Refresh">
+            <RefreshCw style={{ width: 14, height: 14 }} />
           </button>
         </div>
       </div>
 
-      {engines.length > 0 && (
-        <div>
-          <SectionHeader icon={Gauge} title="Main Engines" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {engines.map((eng: any) => <EquipmentCard key={eng.id} equipment={eng} readings={getLatestReadings(eng.id)} isOnline={isOnline} />)}
-          </div>
+      {/* ── Alarm strip ─────────────────────────────────────────────── */}
+      {isStale ? (
+        <div style={{ padding: '8px 14px', borderRadius: 6, background: 'rgba(226,75,74,0.12)', border: '1px solid rgba(226,75,74,0.3)', marginBottom: 14, fontSize: 12, fontWeight: 600, color: 'var(--alarm)' }}>
+          GATEWAY DISCONNECTED — last data {fmtAge(ageMs)}. Values shown are stale.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 14px', borderRadius: 6, background: critCount > 0 ? 'rgba(226,75,74,0.08)' : 'var(--card)', border: `1px solid ${critCount > 0 ? 'rgba(226,75,74,0.2)' : 'var(--border)'}`, marginBottom: 14, fontSize: 11, fontWeight: 600 }}>
+          <span style={{ color: critCount > 0 ? 'var(--alarm)' : 'var(--ok)' }}>{critCount} critical</span>
+          <span style={{ color: advCount > 0 ? 'var(--warn)' : 'var(--muted)' }}>{advCount} advisory</span>
+          {alerts.length > 0 && <span style={{ color: alerts[0].level === 'alarm' ? 'var(--alarm)' : 'var(--warn)', fontWeight: 400 }}>{alerts[0].equipment} {alerts[0].metric} {alerts[0].value}{alerts[0].unit}</span>}
         </div>
       )}
 
-      {generators.length > 0 && (
-        <div>
-          <SectionHeader icon={Zap} title="Generators" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {generators.map((gen: any) => <EquipmentCard key={gen.id} equipment={gen} readings={getLatestReadings(gen.id)} isOnline={isOnline} />)}
-          </div>
-        </div>
-      )}
+      {/* ── Two-column layout ───────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }} className="eicas-grid">
+        <style>{`@media(min-width:1200px){.eicas-grid{grid-template-columns:58% 1fr!important}}`}</style>
 
-      {batteries.length > 0 && (
-        <div>
-          <SectionHeader icon={Battery} title="Battery Banks" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {batteries.map((bat: any) => <EquipmentCard key={bat.id} equipment={bat} readings={getLatestReadings(bat.id)} isOnline={isOnline} />)}
-          </div>
-        </div>
-      )}
+        {/* LEFT: Propulsion + Power + Tanks */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {resources.length > 0 && (
-        <div>
-          <SectionHeader icon={Droplets} title="Tanks" />
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
-            <div className="flex items-end justify-center gap-6 flex-wrap">
-              {resources.map((res) => {
-                const tc = TANK_CONFIG[res.resource_type] || { color: '#6b7280', label: res.name };
-                const levelReading = getResourceReadings(res.id).get('level');
-                const currentLevel = levelReading
-                  ? Math.round((levelReading.value / 100) * Number(res.capacity))
-                  : Number(res.current_level);
+          {/* PROPULSION */}
+          {engines.length > 0 && (
+            <div style={card}>
+              <div style={sectionLabel}>PROPULSION</div>
+              {engines.map((eng: any, i: number) => {
+                const r = latest(eng.id);
+                const status = r.get('status');
+                const isRunning = status ? status.value === 1 : false;
+                const hours = r.get('hours')?.value ?? 0;
+                const rpm = r.get('rpm')?.value ?? 0;
+                const temp = r.get('temperature')?.value ?? 0;
+                const oil = r.get('oil_pressure')?.value ?? 0;
+                const nameTag = eng.name?.toUpperCase().includes('PORT') ? 'PORT' : eng.name?.toUpperCase().includes('STAR') ? 'STBD' : eng.name;
                 return (
-                  <TankBar key={res.id} name={tc.label} level={currentLevel} capacity={Number(res.capacity)} unit={res.unit} color={tc.color} />
+                  <div key={eng.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{nameTag}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{eng.manufacturer} {eng.model}</span>
+                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                      <div style={{ minWidth: 100 }}>
+                        <Metric label="RPM" value={String(Math.round(rpm))} color={isRunning && rpm > 2300 ? 'var(--alarm)' : undefined} />
+                        {isRunning && <ThinBar value={rpm} max={2500} color={rpm > 2300 ? 'var(--alarm)' : rpm > 2000 ? 'var(--warn)' : 'var(--ok)'} />}
+                      </div>
+                      <Metric label="COOLANT" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
+                      <Metric label="OIL" value={fmtVal(oil)} unit="bar" color={valueColor('oil_pressure', oil, rpm)} />
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {systems.length > 0 && (
-        <div>
-          <SectionHeader icon={Activity} title="Systems" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {systems.map((sys: any) => <EquipmentCard key={sys.id} equipment={sys} readings={getLatestReadings(sys.id)} isOnline={isOnline} />)}
+          {/* POWER */}
+          {generators.length > 0 && (
+            <div style={card}>
+              <div style={sectionLabel}>POWER</div>
+              {generators.map((gen: any, i: number) => {
+                const r = latest(gen.id);
+                const status = r.get('status');
+                const isRunning = status ? status.value === 1 : false;
+                const hours = r.get('hours')?.value ?? 0;
+                const volts = r.get('voltage')?.value ?? 0;
+                const loadPct = r.get('load')?.value ?? 0;
+                const temp = r.get('temperature')?.value ?? 0;
+                return (
+                  <div key={gen.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{gen.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{gen.manufacturer} {gen.model}</span>
+                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                      <Metric label="VOLTS" value={String(Math.round(volts))} unit="V" />
+                      <div style={{ minWidth: 100 }}>
+                        <Metric label="LOAD" value={String(Math.round(loadPct))} unit="%" color={valueColor('load', loadPct)} />
+                        {isRunning && <ThinBar value={loadPct} max={100} color={loadPct > 95 ? 'var(--alarm)' : loadPct > 80 ? 'var(--warn)' : 'var(--ok)'} />}
+                      </div>
+                      <Metric label="TEMP" value={fmtVal(temp)} unit="°C" color={valueColor('temperature', temp)} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* TANKS */}
+          {resources.length > 0 && (
+            <div style={card}>
+              <div style={sectionLabel}>TANKS</div>
+              {resources.map(res => {
+                const lr = resLatest(res.id).get('level');
+                const cap = Number(res.capacity);
+                const cur = lr ? Math.round((lr.value / 100) * cap) : Number(res.current_level);
+                const pct = cap > 0 ? Math.min((cur / cap) * 100, 100) : 0;
+                const label = TANK_LABELS[res.resource_type] || res.name.toUpperCase();
+                return <TankRow key={res.id} name={label} pct={pct} capacity={cap} unit={res.unit} current={cur} />;
+              })}
+            </div>
+          )}
+
+          {/* SYSTEMS (HVAC etc) */}
+          {systems.length > 0 && (
+            <div style={card}>
+              <div style={sectionLabel}>SYSTEMS</div>
+              {systems.map((sys: any, i: number) => {
+                const r = latest(sys.id);
+                const status = r.get('status');
+                const isRunning = status ? status.value === 1 : false;
+                const hours = r.get('hours')?.value ?? 0;
+                const temp = r.get('temperature')?.value ?? 0;
+                return (
+                  <div key={sys.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{sys.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{sys.manufacturer} {sys.model}</span>
+                      <StatePill label={isRunning ? 'RUNNING' : 'STOPPED'} state={isRunning ? 'running' : 'stopped'} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+                      <Metric label="HOURS" value={fmtVal(hours)} unit="hrs" />
+                      <Metric label="TEMP" value={fmtVal(temp)} unit="°C" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Electrical + Connection */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* ELECTRICAL */}
+          {batteries.length > 0 && (
+            <div style={card}>
+              <div style={sectionLabel}>ELECTRICAL</div>
+              {batteries.map((bat: any, i: number) => {
+                const r = latest(bat.id);
+                const soc = r.get('state_of_charge')?.value ?? 0;
+                const volts = r.get('battery_voltage')?.value ?? 0;
+                const amps = r.get('battery_current')?.value ?? 0;
+                const isCharging = amps > 0;
+                return (
+                  <div key={bat.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{bat.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{bat.manufacturer}</span>
+                      <StatePill label={isCharging ? 'CHARGING' : 'DISCHARGING'} state={isCharging ? 'charging' : 'discharging'} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+                      <Metric label="SOC" value={fmtVal(soc)} unit="%" color={valueColor('state_of_charge', soc)} />
+                      <Metric label="VOLTAGE" value={fmtVal(volts)} unit="V" />
+                      <Metric label="CURRENT" value={fmtVal(Math.abs(amps))} unit={`A ${isCharging ? '↑' : '↓'}`} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* CONNECTION */}
+          <div style={card}>
+            <div style={sectionLabel}>CONNECTION</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>NMEA 2000 Gateway</span>
+              <StatePill label={isLive ? 'CONNECTED' : 'STALE'} state={isLive ? 'running' : 'stale'} />
+            </div>
+            <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+              <Metric label="LAST PACKET" value={lastUpdate ? fmtAge(ageMs) : '—'} />
+              <Metric label="STATUS" value={isLive ? 'Receiving' : 'No data'} color={isLive ? 'var(--ok)' : 'var(--alarm)'} />
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 2 }}>REFRESH</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>{autoRefresh ? '10s interval' : 'Manual'}</div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

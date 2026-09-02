@@ -31,8 +31,10 @@ const PRESETS: Record<string, { label: string; vesselId: string; companyId: stri
 };
 
 interface SimState {
-  enginesOn: boolean;
-  throttle: number;
+  enginePortOn: boolean;
+  engineStbdOn: boolean;
+  throttlePort: number;
+  throttleStbd: number;
   gen1On: boolean;
   gen2On: boolean;
   hvacOn: boolean;
@@ -51,8 +53,10 @@ interface SimState {
 }
 
 const DEFAULT_STATE: SimState = {
-  enginesOn: false,
-  throttle: 0,
+  enginePortOn: false,
+  engineStbdOn: false,
+  throttlePort: 0,
+  throttleStbd: 0,
   gen1On: true,
   gen2On: false,
   hvacOn: true,
@@ -176,64 +180,68 @@ export function DataSim() {
     const p = PRESETS[preset];
     if (!p) return [];
 
-    const baseRpm = 800 + (s.throttle / 100) * 1200;
-    const baseTemp = s.enginesOn ? 45 + (s.throttle / 100) * 45 : 22;
+    const rpmPort = s.enginePortOn ? Math.round(800 + (s.throttlePort / 100) * 1200) : 0;
+    const rpmStbd = s.engineStbdOn ? Math.round(800 + (s.throttleStbd / 100) * 1200) : 0;
+    const tempPort = s.enginePortOn ? Math.round((45 + (s.throttlePort / 100) * 45) * 10) / 10 : 22;
+    const tempStbd = s.engineStbdOn ? Math.round((45 + (s.throttleStbd / 100) * 45) * 10) / 10 : 22;
+    const oilPort = s.enginePortOn ? Math.round((3.5 + (s.throttlePort / 100) * 1.5) * 10) / 10 : 0;
+    const oilStbd = s.engineStbdOn ? Math.round((3.4 + (s.throttleStbd / 100) * 1.5) * 10) / 10 : 0;
 
     const readings: any[] = [];
 
-    // Engines
+    // Engines — exact values from sliders
     readings.push(
-      { equipment_id: p.equipment.enginePort, metric: 'status', value: s.enginesOn ? 1 : 0, unit: '' },
+      { equipment_id: p.equipment.enginePort, metric: 'status', value: s.enginePortOn ? 1 : 0, unit: '' },
       { equipment_id: p.equipment.enginePort, metric: 'hours', value: Math.round(s.enginePortHours * 10) / 10, unit: 'hrs' },
-      { equipment_id: p.equipment.enginePort, metric: 'rpm', value: s.enginesOn ? Math.round(baseRpm + rand(-30, 30)) : 0, unit: 'rpm' },
-      { equipment_id: p.equipment.enginePort, metric: 'temperature', value: s.enginesOn ? Math.round((baseTemp + rand(-3, 3)) * 10) / 10 : rand(20, 24), unit: '°C' },
-      { equipment_id: p.equipment.enginePort, metric: 'oil_pressure', value: s.enginesOn ? rand(3.2 + s.throttle / 100 * 1.5, 4.8 + s.throttle / 100) : 0, unit: 'bar' },
+      { equipment_id: p.equipment.enginePort, metric: 'rpm', value: rpmPort, unit: 'rpm' },
+      { equipment_id: p.equipment.enginePort, metric: 'temperature', value: tempPort, unit: '°C' },
+      { equipment_id: p.equipment.enginePort, metric: 'oil_pressure', value: oilPort, unit: 'bar' },
 
-      { equipment_id: p.equipment.engineStbd, metric: 'status', value: s.enginesOn ? 1 : 0, unit: '' },
+      { equipment_id: p.equipment.engineStbd, metric: 'status', value: s.engineStbdOn ? 1 : 0, unit: '' },
       { equipment_id: p.equipment.engineStbd, metric: 'hours', value: Math.round(s.engineStbdHours * 10) / 10, unit: 'hrs' },
-      { equipment_id: p.equipment.engineStbd, metric: 'rpm', value: s.enginesOn ? Math.round(baseRpm + rand(-25, 25)) : 0, unit: 'rpm' },
-      { equipment_id: p.equipment.engineStbd, metric: 'temperature', value: s.enginesOn ? Math.round((baseTemp + rand(-4, 4)) * 10) / 10 : rand(20, 24), unit: '°C' },
-      { equipment_id: p.equipment.engineStbd, metric: 'oil_pressure', value: s.enginesOn ? rand(3.1 + s.throttle / 100 * 1.5, 4.7 + s.throttle / 100) : 0, unit: 'bar' },
+      { equipment_id: p.equipment.engineStbd, metric: 'rpm', value: rpmStbd, unit: 'rpm' },
+      { equipment_id: p.equipment.engineStbd, metric: 'temperature', value: tempStbd, unit: '°C' },
+      { equipment_id: p.equipment.engineStbd, metric: 'oil_pressure', value: oilStbd, unit: 'bar' },
     );
 
     // Generators
     readings.push(
       { equipment_id: p.equipment.generator1, metric: 'status', value: s.gen1On ? 1 : 0, unit: '' },
       { equipment_id: p.equipment.generator1, metric: 'hours', value: Math.round(s.gen1Hours * 10) / 10, unit: 'hrs' },
-      { equipment_id: p.equipment.generator1, metric: 'voltage', value: s.gen1On ? rand(222, 234) : 0, unit: 'V' },
-      { equipment_id: p.equipment.generator1, metric: 'load', value: s.gen1On ? rand(35, 70) : 0, unit: '%' },
-      { equipment_id: p.equipment.generator1, metric: 'temperature', value: s.gen1On ? rand(62, 78) : rand(20, 24), unit: '°C' },
+      { equipment_id: p.equipment.generator1, metric: 'voltage', value: s.gen1On ? 228 : 0, unit: 'V' },
+      { equipment_id: p.equipment.generator1, metric: 'load', value: s.gen1On ? 52 : 0, unit: '%' },
+      { equipment_id: p.equipment.generator1, metric: 'temperature', value: s.gen1On ? 68 : 22, unit: '°C' },
 
       { equipment_id: p.equipment.generator2, metric: 'status', value: s.gen2On ? 1 : 0, unit: '' },
       { equipment_id: p.equipment.generator2, metric: 'hours', value: Math.round(s.gen2Hours * 10) / 10, unit: 'hrs' },
-      { equipment_id: p.equipment.generator2, metric: 'voltage', value: s.gen2On ? rand(220, 232) : 0, unit: 'V' },
-      { equipment_id: p.equipment.generator2, metric: 'load', value: s.gen2On ? rand(28, 55) : 0, unit: '%' },
-      { equipment_id: p.equipment.generator2, metric: 'temperature', value: s.gen2On ? rand(60, 75) : rand(20, 24), unit: '°C' },
+      { equipment_id: p.equipment.generator2, metric: 'voltage', value: s.gen2On ? 226 : 0, unit: 'V' },
+      { equipment_id: p.equipment.generator2, metric: 'load', value: s.gen2On ? 41 : 0, unit: '%' },
+      { equipment_id: p.equipment.generator2, metric: 'temperature', value: s.gen2On ? 65 : 22, unit: '°C' },
     );
 
     // HVAC
     readings.push(
       { equipment_id: p.equipment.hvac, metric: 'status', value: s.hvacOn ? 1 : 0, unit: '' },
       { equipment_id: p.equipment.hvac, metric: 'hours', value: Math.round(s.hvacHours * 10) / 10, unit: 'hrs' },
-      { equipment_id: p.equipment.hvac, metric: 'temperature', value: s.hvacOn ? rand(6, 10) : rand(20, 28), unit: '°C' },
+      { equipment_id: p.equipment.hvac, metric: 'temperature', value: s.hvacOn ? 8 : 24, unit: '°C' },
     );
 
     // Batteries
     readings.push(
       { equipment_id: p.batteries.bank1, metric: 'status', value: 1, unit: '' },
       { equipment_id: p.batteries.bank1, metric: 'state_of_charge', value: Math.round(s.bat1Soc * 10) / 10, unit: '%' },
-      { equipment_id: p.batteries.bank1, metric: 'battery_voltage', value: s.bat1Charging ? rand(27.2, 28.8) : rand(24.5, 26.2), unit: 'V' },
-      { equipment_id: p.batteries.bank1, metric: 'battery_current', value: s.bat1Charging ? rand(15, 45) : rand(-30, -5), unit: 'A' },
-      { equipment_id: p.batteries.bank1, metric: 'battery_temp', value: rand(22, 32), unit: '°C' },
+      { equipment_id: p.batteries.bank1, metric: 'battery_voltage', value: s.bat1Charging ? 28.0 : 25.4, unit: 'V' },
+      { equipment_id: p.batteries.bank1, metric: 'battery_current', value: s.bat1Charging ? 30 : -18, unit: 'A' },
+      { equipment_id: p.batteries.bank1, metric: 'battery_temp', value: 26, unit: '°C' },
 
       { equipment_id: p.batteries.bank2, metric: 'status', value: 1, unit: '' },
       { equipment_id: p.batteries.bank2, metric: 'state_of_charge', value: Math.round(s.bat2Soc * 10) / 10, unit: '%' },
-      { equipment_id: p.batteries.bank2, metric: 'battery_voltage', value: s.bat2Charging ? rand(27.0, 28.5) : rand(24.2, 26.0), unit: 'V' },
-      { equipment_id: p.batteries.bank2, metric: 'battery_current', value: s.bat2Charging ? rand(12, 40) : rand(-25, -3), unit: 'A' },
-      { equipment_id: p.batteries.bank2, metric: 'battery_temp', value: rand(21, 30), unit: '°C' },
+      { equipment_id: p.batteries.bank2, metric: 'battery_voltage', value: s.bat2Charging ? 27.8 : 25.1, unit: 'V' },
+      { equipment_id: p.batteries.bank2, metric: 'battery_current', value: s.bat2Charging ? 25 : -15, unit: 'A' },
+      { equipment_id: p.batteries.bank2, metric: 'battery_temp', value: 25, unit: '°C' },
     );
 
-    // Tanks
+    // Tanks — exact slider values
     readings.push(
       { resource_id: p.resources.dieselMain, metric: 'level', value: Math.round(s.dieselMain * 10) / 10, unit: '%' },
       { resource_id: p.resources.freshWater, metric: 'level', value: Math.round(s.freshWater * 10) / 10, unit: '%' },
@@ -274,11 +282,13 @@ export function DataSim() {
       const s = { ...prev };
       const dt = interval / 3600;
 
-      if (s.enginesOn) {
+      if (s.enginePortOn) {
         s.enginePortHours += dt;
+        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (s.throttlePort / 100) * 0.04));
+      }
+      if (s.engineStbdOn) {
         s.engineStbdHours += dt;
-        const consumption = 0.02 + (s.throttle / 100) * 0.08;
-        s.dieselMain = Math.max(0, s.dieselMain - consumption);
+        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (s.throttleStbd / 100) * 0.04));
       }
       if (s.gen1On) {
         s.gen1Hours += dt;
@@ -333,9 +343,12 @@ export function DataSim() {
     };
   }, [running, interval, sendReadings, simulateTick]);
 
-  const rpm = state.enginesOn ? Math.round(800 + (state.throttle / 100) * 1200) : 0;
-  const speed = state.enginesOn ? Math.round((state.throttle / 100) * 22 * 10) / 10 : 0;
-  const temp = state.enginesOn ? Math.round(45 + (state.throttle / 100) * 45) : 22;
+  const rpmPort = state.enginePortOn ? Math.round(800 + (state.throttlePort / 100) * 1200) : 0;
+  const rpmStbd = state.engineStbdOn ? Math.round(800 + (state.throttleStbd / 100) * 1200) : 0;
+  const speedPort = state.enginePortOn ? Math.round((state.throttlePort / 100) * 22 * 10) / 10 : 0;
+  const speedStbd = state.engineStbdOn ? Math.round((state.throttleStbd / 100) * 22 * 10) / 10 : 0;
+  const tempPort = state.enginePortOn ? Math.round(45 + (state.throttlePort / 100) * 45) : 22;
+  const tempStbd = state.engineStbdOn ? Math.round(45 + (state.throttleStbd / 100) * 45) : 22;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -384,18 +397,33 @@ export function DataSim() {
               {running ? 'Stop Simulation' : 'Start Simulation'}
             </button>
 
-            {/* Engines */}
+            {/* Engine Port */}
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-3">Propulsion</h3>
-              <Toggle on={state.enginesOn} onToggle={() => setState(s => ({ ...s, enginesOn: !s.enginesOn, throttle: s.enginesOn ? 0 : s.throttle }))} label="Main Engines" icon={Gauge} />
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-3">Engine Port</h3>
+              <Toggle on={state.enginePortOn} onToggle={() => setState(s => ({ ...s, enginePortOn: !s.enginePortOn, throttlePort: s.enginePortOn ? 0 : s.throttlePort }))} label="Engine Port" icon={Gauge} />
               <Slider
-                value={state.throttle} onChange={v => setState(s => ({ ...s, throttle: v }))}
-                min={0} max={100} label="Throttle" unit="%" color="#22d3ee"
+                value={state.throttlePort} onChange={v => setState(s => ({ ...s, throttlePort: v }))}
+                min={0} max={100} label="Throttle Port" unit="%" color="#22d3ee"
               />
               <div className="grid grid-cols-3 gap-1 mt-2 bg-gray-800/50 rounded-lg p-2">
-                <MetricDisplay label="RPM" value={rpm} unit="rpm" color="#22d3ee" />
-                <MetricDisplay label="Speed" value={speed} unit="kts" color="#60a5fa" />
-                <MetricDisplay label="Temp" value={temp} unit="°C" color={temp > 85 ? '#ef4444' : '#fbbf24'} />
+                <MetricDisplay label="RPM" value={rpmPort} unit="rpm" color="#22d3ee" />
+                <MetricDisplay label="Speed" value={speedPort} unit="kts" color="#60a5fa" />
+                <MetricDisplay label="Temp" value={tempPort} unit="°C" color={tempPort > 85 ? '#ef4444' : '#fbbf24'} />
+              </div>
+            </div>
+
+            {/* Engine Starboard */}
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-3">Engine Starboard</h3>
+              <Toggle on={state.engineStbdOn} onToggle={() => setState(s => ({ ...s, engineStbdOn: !s.engineStbdOn, throttleStbd: s.engineStbdOn ? 0 : s.throttleStbd }))} label="Engine Stbd" icon={Gauge} />
+              <Slider
+                value={state.throttleStbd} onChange={v => setState(s => ({ ...s, throttleStbd: v }))}
+                min={0} max={100} label="Throttle Stbd" unit="%" color="#06b6d4"
+              />
+              <div className="grid grid-cols-3 gap-1 mt-2 bg-gray-800/50 rounded-lg p-2">
+                <MetricDisplay label="RPM" value={rpmStbd} unit="rpm" color="#06b6d4" />
+                <MetricDisplay label="Speed" value={speedStbd} unit="kts" color="#60a5fa" />
+                <MetricDisplay label="Temp" value={tempStbd} unit="°C" color={tempStbd > 85 ? '#ef4444' : '#fbbf24'} />
               </div>
             </div>
 
@@ -448,21 +476,18 @@ export function DataSim() {
             {/* Tanks */}
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-3">Tanks</h3>
-              <div className="space-y-3">
-                <TankLevel label="Diesel Main" level={state.dieselMain} color="#f59e0b" />
-                <TankLevel label="Diesel Gen" level={state.dieselGen} color="#f97316" />
-                <TankLevel label="Fresh Water" level={state.freshWater} color="#3b82f6" />
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-800">
-                <Slider
-                  value={state.dieselMain} onChange={v => setState(s => ({ ...s, dieselMain: v }))}
-                  min={0} max={100} step={0.5} label="Refuel Diesel" unit="%" color="#f59e0b"
-                />
-                <Slider
-                  value={state.freshWater} onChange={v => setState(s => ({ ...s, freshWater: v }))}
-                  min={0} max={100} step={0.5} label="Fill Water" unit="%" color="#3b82f6"
-                />
-              </div>
+              <Slider
+                value={state.dieselMain} onChange={v => setState(s => ({ ...s, dieselMain: v }))}
+                min={0} max={100} step={0.5} label="Diesel Main" unit="%" color="#f59e0b"
+              />
+              <Slider
+                value={state.dieselGen} onChange={v => setState(s => ({ ...s, dieselGen: v }))}
+                min={0} max={100} step={0.5} label="Diesel Generator" unit="%" color="#f97316"
+              />
+              <Slider
+                value={state.freshWater} onChange={v => setState(s => ({ ...s, freshWater: v }))}
+                min={0} max={100} step={0.5} label="Fresh Water" unit="%" color="#3b82f6"
+              />
             </div>
 
             {/* Config */}
@@ -502,10 +527,10 @@ export function DataSim() {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Engines', value: state.enginesOn ? 'ON' : 'OFF', color: state.enginesOn ? '#34d399' : '#6b7280', sub: `${rpm} RPM` },
+                { label: 'Engine Port', value: state.enginePortOn ? 'ON' : 'OFF', color: state.enginePortOn ? '#34d399' : '#6b7280', sub: `${rpmPort} RPM · ${state.throttlePort}%` },
+                { label: 'Engine Stbd', value: state.engineStbdOn ? 'ON' : 'OFF', color: state.engineStbdOn ? '#34d399' : '#6b7280', sub: `${rpmStbd} RPM · ${state.throttleStbd}%` },
                 { label: 'Generator 1', value: state.gen1On ? 'ON' : 'OFF', color: state.gen1On ? '#fbbf24' : '#6b7280', sub: `${state.gen1Hours.toFixed(0)} hrs` },
                 { label: 'Generator 2', value: state.gen2On ? 'ON' : 'OFF', color: state.gen2On ? '#fbbf24' : '#6b7280', sub: `${state.gen2Hours.toFixed(0)} hrs` },
-                { label: 'Speed', value: `${speed}`, color: '#22d3ee', sub: `${state.throttle}% throttle` },
               ].map(s => (
                 <div key={s.label} className="bg-gray-900 rounded-xl border border-gray-800 p-4">
                   <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">{s.label}</div>

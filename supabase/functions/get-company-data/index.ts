@@ -138,8 +138,28 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // --- TENANT ISOLATION: verify record belongs to user's company ---
+    const enforceCompany = !isMasterAdmin ? userCompanyId : null;
+
+    const verifyOwnership = async (recordId: string): Promise<boolean> => {
+      if (!enforceCompany) return true;
+      const { data: row } = await supabase.from(table).select('company_id').eq('id', recordId).single();
+      return row?.company_id === enforceCompany;
+    };
+
     // INSERT
     if (action === 'insert') {
+      if (enforceCompany) {
+        const insertData = Array.isArray(data) ? data : [data];
+        for (const row of insertData) {
+          if (row.company_id && row.company_id !== enforceCompany) {
+            return new Response(JSON.stringify({ error: 'Access denied: cannot insert data for another company' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          row.company_id = row.company_id || enforceCompany;
+        }
+      }
       const { data: row, error } = await supabase.from(table).insert(data).select().single();
       if (error) throw error;
       return new Response(JSON.stringify({ data: row }), {
@@ -150,6 +170,16 @@ Deno.serve(async (req: Request) => {
     // UPDATE
     if (action === 'update') {
       if (!id) throw new Error('id required for update');
+      if (enforceCompany && !(await verifyOwnership(id))) {
+        return new Response(JSON.stringify({ error: 'Access denied: record belongs to another company' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (enforceCompany && data?.company_id && data.company_id !== enforceCompany) {
+        return new Response(JSON.stringify({ error: 'Access denied: cannot reassign record to another company' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { data: row, error } = await supabase.from(table).update(data).eq('id', id).select().single();
       if (error) throw error;
       return new Response(JSON.stringify({ data: row }), {
@@ -160,6 +190,11 @@ Deno.serve(async (req: Request) => {
     // DELETE
     if (action === 'delete') {
       if (!id) throw new Error('id required for delete');
+      if (enforceCompany && !(await verifyOwnership(id))) {
+        return new Response(JSON.stringify({ error: 'Access denied: record belongs to another company' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { error } = await supabase.from(table).delete().eq('id', id);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
@@ -167,12 +202,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // DELETE WHERE
+    // DELETE WHERE (scoped to company)
     if (action === 'delete_where') {
       const { field, value } = body;
       if (!field || !value) throw new Error('field and value required for delete_where');
-      const { error } = await supabase.from(table).delete().eq(field, value);
-      if (error) throw error;
+      if (enforceCompany) {
+        const { error } = await supabase.from(table).delete().eq(field, value).eq('company_id', enforceCompany);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from(table).delete().eq(field, value);
+        if (error) throw error;
+      }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

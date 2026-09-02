@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Wifi, WifiOff, RefreshCw, Info } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { fetchByCompany } from '../../lib/supabase';
 
 /* ── Types ─────────────────────────────────────────────────────────── */

@@ -28,6 +28,11 @@ const EQUIPMENT = {
   bowThruster: '0d20528d-5c73-4449-85cf-9e9337f02fd7',
 };
 
+const BATTERIES = {
+  bank1: '32065a8a-5270-43d3-942a-baf9db9c0d54',
+  bank2: '29f2cd98-d51b-4dab-b6f6-d1c72e05b9a1',
+};
+
 // Fuel resource IDs from Dream
 const RESOURCES = {
   dieselMain: '34b4311a-ecdd-40b1-b0de-d3a4536b5063',
@@ -42,6 +47,9 @@ const state = {
   gen1Hours: 1205,
   gen2Hours: 890,
   hvacHours: 3420,
+  bat1Soc: 87,             // state of charge %
+  bat2Soc: 92,
+  bat1Charging: true,
   dieselMainLevel: 52.5,   // percentage
   freshWaterLevel: 60.0,
   dieselGenLevel: 12.1,
@@ -70,6 +78,16 @@ function buildReadings() {
   }
   state.hvacHours += 0.1;
   state.freshWaterLevel = Math.max(0, state.freshWaterLevel - rand(0.01, 0.05));
+
+  // Battery simulation: charging increases SOC, discharging decreases
+  if (state.bat1Charging) {
+    state.bat1Soc = Math.min(100, state.bat1Soc + rand(0.1, 0.4));
+    if (state.bat1Soc >= 98) state.bat1Charging = false;
+  } else {
+    state.bat1Soc = Math.max(0, state.bat1Soc - rand(0.05, 0.2));
+    if (state.bat1Soc <= 20) state.bat1Charging = true;
+  }
+  state.bat2Soc = Math.max(0, Math.min(100, state.bat2Soc + rand(-0.15, 0.25)));
 
   // Randomly toggle gen2 on/off
   if (Math.random() < 0.05) state.gen2Running = !state.gen2Running;
@@ -108,6 +126,20 @@ function buildReadings() {
     { equipment_id: EQUIPMENT.hvac, metric: 'hours', value: Math.round(state.hvacHours * 10) / 10, unit: 'hrs' },
     { equipment_id: EQUIPMENT.hvac, metric: 'temperature', value: rand(6, 10), unit: '°C' },
 
+    // ── Battery Bank 1 ──
+    { equipment_id: BATTERIES.bank1, metric: 'status', value: 1, unit: '' },
+    { equipment_id: BATTERIES.bank1, metric: 'state_of_charge', value: Math.round(state.bat1Soc * 10) / 10, unit: '%' },
+    { equipment_id: BATTERIES.bank1, metric: 'battery_voltage', value: state.bat1Charging ? rand(27.2, 28.8) : rand(24.5, 26.2), unit: 'V' },
+    { equipment_id: BATTERIES.bank1, metric: 'battery_current', value: state.bat1Charging ? rand(15, 45) : rand(-30, -5), unit: 'A' },
+    { equipment_id: BATTERIES.bank1, metric: 'battery_temp', value: rand(22, 32), unit: '°C' },
+
+    // ── Battery Bank 2 ──
+    { equipment_id: BATTERIES.bank2, metric: 'status', value: 1, unit: '' },
+    { equipment_id: BATTERIES.bank2, metric: 'state_of_charge', value: Math.round(state.bat2Soc * 10) / 10, unit: '%' },
+    { equipment_id: BATTERIES.bank2, metric: 'battery_voltage', value: rand(25.0, 27.5), unit: 'V' },
+    { equipment_id: BATTERIES.bank2, metric: 'battery_current', value: rand(-20, 30), unit: 'A' },
+    { equipment_id: BATTERIES.bank2, metric: 'battery_temp', value: rand(21, 30), unit: '°C' },
+
     // ── Tanks ──
     { resource_id: RESOURCES.dieselMain, metric: 'level', value: Math.round(state.dieselMainLevel * 10) / 10, unit: '%' },
     { resource_id: RESOURCES.freshWater, metric: 'level', value: Math.round(state.freshWaterLevel * 10) / 10, unit: '%' },
@@ -139,7 +171,7 @@ async function sendReadings() {
     const now = new Date().toLocaleTimeString();
 
     if (res.ok) {
-      console.log(`[${now}] Sent ${data.inserted} readings | Engines: ${state.enginesRunning ? 'ON' : 'OFF'} | Gen1: ${state.gen1Running ? 'ON' : 'OFF'} | Gen2: ${state.gen2Running ? 'ON' : 'OFF'} | Diesel: ${state.dieselMainLevel.toFixed(1)}% | Water: ${state.freshWaterLevel.toFixed(1)}%`);
+      console.log(`[${now}] Sent ${data.inserted} readings | Engines: ${state.enginesRunning ? 'ON' : 'OFF'} | Gen1: ${state.gen1Running ? 'ON' : 'OFF'} | Gen2: ${state.gen2Running ? 'ON' : 'OFF'} | Bat1: ${state.bat1Soc.toFixed(1)}% ${state.bat1Charging ? '⚡' : '↓'} | Diesel: ${state.dieselMainLevel.toFixed(1)}% | Water: ${state.freshWaterLevel.toFixed(1)}%`);
     } else {
       console.error(`[${now}] Error:`, data.error);
     }

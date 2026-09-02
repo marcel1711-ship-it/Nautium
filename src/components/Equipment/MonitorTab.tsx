@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Activity, Wifi, WifiOff, Thermometer, Gauge, Clock,
-  Droplets, Fuel, Zap, Fan, RefreshCw, Info,
+  Droplets, Fuel, Zap, Fan, RefreshCw, Info, Battery,
 } from 'lucide-react';
 import { fetchByCompany } from '../../lib/supabase';
 
@@ -30,7 +30,7 @@ interface FuelResource {
   vessel_id: string;
 }
 
-const MONITORABLE_TYPES = ['Main Engine', 'Generator', 'HVAC', 'Compressor'];
+const MONITORABLE_TYPES = ['Main Engine', 'Generator', 'HVAC', 'Compressor', 'Battery Bank'];
 
 const METRIC_CONFIG: Record<string, { label: string; unit: string; max: number; warn: number; critical: number; color: string }> = {
   hours:       { label: 'Hours',       unit: 'hrs',  max: 20000, warn: 15000, critical: 18000, color: '#3b82f6' },
@@ -39,7 +39,11 @@ const METRIC_CONFIG: Record<string, { label: string; unit: string; max: number; 
   oil_pressure:{ label: 'Oil Press.',  unit: 'bar',  max: 8,     warn: 2,     critical: 1,     color: '#8b5cf6' },
   voltage:     { label: 'Voltage',     unit: 'V',    max: 250,   warn: 210,   critical: 190,   color: '#10b981' },
   load:        { label: 'Load',        unit: '%',    max: 100,   warn: 80,    critical: 95,    color: '#ec4899' },
-  coolant_temp:{ label: 'Coolant',     unit: '°C',   max: 110,   warn: 85,    critical: 95,    color: '#ef4444' },
+  coolant_temp:      { label: 'Coolant',     unit: '°C',   max: 110,   warn: 85,    critical: 95,    color: '#ef4444' },
+  state_of_charge:   { label: 'SOC',         unit: '%',    max: 100,   warn: 25,    critical: 10,    color: '#22c55e' },
+  battery_voltage:   { label: 'Voltage',     unit: 'V',    max: 60,    warn: 23,    critical: 22,    color: '#eab308' },
+  battery_current:   { label: 'Current',     unit: 'A',    max: 200,   warn: 160,   critical: 180,   color: '#06b6d4' },
+  battery_temp:      { label: 'Temp',        unit: '°C',   max: 60,    warn: 40,    critical: 50,    color: '#f97316' },
 };
 
 const TANK_COLORS: Record<string, { fill: string; bg: string; label: string }> = {
@@ -62,9 +66,10 @@ function CircularGauge({ value, max, label, unit, color, warn, critical, size = 
   const startAngle = 135;
 
   let gaugeColor = color;
+  const lowIsWorse = label === 'Oil Press.' || label === 'SOC';
   if (critical !== undefined && warn !== undefined) {
-    if (label === 'Oil Press.' ? value < critical : value > critical) gaugeColor = '#ef4444';
-    else if (label === 'Oil Press.' ? value < warn : value > warn) gaugeColor = '#f59e0b';
+    if (lowIsWorse ? value < critical : value > critical) gaugeColor = '#ef4444';
+    else if (lowIsWorse ? value < warn : value > warn) gaugeColor = '#f59e0b';
   }
 
   const cx = size / 2;
@@ -151,17 +156,21 @@ function EquipmentCard({ equipment, readings, isOnline }: {
   const type = equipment.type;
   const isEngine = type === 'Main Engine';
   const isGenerator = type === 'Generator';
+  const isBattery = type === 'Battery Bank';
 
   const metricsToShow = isEngine
     ? ['hours', 'rpm', 'temperature', 'oil_pressure']
     : isGenerator
     ? ['hours', 'voltage', 'load', 'temperature']
+    : isBattery
+    ? ['state_of_charge', 'battery_voltage', 'battery_current', 'battery_temp']
     : ['hours', 'temperature'];
 
   const status = readings.get('status');
   const isRunning = status ? status.value === 1 : false;
+  const isBatteryCharging = isBattery && readings.get('battery_current') && (readings.get('battery_current')?.value ?? 0) > 0;
 
-  const IconComponent = isEngine ? Gauge : isGenerator ? Zap : Fan;
+  const IconComponent = isEngine ? Gauge : isGenerator ? Zap : isBattery ? Battery : Fan;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -180,13 +189,17 @@ function EquipmentCard({ equipment, readings, isOnline }: {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isOnline && <StatusDot active={isRunning} />}
+          {isOnline && <StatusDot active={isBattery || isRunning} />}
           <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-            isRunning
+            isBattery
+              ? isBatteryCharging
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+              : isRunning
               ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
               : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
           }`}>
-            {isRunning ? 'Running' : 'Off'}
+            {isBattery ? (isBatteryCharging ? 'Charging' : 'Discharging') : isRunning ? 'Running' : 'Off'}
           </span>
         </div>
       </div>
@@ -286,7 +299,8 @@ export const MonitorTab: React.FC<MonitorTabProps> = ({ vesselId, companyId, equ
 
   const engines = monitorableEquipment.filter((e: any) => e.type === 'Main Engine');
   const generators = monitorableEquipment.filter((e: any) => e.type === 'Generator');
-  const systems = monitorableEquipment.filter((e: any) => !['Main Engine', 'Generator'].includes(e.type));
+  const batteries = monitorableEquipment.filter((e: any) => e.type === 'Battery Bank');
+  const systems = monitorableEquipment.filter((e: any) => !['Main Engine', 'Generator', 'Battery Bank'].includes(e.type));
 
   if (loading) {
     return (
@@ -395,6 +409,26 @@ export const MonitorTab: React.FC<MonitorTabProps> = ({ vesselId, companyId, equ
                 key={gen.id}
                 equipment={gen}
                 readings={getLatestReadings(gen.id)}
+                isOnline={isOnline}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Batteries */}
+      {batteries.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Battery className="w-4 h-4" />
+            Battery Banks
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {batteries.map((bat: any) => (
+              <EquipmentCard
+                key={bat.id}
+                equipment={bat}
+                readings={getLatestReadings(bat.id)}
                 isOnline={isOnline}
               />
             ))}

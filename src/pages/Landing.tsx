@@ -220,6 +220,16 @@ const FEATURE_ICONS = [Anchor, Wrench, Package, Fuel, BookOpen, Bell, Users, Bar
 const TRUST_ICONS = [Users, Globe, Bell, Languages];
 const DIFF_ICONS: Record<string, React.ElementType> = { Languages, Shield, QrCode, Zap };
 const DEMO_URL = 'https://demo.nautium.app/';
+
+const PHOTOS = {
+  hero: 'https://images.pexels.com/photos/5488927/pexels-photo-5488927.jpeg?auto=compress&cs=tinysrgb&w=1920',
+  profiles: [
+    'https://images.pexels.com/photos/8886818/pexels-photo-8886818.jpeg?auto=compress&cs=tinysrgb&w=800',
+    'https://images.pexels.com/photos/15452603/pexels-photo-15452603.jpeg?auto=compress&cs=tinysrgb&w=800',
+    'https://images.pexels.com/photos/10642986/pexels-photo-10642986.jpeg?auto=compress&cs=tinysrgb&w=800',
+  ],
+};
+
 export const Landing: React.FC<LandingProps> = ({ onEnterApp }) => {
   const [lang, setLang] = useState<Lang>(() => {
     try { return (localStorage.getItem('nautium_lang') as Lang) || 'en'; } catch { return 'en'; }
@@ -253,489 +263,526 @@ export const Landing: React.FC<LandingProps> = ({ onEnterApp }) => {
     { label: t.nav.forWho, href: '#for-who' },
     { label: t.nav.nautius, href: '#nautius' },
   ];
+
+  const serif = 'Georgia, "Times New Roman", serif';
+
   return (
-    <div className="min-h-screen bg-[#05111e] text-white font-sans overflow-x-hidden">
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full bg-[radial-gradient(circle,rgba(14,116,144,0.07),transparent_70%)]" />
-        <div className="absolute top-1/2 -right-60 w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(2,132,199,0.05),transparent_70%)]" />
-        <div className="absolute bottom-0 left-1/3 w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(14,116,144,0.04),transparent_70%)]" />
-      </div>
+    <div className="min-h-screen overflow-x-hidden" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <style>{`
+        .n-serif { font-family: Georgia, "Times New Roman", serif; }
+        .n-gold-line { position: relative; }
+        .n-gold-line::after { content: ''; position: absolute; bottom: -6px; left: 0; width: 48px; height: 2px; background: #B8965A; }
+        .n-gold-line-center::after { left: 50%; transform: translateX(-50%); }
+        .n-section-light { background: #F6F4EE; color: #1E293B; }
+        .n-section-dark { background: #0B1A2E; color: #E2E8F0; }
+        .n-btn-primary { background: #1A5F7A; color: #fff; padding: 14px 36px; font-weight: 600; font-size: 14px; letter-spacing: 0.03em; transition: all 0.25s ease; border: none; cursor: pointer; }
+        .n-btn-primary:hover { background: #165169; }
+        .n-btn-outline { background: transparent; color: #1A5F7A; padding: 14px 36px; font-weight: 600; font-size: 14px; letter-spacing: 0.03em; border: 1.5px solid #1A5F7A; transition: all 0.25s ease; cursor: pointer; }
+        .n-btn-outline:hover { background: #1A5F7A; color: #fff; }
+        .n-btn-outline-light { color: #E2E8F0; border-color: rgba(255,255,255,0.3); }
+        .n-btn-outline-light:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      `}</style>
+
       {/* NAVBAR */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#05111e]/95 backdrop-blur-2xl border-b border-white/[0.07] py-3 shadow-2xl shadow-black/40' : 'bg-transparent py-6'}`}>
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-              <Anchor size={16} className="text-white" strokeWidth={2.5} />
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+        style={{
+          background: scrolled ? 'rgba(255,255,255,0.97)' : 'transparent',
+          backdropFilter: scrolled ? 'blur(8px)' : 'none',
+          borderBottom: scrolled ? '1px solid rgba(0,0,0,0.06)' : '1px solid transparent',
+          padding: scrolled ? '14px 0' : '22px 0',
+        }}
+      >
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-8 h-8 flex items-center justify-center"
+              style={{ background: '#0B1A2E', borderRadius: 6 }}
+            >
+              <Anchor size={15} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white">Nau<span className="text-cyan-400">tium</span></span>
+            <span
+              className="text-lg font-bold tracking-tight"
+              style={{ color: scrolled ? '#0B1A2E' : '#fff' }}
+            >
+              Nautium
+            </span>
           </div>
+
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map(l => (
-              <button key={l.href} onClick={() => scrollTo(l.href)} className="text-sm text-white/50 hover:text-white tracking-wide transition-colors duration-200 font-medium">{l.label}</button>
+              <button
+                key={l.href}
+                onClick={() => scrollTo(l.href)}
+                className="text-[13px] font-medium transition-colors duration-200"
+                style={{ color: scrolled ? '#64748B' : 'rgba(255,255,255,0.65)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = scrolled ? '#0B1A2E' : '#fff')}
+                onMouseLeave={e => (e.currentTarget.style.color = scrolled ? '#64748B' : 'rgba(255,255,255,0.65)')}
+              >
+                {l.label}
+              </button>
             ))}
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <button onClick={toggleLang} className="flex items-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/80 border border-white/10 hover:border-white/25 px-3 py-1.5 rounded-full transition-all duration-200 mr-2">
+
+          <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={toggleLang}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded transition-colors duration-200"
+              style={{
+                color: scrolled ? '#64748B' : 'rgba(255,255,255,0.5)',
+                border: `1px solid ${scrolled ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'}`,
+              }}
+            >
               <Globe size={12} />{lang === 'en' ? 'ES' : 'EN'}
             </button>
-            <button onClick={onEnterApp} className="text-sm text-white/50 hover:text-white px-4 py-2 transition-colors duration-200 font-medium">{t.nav.signIn}</button>
-            <button onClick={openDemo} className="text-sm bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white font-semibold px-5 py-2.5 rounded-full transition-all duration-200 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:-translate-y-px">
+            <button
+              onClick={onEnterApp}
+              className="text-[13px] font-medium px-4 py-2 transition-colors duration-200"
+              style={{ color: scrolled ? '#64748B' : 'rgba(255,255,255,0.65)' }}
+            >
+              {t.nav.signIn}
+            </button>
+            <button
+              onClick={openDemo}
+              className="n-btn-primary"
+              style={{ padding: '10px 24px', fontSize: 13, borderRadius: 4 }}
+            >
               {t.nav.requestDemo}
             </button>
           </div>
-          <button className="md:hidden text-white/60 hover:text-white transition-colors" onClick={() => setMenuOpen(v => !v)}>
+
+          <button
+            className="md:hidden transition-colors"
+            style={{ color: scrolled ? '#0B1A2E' : '#fff' }}
+            onClick={() => setMenuOpen(v => !v)}
+          >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
+
         {menuOpen && (
-          <div className="md:hidden bg-[#05111e]/98 backdrop-blur-2xl border-t border-white/[0.07] px-6 py-5 flex flex-col gap-4">
-            {navLinks.map(l => <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-white/50 hover:text-white py-1 text-sm tracking-wide transition-colors font-medium">{l.label}</button>)}
-            <hr className="border-white/[0.08]" />
-            <button onClick={toggleLang} className="flex items-center gap-2 text-white/40 hover:text-white text-sm py-1 transition-colors font-medium w-fit">
+          <div className="md:hidden px-6 py-5 flex flex-col gap-4" style={{ background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            {navLinks.map(l => (
+              <button key={l.href} onClick={() => scrollTo(l.href)} className="text-left text-sm font-medium py-1" style={{ color: '#64748B' }}>
+                {l.label}
+              </button>
+            ))}
+            <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.06)' }} />
+            <button onClick={toggleLang} className="flex items-center gap-2 text-sm font-medium py-1 w-fit" style={{ color: '#64748B' }}>
               <Globe size={14} />{lang === 'en' ? 'Español' : 'English'}
             </button>
-            <button onClick={onEnterApp} className="text-left text-white/50 hover:text-white text-sm py-1 transition-colors font-medium">{t.nav.signIn}</button>
-            <button onClick={openDemo} className="bg-gradient-to-r from-cyan-500 to-sky-600 text-white font-semibold text-sm py-3 rounded-full shadow-lg shadow-cyan-500/25">{t.nav.requestDemo}</button>
+            <button onClick={onEnterApp} className="text-left text-sm font-medium py-1" style={{ color: '#64748B' }}>{t.nav.signIn}</button>
+            <button onClick={openDemo} className="n-btn-primary text-center" style={{ borderRadius: 4 }}>{t.nav.requestDemo}</button>
           </div>
         )}
       </nav>
+
       {/* HERO */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.pexels.com/photos/5488927/pexels-photo-5488927.jpeg?auto=compress&cs=tinysrgb&w=1920)' }} />
-        <div className="absolute inset-0 z-[1] bg-gradient-to-r from-[#05111e]/95 via-[#05111e]/70 to-[#05111e]/40" />
-        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-[#05111e]/60 via-transparent to-[#05111e]/90" />
-        <div className="absolute inset-0 z-[1] bg-[radial-gradient(ellipse_50%_80%_at_15%_50%,rgba(14,116,144,0.18),transparent_70%)]" />
-        <div className="relative z-[2] max-w-7xl mx-auto px-6 pt-32 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <div className="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-400/30 rounded-full px-4 py-1.5 mb-3 backdrop-blur-sm">
-              <Languages size={13} className="text-cyan-400" />
-              <span className="text-xs tracking-wide text-cyan-300/90 font-semibold">{t.hero.bilingual}</span>
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => scrollTo('#nautius')} className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500/15 to-sky-600/15 border border-cyan-400/40 hover:border-cyan-400/70 rounded-full px-4 py-1.5 backdrop-blur-sm transition-all duration-200 group">
-                <Zap size={12} className="text-cyan-400" />
-                <span className="text-xs tracking-wide text-cyan-300 font-semibold">{t.hero.nautiusBadge}</span>
-                <ArrowRight size={11} className="text-cyan-400/60 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            </div>
-            <div className="inline-flex items-center gap-2 bg-white/[0.06] border border-white/10 rounded-full px-4 py-1.5 mb-8 backdrop-blur-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              <span className="text-xs tracking-[0.2em] uppercase text-white/50 font-semibold">{t.hero.badge}</span>
-            </div>
-            <h1 className="text-5xl md:text-6xl lg:text-[4.2rem] font-bold tracking-tight leading-[1.05] mb-6 text-white">
+      <section ref={heroRef} className="relative min-h-screen flex items-end overflow-hidden" style={{ background: '#0B1A2E' }}>
+        <div className="absolute inset-0 z-0">
+          <img
+            src={PHOTOS.hero}
+            alt=""
+            className="w-full h-full object-cover"
+            style={{ opacity: 0.35 }}
+          />
+        </div>
+        <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to right, #0B1A2E 0%, rgba(11,26,46,0.6) 50%, rgba(11,26,46,0.2) 100%)' }} />
+        <div className="absolute bottom-0 left-0 right-0 z-[1] h-32" style={{ background: 'linear-gradient(to top, #0B1A2E, transparent)' }} />
+
+        <div className="relative z-[2] max-w-6xl mx-auto px-6 pb-24 pt-40 w-full">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: '#B8965A' }}>
+              {t.hero.badge}
+            </p>
+
+            <h1 className="n-serif mb-6" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1.08, color: '#fff', fontWeight: 400 }}>
               {t.hero.h1a}<br />
-              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-400 bg-clip-text text-transparent">{t.hero.h1b}</span>
+              <span style={{ fontStyle: 'italic', color: '#B8965A' }}>{t.hero.h1b}</span>
             </h1>
-            <p className="text-lg text-slate-300/60 leading-relaxed mb-10 max-w-xl">{t.hero.sub}</p>
 
-            {/* Department pills */}
-            <div className="flex flex-wrap gap-2 mb-10">
-              {[
-                { label: lang === 'en' ? 'Engineering' : 'Ingeniería', color: 'bg-orange-500/15 border-orange-500/30 text-orange-300' },
-                { label: lang === 'en' ? 'Deck' : 'Cubierta', color: 'bg-blue-500/15 border-blue-500/30 text-blue-300' },
-                { label: 'Interior', color: 'bg-purple-500/15 border-purple-500/30 text-purple-300' },
-                { label: lang === 'en' ? 'Galley' : 'Cocina', color: 'bg-green-500/15 border-green-500/30 text-green-300' },
-                { label: lang === 'en' ? 'Safety' : 'Seguridad', color: 'bg-red-500/15 border-red-500/30 text-red-300' },
-              ].map(dept => (
-                <span key={dept.label} className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${dept.color}`}>{dept.label}</span>
-              ))}
-            </div>
+            <p className="mb-10 leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 16, maxWidth: 520 }}>
+              {t.hero.sub}
+            </p>
 
-            <div className="flex flex-col sm:flex-row items-start gap-4">
-              <button onClick={openDemo} className="group flex items-center gap-2.5 bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white font-bold px-8 py-4 rounded-full text-sm tracking-wide transition-all duration-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/45 hover:-translate-y-0.5">
-                {t.hero.cta}<ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <div className="flex flex-col sm:flex-row items-start gap-4 mb-16">
+              <button onClick={openDemo} className="n-btn-primary flex items-center gap-2.5" style={{ borderRadius: 4 }}>
+                {t.hero.cta}<ArrowRight size={15} />
               </button>
-              <button onClick={() => scrollTo('#how-it-works')} className="flex items-center gap-2 border border-white/15 hover:border-white/35 text-white/70 hover:text-white px-8 py-4 rounded-full text-sm tracking-wide transition-all duration-300 hover:bg-white/[0.06] backdrop-blur-sm font-medium">
+              <button onClick={() => scrollTo('#how-it-works')} className="n-btn-outline n-btn-outline-light" style={{ borderRadius: 4 }}>
                 {t.hero.ctaSecondary}
               </button>
             </div>
-            <div className="mt-14 flex items-center gap-10 border-t border-white/[0.08] pt-8">
+
+            <div className="flex items-center gap-10 pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               {t.stats.map(s => (
                 <div key={s.label}>
-                  <div className="text-2xl font-bold text-cyan-400">{s.val}</div>
-                  <div className="text-xs text-slate-500 mt-0.5 leading-tight max-w-[130px]">{s.label}</div>
+                  <div className="n-serif text-2xl" style={{ color: '#B8965A', fontWeight: 400 }}>{s.val}</div>
+                  <div className="text-[11px] mt-1 leading-tight" style={{ color: 'rgba(255,255,255,0.35)', maxWidth: 140 }}>{s.label}</div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="hidden lg:flex justify-end">
-            <div className="relative w-[420px]">
-              <div className="absolute inset-0 scale-110 bg-[radial-gradient(ellipse_at_center,rgba(14,116,144,0.2),transparent_70%)]" />
-              <div className="relative bg-white/[0.05] backdrop-blur-xl border border-white/[0.1] rounded-3xl p-8 shadow-2xl">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Fleet Overview</p>
-                    <p className="text-white font-bold text-xl">M/Y Adriatica</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 flex items-center justify-center">
-                    <Anchor size={18} className="text-cyan-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  {[
-                    { icon: Wrench, label: 'Engineering', val: '3 pending', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                    { icon: Anchor, label: 'Deck', val: 'All good', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-                    { icon: Package, label: 'Interior', val: '98% stocked', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-                    { icon: Bell, label: 'Alerts', val: '1 overdue', color: 'text-rose-400', bg: 'bg-rose-500/10' },
-                  ].map((item, i) => (
-                    <div key={i} className={`${item.bg} rounded-2xl p-4 border border-white/[0.06]`}>
-                      <item.icon size={16} className={`${item.color} mb-2`} />
-                      <p className="text-white/40 text-[10px] uppercase tracking-wider">{item.label}</p>
-                      <p className={`${item.color} font-semibold text-sm mt-0.5`}>{item.val}</p>
+        </div>
+      </section>
+
+      {/* WHY NAUTIUM */}
+      <section id="difference" className="n-section-light py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-start">
+            <div className="lg:col-span-2">
+              <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+                {t.difference.badge}
+              </p>
+              <h2 className="n-serif n-gold-line mb-6" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#0B1A2E' }}>
+                {t.difference.title}
+              </h2>
+              <p className="leading-relaxed mt-10" style={{ color: '#64748B', fontSize: 15 }}>
+                {t.difference.sub}
+              </p>
+            </div>
+            <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {t.difference.points.map((pt, i) => {
+                const Icon = DIFF_ICONS[pt.icon];
+                return (
+                  <div
+                    key={i}
+                    className="p-6 transition-all duration-200"
+                    style={{
+                      background: pt.highlight ? '#0B1A2E' : '#fff',
+                      color: pt.highlight ? '#E2E8F0' : '#1E293B',
+                      border: pt.highlight ? 'none' : '1px solid rgba(0,0,0,0.06)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 flex items-center justify-center mb-4"
+                      style={{
+                        background: pt.highlight ? 'rgba(184,150,90,0.15)' : '#F6F4EE',
+                        borderRadius: 6,
+                      }}
+                    >
+                      {Icon && <Icon size={18} style={{ color: pt.highlight ? '#B8965A' : '#1A5F7A' }} />}
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-2.5">
-                  {[
-                    { task: 'Engine oil change', dept: 'Engineering', urgent: true },
-                    { task: 'Fender inspection', dept: 'Deck', urgent: false },
-                    { task: 'Linen inventory check', dept: 'Interior', urgent: false },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between py-2.5 border-b border-white/[0.05] last:border-0">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-2 h-2 rounded-full ${item.urgent ? 'bg-rose-400' : 'bg-slate-600'}`} />
-                        <span className="text-white/70 text-xs font-medium">{item.task}</span>
-                      </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${item.urgent ? 'bg-rose-500/15 text-rose-400' : 'bg-white/5 text-white/30'}`}>{item.dept}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="absolute -bottom-6 -left-10 bg-white/[0.06] backdrop-blur-xl border border-white/[0.1] rounded-2xl p-4 w-52 shadow-xl">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                    <Check size={14} className="text-emerald-400" />
+                    <h3 className="font-semibold text-[15px] mb-2">{pt.title}</h3>
+                    <p className="text-[13px] leading-relaxed" style={{ color: pt.highlight ? 'rgba(255,255,255,0.5)' : '#94A3B8' }}>
+                      {pt.desc}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-white font-semibold text-xs">Task completed</p>
-                    <p className="text-white/30 text-[10px]">Deck · Just now</p>
-                  </div>
-                </div>
-                <p className="text-white/40 text-[10px] leading-relaxed">Fender inspection logged. Deck inventory updated automatically.</p>
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
-        <button onClick={() => scrollTo('#difference')} className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[2] flex flex-col items-center gap-1.5 text-white/25 hover:text-white/60 transition-colors">
-          <span className="text-[10px] tracking-[0.25em] uppercase font-medium">{t.scroll}</span>
-          <ChevronDown size={16} className="animate-bounce" />
-        </button>
       </section>
-      {/* WHY NAUTIUM */}
-      <section id="difference" className="relative z-10 py-32">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <p className="text-cyan-400/80 text-xs tracking-[0.25em] uppercase font-bold mb-4">{t.difference.badge}</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">{t.difference.title}</h2>
-            <p className="text-slate-400/60 max-w-2xl mx-auto text-lg leading-relaxed">{t.difference.sub}</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {t.difference.points.map((pt, i) => {
-              const Icon = DIFF_ICONS[pt.icon];
-              return (
-                <div key={i} className={`group relative rounded-2xl p-8 border transition-all duration-300 hover:-translate-y-1 ${pt.highlight ? 'bg-cyan-500/[0.06] border-cyan-500/25 hover:border-cyan-400/40' : 'bg-white/[0.03] border-white/[0.08] hover:border-white/15'}`}>
-                  {pt.highlight && (
-                    <div className="absolute top-4 right-4 bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full">
-                      {lang === 'en' ? 'Unique' : 'Único'}
-                    </div>
-                  )}
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${pt.highlight ? 'bg-cyan-500/15' : 'bg-white/[0.05]'}`}>
-                    {Icon && <Icon size={22} className={pt.highlight ? 'text-cyan-400' : 'text-slate-400'} />}
-                  </div>
-                  <h3 className="text-white font-bold text-lg mb-3">{pt.title}</h3>
-                  <p className="text-slate-400/60 text-sm leading-relaxed">{pt.desc}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+
       {/* FEATURES */}
-      <section id="features" className="relative z-10 py-32">
-        <div className="max-w-7xl mx-auto px-6">
+      <section id="features" className="n-section-dark py-28">
+        <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <p className="text-cyan-400/80 text-xs tracking-[0.25em] uppercase font-bold mb-4">{t.features.badge}</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">{t.features.title}</h2>
-            <p className="text-slate-400/60 max-w-xl mx-auto text-lg leading-relaxed">{t.features.sub}</p>
+            <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+              {t.features.badge}
+            </p>
+            <h2 className="n-serif n-gold-line n-gold-line-center mb-5" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#fff', display: 'inline-block' }}>
+              {t.features.title}
+            </h2>
+            <p className="mt-10 mx-auto leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, maxWidth: 560 }}>
+              {t.features.sub}
+            </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px" style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 6, overflow: 'hidden' }}>
             {t.features.items.map((f, i) => {
               const Icon = FEATURE_ICONS[i];
               return (
-                <div key={i} className="group relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] hover:border-cyan-500/30 rounded-2xl p-6 transition-all duration-300 hover:bg-white/[0.06] hover:-translate-y-1 cursor-default">
-                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(ellipse_at_top_left,rgba(14,116,144,0.08),transparent_60%)]" />
-                  <div className="relative">
-                    <div className="w-11 h-11 rounded-xl bg-cyan-500/10 group-hover:bg-cyan-500/20 flex items-center justify-center mb-5 transition-colors">
-                      <Icon size={20} className="text-cyan-400" />
-                    </div>
-                    <h3 className="text-white font-semibold mb-2 text-sm">{f.title}</h3>
-                    <p className="text-slate-400/50 text-xs leading-relaxed">{f.desc}</p>
-                  </div>
+                <div
+                  key={i}
+                  className="p-7 transition-colors duration-200 group"
+                  style={{ background: '#0B1A2E' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#0F2137')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#0B1A2E')}
+                >
+                  <Icon size={20} className="mb-5" style={{ color: '#B8965A' }} />
+                  <h3 className="font-semibold text-sm mb-2" style={{ color: '#E2E8F0' }}>{f.title}</h3>
+                  <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.35)' }}>{f.desc}</p>
                 </div>
               );
             })}
           </div>
         </div>
       </section>
+
       {/* COST OVERVIEW */}
-      <section className="relative z-10 py-32">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-20">
-            <p className="text-cyan-400/80 text-xs tracking-[0.25em] uppercase font-bold mb-4">{t.costs.badge}</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">{t.costs.title}</h2>
-            <p className="text-slate-400/60 max-w-2xl mx-auto text-lg leading-relaxed">{t.costs.sub}</p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-6">
-              {t.costs.points.map((pt, i) => (
-                <div key={i} className="flex gap-4 group">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mt-0.5 group-hover:bg-cyan-500/20 transition-colors">
-                    <Check size={14} className="text-cyan-400" />
-                  </div>
-                  <div>
-                    <p className="text-white font-semibold text-sm mb-1">{pt.title}</p>
-                    <p className="text-slate-400/50 text-sm leading-relaxed">{pt.desc}</p>
-                  </div>
-                </div>
-              ))}
-              <div className="pt-4">
-                <button onClick={openDemo} className="group inline-flex items-center gap-2.5 bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white font-bold px-8 py-3.5 rounded-full text-sm transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:-translate-y-0.5">
-                  {t.costs.cta}<ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 scale-110 bg-[radial-gradient(ellipse_at_center,rgba(14,116,144,0.15),transparent_70%)]" />
-              <div className="relative bg-white/[0.04] backdrop-blur-xl border border-white/[0.1] rounded-3xl overflow-hidden shadow-2xl">
-                <div className="px-6 pt-6 pb-4 border-b border-white/[0.07]">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-white font-bold text-base">Cost Overview</p>
-                      <p className="text-white/30 text-xs mt-0.5">Azure Dream · Last 3 months</p>
-                    </div>
-                    <div className="flex gap-1 bg-white/[0.05] rounded-xl p-1">
-                      <div className="px-3 py-1.5 rounded-lg bg-white/[0.1] text-white text-xs font-semibold">{t.costs.tab1}</div>
-                      <div className="px-3 py-1.5 rounded-lg text-white/30 text-xs font-medium">{t.costs.tab2}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { label: 'Fuel', amount: '€21,045', icon: Fuel, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                      { label: 'Parts', amount: '€879', icon: Package, color: 'text-sky-400', bg: 'bg-sky-500/10' },
-                      { label: 'Service', amount: '$3,250', icon: Wrench, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                      { label: 'Operational', amount: '€24,785', icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                    ].map((c, i) => (
-                      <div key={i} className={`${c.bg} rounded-xl p-3 border border-white/[0.05]`}>
-                        <c.icon size={13} className={`${c.color} mb-1.5`} />
-                        <p className="text-white/30 text-[9px] uppercase tracking-wider leading-none mb-1">{c.label}</p>
-                        <p className={`${c.color} font-bold text-xs`}>{c.amount}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="mx-6 my-4 bg-gradient-to-r from-[#0a2540] to-[#0d3356] rounded-2xl px-5 py-4 flex items-center justify-between border border-cyan-500/10">
-                  <div>
-                    <p className="text-white/30 text-[10px] uppercase tracking-wider mb-0.5">Total Period Cost</p>
-                    <p className="text-white font-bold text-xl">$49,959</p>
-                  </div>
-                  <TrendingDown size={28} className="text-white/10" />
-                </div>
-                <div className="px-6 pb-6 space-y-1">
-                  {[
-                    { icon: Fuel, label: 'Diesel Main Engines', sub: '12,000 L · Monaco', amount: '€11,040', color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                    { icon: Package, label: 'MTU Engine Oil 15W-40', sub: '45 units · Engine Oil Change', amount: '€562', color: 'text-sky-400', bg: 'bg-sky-500/10' },
-                    { icon: Wrench, label: 'Bow Thruster Annual Service', sub: 'Servogear technician', amount: '$2,400', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                    { icon: DollarSign, label: 'Hull & Machinery Insurance', sub: 'Lloyds quarterly premium', amount: '$18,500', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                  ].map((row, i) => (
-                    <div key={i} className="flex items-center gap-3 py-2.5 border-b border-white/[0.04] last:border-0">
-                      <div className={`w-7 h-7 rounded-lg ${row.bg} flex items-center justify-center flex-shrink-0`}>
-                        <row.icon size={12} className={row.color} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white/70 text-xs font-medium truncate">{row.label}</p>
-                        <p className="text-white/25 text-[10px] truncate">{row.sub}</p>
-                      </div>
-                      <p className={`text-xs font-bold flex-shrink-0 ${row.color}`}>{row.amount}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="absolute -bottom-6 -right-4 bg-[#091d32]/90 backdrop-blur-xl border border-white/[0.1] rounded-2xl p-4 w-52 shadow-xl">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-7 h-7 rounded-xl bg-teal-500/20 flex items-center justify-center">
-                    <Boxes size={13} className="text-teal-400" />
-                  </div>
-                  <div>
-                    <p className="text-white text-xs font-bold">Inventory Value</p>
-                    <p className="text-white/30 text-[10px]">Current stock</p>
-                  </div>
-                </div>
-                <p className="text-teal-300 font-bold text-lg">$7,842</p>
-                <p className="text-white/25 text-[10px] mt-0.5">12 items with unit cost</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="relative z-10 py-32">
+      <section className="n-section-light py-28">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center gap-4 mb-16 justify-center">
-            <div className="h-px flex-1 max-w-24 bg-gradient-to-r from-transparent to-cyan-500/30" />
-            <p className="text-cyan-400/80 text-xs tracking-[0.25em] uppercase font-bold">{t.howItWorks.badge}</p>
-            <div className="h-px flex-1 max-w-24 bg-gradient-to-l from-transparent to-cyan-500/30" />
-          </div>
-          <h2 className="text-4xl md:text-5xl font-bold text-white text-center mb-20">{t.howItWorks.title}</h2>
-          <div className="relative grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="hidden md:block absolute top-14 left-[22%] right-[22%] h-px bg-gradient-to-r from-cyan-500/10 via-cyan-400/40 to-cyan-500/10" />
-            {t.howItWorks.steps.map((step, i) => (
-              <div key={i} className="relative text-center group">
-                <div className="relative inline-flex items-center justify-center mb-8">
-                  <div className="w-28 h-28 rounded-full border border-cyan-500/20 absolute animate-pulse opacity-50" />
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#0a2540] to-[#0d3356] border border-cyan-500/30 flex items-center justify-center shadow-xl shadow-black/30 group-hover:border-cyan-400/50 transition-all duration-300">
-                    <span className="text-3xl font-bold bg-gradient-to-b from-cyan-300 to-sky-500 bg-clip-text text-transparent">{step.num}</span>
-                  </div>
-                </div>
-                <h3 className="text-white font-bold text-lg mb-3">{step.title}</h3>
-                <p className="text-slate-400/50 text-sm leading-relaxed max-w-xs mx-auto">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-      {/* WHO IT'S FOR */}
-      <section id="for-who" className="relative z-10 py-32">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <p className="text-cyan-400/80 text-xs tracking-[0.25em] uppercase font-bold mb-4">{t.forWho.badge}</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-white">{t.forWho.title}</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {t.forWho.profiles.map((p, i) => (
-              <div key={i} className="group relative overflow-hidden rounded-3xl border border-white/[0.08] hover:border-cyan-500/30 transition-all duration-500 hover:-translate-y-1 cursor-default">
-                <div className="h-60 overflow-hidden relative">
-                  <img loading="lazy" src={[
-                    'https://images.pexels.com/photos/8886818/pexels-photo-8886818.jpeg?auto=compress&cs=tinysrgb&w=800',
-                    'https://images.pexels.com/photos/15452603/pexels-photo-15452603.jpeg?auto=compress&cs=tinysrgb&w=800',
-                    'https://images.pexels.com/photos/10642986/pexels-photo-10642986.jpeg?auto=compress&cs=tinysrgb&w=800',
-                  ][i]} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90" />
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-[#05111e]" />
-                </div>
-                <div className="relative bg-[#05111e] px-7 pb-7 -mt-1">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-xl bg-cyan-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Anchor size={14} className="text-cyan-400" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+            <div>
+              <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+                {t.costs.badge}
+              </p>
+              <h2 className="n-serif n-gold-line mb-6" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#0B1A2E' }}>
+                {t.costs.title}
+              </h2>
+              <p className="leading-relaxed mt-10 mb-10" style={{ color: '#64748B', fontSize: 15 }}>
+                {t.costs.sub}
+              </p>
+
+              <div className="space-y-5">
+                {t.costs.points.map((pt, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center" style={{ borderRadius: 3, border: '1.5px solid #B8965A' }}>
+                      <Check size={11} style={{ color: '#B8965A' }} />
                     </div>
-                    <h3 className="text-white font-bold text-lg leading-tight">{p.title}</h3>
-                  </div>
-                  <p className="text-slate-400/55 text-sm leading-relaxed">{p.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-      {/* NAUTIUS */}
-      <section id="nautius" className="relative z-10 py-32">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-400/20 rounded-full px-4 py-1.5 mb-6">
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              <span className="text-xs tracking-[0.2em] uppercase text-cyan-400/80 font-semibold">
-                {lang === 'en' ? 'AI-powered diagnostics' : 'Diagnóstico con IA'}
-              </span>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              {lang === 'en' ? 'Meet Nautius. ' : 'Conoce a Nautius. '}
-              <span className="bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-400 bg-clip-text text-transparent">
-                {lang === 'en' ? 'Your AI engineer, always on board.' : 'Tu ingeniero de IA, siempre a bordo.'}
-              </span>
-            </h2>
-            <p className="text-slate-400/60 max-w-2xl mx-auto text-lg leading-relaxed">
-              {lang === 'en'
-                ? "Nautius reads your vessel's technical manuals and answers questions about faults, procedures, and diagnostics — in seconds, in English or Spanish."
-                : 'Nautius lee los manuales técnicos de tu embarcación y responde preguntas sobre averías, procedimientos y diagnósticos — en segundos, en español o inglés.'}
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-3 mb-16">
-            {(lang === 'en'
-              ? ["Searches your vessel's actual manuals", 'Answers in English & Spanish', 'Available 24/7, anywhere at sea', 'No hallucinations — grounded in your documents']
-              : ['Busca en los manuales reales de tu barco', 'Responde en español e inglés', 'Disponible 24/7, en cualquier océano', 'Sin alucinaciones — basado en tus documentos']
-            ).map((chip, i) => (
-              <div key={i} className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
-                <Check size={13} className="text-cyan-400 flex-shrink-0" />
-                <span className="text-white/60 text-xs font-medium">{chip}</span>
-              </div>
-            ))}
-          </div>
-          <div className="max-w-3xl mx-auto">
-            <div className="relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl">
-              <div className="px-6 py-4 border-b border-white/[0.06] flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/30 to-sky-600/30 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
-                  <span className="text-cyan-400 font-bold text-xs">N</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm">Nautius</p>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <p className="text-emerald-400/80 text-[10px] font-medium truncate">
-                      {lang === 'en' ? 'Reading M/Y Azure Dream manuals' : 'Leyendo manuales del M/Y Azure Dream'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-3 py-1 flex-shrink-0">
-                  <BookOpen size={11} className="text-cyan-400" />
-                  <span className="text-cyan-400/80 text-[10px] font-semibold">
-                    {lang === 'en' ? '3 manuals indexed' : '3 manuales indexados'}
-                  </span>
-                </div>
-              </div>
-              <div className="px-6 py-6 space-y-5">
-                {nautiusDemo.map((msg, i) => (
-                  <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {msg.role === 'nautius' && (
-                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/20 to-sky-600/20 border border-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-cyan-400 font-bold text-[10px]">N</span>
-                      </div>
-                    )}
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-cyan-500/15 border border-cyan-500/20 rounded-tr-sm' : 'bg-white/[0.04] border border-white/[0.07] rounded-tl-sm'}`}>
-                      <p className={`text-sm leading-relaxed whitespace-pre-line ${msg.role === 'user' ? 'text-cyan-100' : 'text-slate-300/80'}`}>{msg.text}</p>
+                    <div>
+                      <p className="font-semibold text-sm mb-0.5" style={{ color: '#0B1A2E' }}>{pt.title}</p>
+                      <p className="text-[13px] leading-relaxed" style={{ color: '#94A3B8' }}>{pt.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="px-6 py-4 border-t border-white/[0.06]">
-                <div className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3">
-                  <p className="text-slate-600 text-sm flex-1">
-                    {lang === 'en' ? 'Ask Nautius about any system on your vessel...' : 'Pregunta a Nautius sobre cualquier sistema de tu barco...'}
-                  </p>
-                  <button onClick={openDemo} className="bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all flex-shrink-0">
-                    {lang === 'en' ? 'Request demo' : 'Solicitar demo'}
-                  </button>
-                </div>
+
+              <div className="mt-10">
+                <button onClick={openDemo} className="n-btn-primary flex items-center gap-2.5" style={{ borderRadius: 4 }}>
+                  {t.costs.cta}<ArrowRight size={15} />
+                </button>
               </div>
             </div>
-            <p className="text-center text-slate-600 text-xs mt-6 leading-relaxed">
-              {lang === 'en' ? "Nautius only answers based on your vessel's uploaded manuals — not generic internet results." : 'Nautius solo responde con los manuales subidos de tu embarcación — sin respuestas genéricas de internet.'}
-            </p>
+
+            <div className="p-8" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 6 }}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="font-semibold text-base" style={{ color: '#0B1A2E' }}>Cost Overview</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Azure Dream — Last 3 months</p>
+                </div>
+                <div className="flex gap-1 p-1" style={{ background: '#F6F4EE', borderRadius: 4 }}>
+                  <div className="px-3 py-1.5 text-xs font-semibold" style={{ background: '#0B1A2E', color: '#fff', borderRadius: 3 }}>{t.costs.tab1}</div>
+                  <div className="px-3 py-1.5 text-xs font-medium" style={{ color: '#94A3B8' }}>{t.costs.tab2}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 mb-6">
+                {[
+                  { label: 'Fuel', amount: '€21,045', color: '#D97706' },
+                  { label: 'Parts', amount: '€879', color: '#1A5F7A' },
+                  { label: 'Service', amount: '$3,250', color: '#B8965A' },
+                  { label: 'Ops', amount: '€24,785', color: '#059669' },
+                ].map((c, i) => (
+                  <div key={i} className="p-3" style={{ background: '#F6F4EE', borderRadius: 4 }}>
+                    <p className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: '#94A3B8' }}>{c.label}</p>
+                    <p className="font-bold text-sm" style={{ color: c.color }}>{c.amount}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 mb-5 flex items-center justify-between" style={{ background: '#0B1A2E', borderRadius: 4 }}>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Total Period Cost</p>
+                  <p className="font-bold text-xl" style={{ color: '#fff' }}>$49,959</p>
+                </div>
+                <TrendingDown size={24} style={{ color: 'rgba(255,255,255,0.15)' }} />
+              </div>
+
+              <div className="space-y-0">
+                {[
+                  { icon: Fuel, label: 'Diesel Main Engines', sub: '12,000 L — Monaco', amount: '€11,040', color: '#D97706' },
+                  { icon: Package, label: 'MTU Engine Oil 15W-40', sub: '45 units — Engine Oil Change', amount: '€562', color: '#1A5F7A' },
+                  { icon: Wrench, label: 'Bow Thruster Service', sub: 'Servogear technician', amount: '$2,400', color: '#B8965A' },
+                  { icon: DollarSign, label: 'Hull & Machinery Insurance', sub: 'Lloyds quarterly premium', amount: '$18,500', color: '#059669' },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-center gap-3 py-3" style={{ borderBottom: i < 3 ? '1px solid rgba(0,0,0,0.04)' : 'none' }}>
+                    <row.icon size={14} style={{ color: row.color, flexShrink: 0 }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate" style={{ color: '#1E293B' }}>{row.label}</p>
+                      <p className="text-[11px] truncate" style={{ color: '#94A3B8' }}>{row.sub}</p>
+                    </div>
+                    <p className="text-xs font-bold flex-shrink-0" style={{ color: row.color }}>{row.amount}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
-      {/* TRUST STRIP */}
-      <section className="relative z-10 py-16 border-y border-white/[0.06]">
+
+      {/* HOW IT WORKS */}
+      <section id="how-it-works" className="py-28" style={{ background: '#fff' }}>
         <div className="max-w-5xl mx-auto px-6">
-          <p className="text-center text-slate-600 text-xs uppercase tracking-[0.25em] mb-10 font-medium">{t.trust.label}</p>
+          <div className="text-center mb-20">
+            <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+              {t.howItWorks.badge}
+            </p>
+            <h2 className="n-serif" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#0B1A2E' }}>
+              {t.howItWorks.title}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
+            <div className="hidden md:block absolute top-4 left-[18%] right-[18%] h-px" style={{ background: 'rgba(184,150,90,0.25)' }} />
+            {t.howItWorks.steps.map((step, i) => (
+              <div key={i} className="relative">
+                <div className="flex items-center gap-4 mb-5">
+                  <div
+                    className="w-9 h-9 flex items-center justify-center flex-shrink-0 n-serif text-lg"
+                    style={{ background: '#0B1A2E', color: '#B8965A', borderRadius: 4 }}
+                  >
+                    {step.num}
+                  </div>
+                  <div className="h-px flex-1" style={{ background: 'rgba(0,0,0,0.06)' }} />
+                </div>
+                <h3 className="font-semibold text-base mb-3" style={{ color: '#0B1A2E' }}>{step.title}</h3>
+                <p className="text-[13px] leading-relaxed" style={{ color: '#94A3B8' }}>{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* WHO IT'S FOR */}
+      <section id="for-who" className="n-section-dark py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+              {t.forWho.badge}
+            </p>
+            <h2 className="n-serif" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#fff' }}>
+              {t.forWho.title}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {t.forWho.profiles.map((p, i) => (
+              <div key={i} className="overflow-hidden group" style={{ borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="h-56 overflow-hidden relative">
+                  <img
+                    loading="lazy"
+                    src={PHOTOS.profiles[i]}
+                    alt={p.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    style={{ filter: 'brightness(0.7)' }}
+                  />
+                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, #0B1A2E 100%)' }} />
+                </div>
+                <div className="p-7 -mt-8 relative" style={{ background: '#0B1A2E' }}>
+                  <div className="w-8 h-0.5 mb-4" style={{ background: '#B8965A' }} />
+                  <h3 className="font-semibold text-base mb-3" style={{ color: '#E2E8F0' }}>{p.title}</h3>
+                  <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{p.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* NAUTIUS AI */}
+      <section id="nautius" className="n-section-light py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-start">
+            <div className="lg:col-span-2">
+              <p className="text-[11px] font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: '#B8965A' }}>
+                {lang === 'en' ? 'AI-powered diagnostics' : 'Diagnóstico con IA'}
+              </p>
+              <h2 className="n-serif n-gold-line mb-6" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#0B1A2E' }}>
+                {lang === 'en' ? 'Meet Nautius.' : 'Conoce a Nautius.'}
+                <br />
+                <span style={{ fontStyle: 'italic', color: '#1A5F7A' }}>
+                  {lang === 'en' ? 'Your AI engineer, always on board.' : 'Tu ingeniero de IA, siempre a bordo.'}
+                </span>
+              </h2>
+              <p className="leading-relaxed mt-10 mb-8" style={{ color: '#64748B', fontSize: 15 }}>
+                {lang === 'en'
+                  ? "Nautius reads your vessel's technical manuals and answers questions about faults, procedures, and diagnostics — in seconds, in English or Spanish."
+                  : 'Nautius lee los manuales técnicos de tu embarcación y responde preguntas sobre averías, procedimientos y diagnósticos — en segundos, en español o inglés.'}
+              </p>
+
+              <div className="space-y-3">
+                {(lang === 'en'
+                  ? ["Searches your vessel's actual manuals", 'Answers in English & Spanish', 'Available 24/7, anywhere at sea', 'No hallucinations — grounded in your documents']
+                  : ['Busca en los manuales reales de tu barco', 'Responde en español e inglés', 'Disponible 24/7, en cualquier océano', 'Sin alucinaciones — basado en tus documentos']
+                ).map((chip, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Check size={14} style={{ color: '#1A5F7A', flexShrink: 0 }} />
+                    <span className="text-[13px] font-medium" style={{ color: '#64748B' }}>{chip}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-3">
+              <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 6, overflow: 'hidden' }}>
+                <div className="px-6 py-4 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0" style={{ background: '#0B1A2E', borderRadius: 4 }}>
+                    <span className="text-xs font-bold" style={{ color: '#B8965A' }}>N</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm" style={{ color: '#0B1A2E' }}>Nautius</p>
+                    <p className="text-[11px] font-medium" style={{ color: '#059669' }}>
+                      {lang === 'en' ? 'Reading M/Y Azure Dream manuals' : 'Leyendo manuales del M/Y Azure Dream'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1 flex-shrink-0" style={{ background: '#F6F4EE', borderRadius: 3, fontSize: 11 }}>
+                    <BookOpen size={11} style={{ color: '#1A5F7A' }} />
+                    <span className="font-semibold" style={{ color: '#1A5F7A' }}>
+                      {lang === 'en' ? '3 manuals indexed' : '3 manuales indexados'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="px-6 py-6 space-y-4">
+                  {nautiusDemo.map((msg, i) => (
+                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.role === 'nautius' && (
+                        <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 mt-1" style={{ background: '#0B1A2E', borderRadius: 3 }}>
+                          <span className="text-[9px] font-bold" style={{ color: '#B8965A' }}>N</span>
+                        </div>
+                      )}
+                      <div
+                        className="max-w-[80%] px-4 py-3"
+                        style={{
+                          background: msg.role === 'user' ? '#0B1A2E' : '#F6F4EE',
+                          color: msg.role === 'user' ? '#E2E8F0' : '#1E293B',
+                          borderRadius: msg.role === 'user' ? '6px 6px 2px 6px' : '6px 6px 6px 2px',
+                        }}
+                      >
+                        <p className="text-[13px] leading-relaxed whitespace-pre-line">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="px-6 py-4" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                  <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#F6F4EE', borderRadius: 4 }}>
+                    <p className="flex-1 text-sm" style={{ color: '#94A3B8' }}>
+                      {lang === 'en' ? 'Ask Nautius about any system on your vessel...' : 'Pregunta a Nautius sobre cualquier sistema de tu barco...'}
+                    </p>
+                    <button onClick={openDemo} className="n-btn-primary text-xs flex-shrink-0" style={{ padding: '8px 16px', borderRadius: 4 }}>
+                      {lang === 'en' ? 'Request demo' : 'Solicitar demo'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="text-center text-xs mt-4" style={{ color: '#94A3B8' }}>
+                {lang === 'en' ? "Nautius only answers based on your vessel's uploaded manuals — not generic internet results." : 'Nautius solo responde con los manuales subidos de tu embarcación — sin respuestas genéricas de internet.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TRUST STRIP */}
+      <section className="py-16" style={{ background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="max-w-5xl mx-auto px-6">
+          <p className="text-center text-[11px] uppercase tracking-[0.2em] mb-10 font-semibold" style={{ color: '#94A3B8' }}>{t.trust.label}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {t.trust.items.map((item, i) => {
               const Icon = TRUST_ICONS[i];
               return (
                 <div key={i} className="flex flex-col items-center text-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
-                    <Icon size={20} className="text-cyan-400/70" />
+                  <div className="w-11 h-11 flex items-center justify-center" style={{ background: '#F6F4EE', borderRadius: 4 }}>
+                    <Icon size={18} style={{ color: '#1A5F7A' }} />
                   </div>
                   <div>
-                    <p className="text-white font-semibold text-sm">{item.label}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">{item.sub}</p>
+                    <p className="font-semibold text-sm" style={{ color: '#0B1A2E' }}>{item.label}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{item.sub}</p>
                   </div>
                 </div>
               );
@@ -743,71 +790,77 @@ export const Landing: React.FC<LandingProps> = ({ onEnterApp }) => {
           </div>
         </div>
       </section>
+
       {/* CTA BANNER */}
-      <section className="relative z-10 py-28">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="relative overflow-hidden rounded-3xl border border-cyan-500/15 bg-gradient-to-br from-[#091d32] to-[#05111e] p-12 md:p-16 text-center shadow-2xl">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-40 bg-[radial-gradient(ellipse_at_top,rgba(14,116,144,0.2),transparent_70%)]" />
-            <div className="absolute bottom-0 right-0 w-60 h-60 bg-[radial-gradient(circle,rgba(2,132,199,0.08),transparent_70%)]" />
-            <div className="relative">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <div className="h-px w-12 bg-cyan-500/30" />
-                <Zap size={14} className="text-cyan-400" />
-                <div className="h-px w-12 bg-cyan-500/30" />
-              </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">{t.cta.title}</h2>
-              <p className="text-slate-400/60 mb-10 text-lg max-w-2xl mx-auto leading-relaxed">{t.cta.sub}</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={openDemo} className="group flex items-center justify-center gap-2.5 bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white font-bold px-10 py-4 rounded-full text-sm tracking-wide transition-all duration-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/45 hover:-translate-y-0.5">
-                  {t.cta.btn}<ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button onClick={onEnterApp} className="border border-white/15 hover:border-white/30 text-white/60 hover:text-white px-10 py-4 rounded-full text-sm tracking-wide transition-all duration-300 hover:bg-white/[0.05] font-medium">
-                  {t.cta.btnSecondary}
-                </button>
-              </div>
-            </div>
+      <section className="n-section-dark py-28">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <div className="w-12 h-0.5 mx-auto mb-8" style={{ background: '#B8965A' }} />
+          <h2 className="n-serif mb-5" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.5rem)', lineHeight: 1.15, fontWeight: 400, color: '#fff' }}>
+            {t.cta.title}
+          </h2>
+          <p className="mb-10 mx-auto leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, maxWidth: 520 }}>
+            {t.cta.sub}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button onClick={openDemo} className="n-btn-primary flex items-center justify-center gap-2.5" style={{ borderRadius: 4 }}>
+              {t.cta.btn}<ArrowRight size={15} />
+            </button>
+            <button onClick={onEnterApp} className="n-btn-outline n-btn-outline-light" style={{ borderRadius: 4 }}>
+              {t.cta.btnSecondary}
+            </button>
           </div>
         </div>
       </section>
+
       {/* FOOTER */}
-      <footer className="relative z-10 border-t border-white/[0.06] py-14">
-        <div className="max-w-7xl mx-auto px-6">
+      <footer className="py-14" style={{ background: '#081422', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-start gap-10">
-            <div className="max-w-xs">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-600 flex items-center justify-center shadow shadow-cyan-500/25">
-                  <Anchor size={14} className="text-white" strokeWidth={2.5} />
+            <div style={{ maxWidth: 300 }}>
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-7 h-7 flex items-center justify-center" style={{ background: '#1A5F7A', borderRadius: 4 }}>
+                  <Anchor size={13} className="text-white" strokeWidth={2.5} />
                 </div>
-                <span className="text-lg font-bold text-white">Nau<span className="text-cyan-400">tium</span></span>
+                <span className="text-base font-bold" style={{ color: '#E2E8F0' }}>Nautium</span>
               </div>
-              <p className="text-slate-600 text-sm leading-relaxed">{t.footer.desc}</p>
-              <button onClick={toggleLang} className="mt-5 flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-300 border border-white/[0.07] hover:border-white/15 px-3 py-1.5 rounded-full transition-all duration-200">
+              <p className="text-[13px] leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.3)' }}>{t.footer.desc}</p>
+              <button
+                onClick={toggleLang}
+                className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 transition-colors duration-200"
+                style={{ color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3 }}
+              >
                 <Globe size={12} />{lang === 'en' ? 'Español' : 'English'}
               </button>
             </div>
+
             <div className="flex gap-16">
               <div>
-                <p className="text-slate-600 text-[10px] uppercase tracking-[0.2em] mb-5 font-semibold">{t.footer.platform}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] mb-5 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>{t.footer.platform}</p>
                 <ul className="flex flex-col gap-3">
                   {t.footer.links.map(([label, href]) => (
-                    <li key={href}><button onClick={() => scrollTo(href)} className="text-slate-600 hover:text-white text-sm transition-colors font-medium">{label}</button></li>
+                    <li key={href}>
+                      <button onClick={() => scrollTo(href)} className="text-[13px] font-medium transition-colors duration-200" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        {label}
+                      </button>
+                    </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <p className="text-slate-600 text-[10px] uppercase tracking-[0.2em] mb-5 font-semibold">{t.footer.account}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] mb-5 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>{t.footer.account}</p>
                 <ul className="flex flex-col gap-3">
-                  <li><button onClick={onEnterApp} className="text-slate-600 hover:text-white text-sm transition-colors font-medium">{t.footer.signIn}</button></li>
-                  <li><button onClick={openDemo} className="text-slate-600 hover:text-white text-sm transition-colors font-medium">{t.footer.requestDemo}</button></li>
+                  <li><button onClick={onEnterApp} className="text-[13px] font-medium transition-colors duration-200" style={{ color: 'rgba(255,255,255,0.35)' }}>{t.footer.signIn}</button></li>
+                  <li><button onClick={openDemo} className="text-[13px] font-medium transition-colors duration-200" style={{ color: 'rgba(255,255,255,0.35)' }}>{t.footer.requestDemo}</button></li>
                 </ul>
               </div>
             </div>
           </div>
-          <div className="mt-12 pt-6 border-t border-white/[0.05] flex flex-col md:flex-row justify-between items-center gap-3">
-            <p className="text-slate-700 text-xs">&copy; {new Date().getFullYear()} Nautium. {t.footer.rights}</p>
-            <div className="flex items-center gap-1 text-slate-700 text-xs">
+
+          <div className="mt-12 pt-6 flex flex-col md:flex-row justify-between items-center gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>&copy; {new Date().getFullYear()} Nautium. {t.footer.rights}</p>
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
               <MapPin size={10} />
-              <span>Monaco · Fort Lauderdale · Palma de Mallorca</span>
+              <span>Monaco — Fort Lauderdale — Palma de Mallorca</span>
             </div>
           </div>
         </div>

@@ -36,6 +36,7 @@ const Compliance = lazy(() => import('./pages/Compliance').then(m => ({ default:
 const Budget = lazy(() => import('./pages/Budget').then(m => ({ default: m.Budget })));
 const Financials = lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
 const Contractors = lazy(() => import('./pages/Contractors').then(m => ({ default: m.Contractors })));
+const Roadmap = lazy(() => import('./pages/Roadmap').then(m => ({ default: m.Roadmap })));
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const GuestList = lazy(() => import('./pages/GuestList').then(m => ({ default: m.GuestList })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
@@ -315,6 +316,11 @@ const AppContent: React.FC = () => {
       case 'customers':
         return isAdminRole
           ? <Customers onNavigate={handleNavigate} />
+          : <Dashboard onNavigate={handleNavigate} />;
+
+      case 'roadmap':
+        return role === 'master_admin'
+          ? <Roadmap onNavigate={handleNavigate} />
           : <Dashboard onNavigate={handleNavigate} />;
 
       case 'onboarding-submissions':

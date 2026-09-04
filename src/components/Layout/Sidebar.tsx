@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, FolderOpen, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
-  ShoppingCart, Compass, Waves, UserCheck,
+  ShoppingCart, Compass, Waves, UserCheck, Rocket,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { id: 'customers',              labelKey: 'nav.customers',             icon: Building2,       roles: ['master_admin'], badge: 'Admin' },
   { id: 'onboarding-submissions', labelKey: 'nav.onboardingSubmissions', icon: ClipboardList,   roles: ['master_admin'], badge: 'Admin' },
   { id: 'users',                  labelKey: 'nav.users',                 icon: Users,           roles: ['master_admin'], badge: 'Admin' },
+  { id: 'roadmap',                labelKey: 'nav.roadmap',               icon: Rocket,          roles: ['master_admin'], badge: 'Admin' },
   { id: 'fleet-overview',         labelKey: 'nav.fleetOverview',         icon: Layers,          roles: ['captain'] },
   { id: 'vessels',                labelKey: 'nav.vessels',               icon: Ship,            roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'users-customer',         labelKey: 'nav.users',                 icon: Users,           roles: ['customer_admin', 'fleet_manager', 'captain'] },

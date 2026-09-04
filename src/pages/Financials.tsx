@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, BarChart3, Receipt, TrendingUp, Calendar, Ship, FileDown, Anchor } from 'lucide-react';
+import { DollarSign, BarChart3, Receipt, TrendingUp, Calendar, Ship, FileDown, Anchor, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
 import { Costs } from './Costs';
@@ -349,10 +349,20 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
 /* ── VOYAGE P&L ──────────────────────────────────────────────────────────────── */
 
+interface VoyageExpenseDetail {
+  id: string;
+  category: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  department?: string;
+}
+
 interface VoyagePLRow {
   voyage: Voyage;
   vesselName: string;
   expenses: number;
+  expenseDetails: VoyageExpenseDetail[];
   fuelCost: number;
   net: number;
 }
@@ -372,6 +382,7 @@ const VoyagePL: React.FC<{
 }> = ({ companyId, vesselId, vessels, filter }) => {
   const [rows, setRows] = useState<VoyagePLRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => { loadVoyages(); }, [companyId, vesselId, filter]);
 
@@ -387,14 +398,19 @@ const VoyagePL: React.FC<{
       const voyageIds = voyages.map((v: any) => v.id);
       const vesselMap = Object.fromEntries(vessels.map(v => [v.id, v.name]));
 
-      const { data: expenses } = await supabase.from('operational_expenses').select('voyage_id, amount').eq('company_id', companyId).in('voyage_id', voyageIds);
-      const expenseByVoyage: Record<string, number> = {};
-      (expenses || []).forEach((e: any) => { if (e.voyage_id) expenseByVoyage[e.voyage_id] = (expenseByVoyage[e.voyage_id] || 0) + Number(e.amount || 0); });
+      const { data: expenses } = await supabase.from('operational_expenses').select('id, voyage_id, amount, category, description, expense_date, department').eq('company_id', companyId).in('voyage_id', voyageIds).order('expense_date', { ascending: true });
+      const expenseByVoyage: Record<string, VoyageExpenseDetail[]> = {};
+      (expenses || []).forEach((e: any) => {
+        if (!e.voyage_id) return;
+        if (!expenseByVoyage[e.voyage_id]) expenseByVoyage[e.voyage_id] = [];
+        expenseByVoyage[e.voyage_id].push({ id: e.id, category: e.category, description: e.description, amount: Number(e.amount || 0), expense_date: e.expense_date, department: e.department });
+      });
 
       const result: VoyagePLRow[] = voyages.map((v: any) => {
         const rev = Number(v.revenue || 0);
-        const exp = expenseByVoyage[v.id] || 0;
-        return { voyage: v, vesselName: vesselMap[v.vessel_id] || 'Unknown', expenses: exp, fuelCost: 0, net: rev - exp };
+        const details = expenseByVoyage[v.id] || [];
+        const exp = details.reduce((s, d) => s + d.amount, 0);
+        return { voyage: v, vesselName: vesselMap[v.vessel_id] || 'Unknown', expenses: exp, expenseDetails: details, fuelCost: 0, net: rev - exp };
       });
       setRows(result);
     } catch (err) { console.error('VoyagePL load error:', err); }
@@ -489,24 +505,50 @@ const VoyagePL: React.FC<{
               <tbody>
                 {rows.map(r => {
                   const rev = Number(r.voyage.revenue || 0);
+                  const isOpen = expanded === r.voyage.id;
+                  const hasExpenses = r.expenseDetails.length > 0;
                   return (
-                    <tr key={r.voyage.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3">
-                        <p className="font-semibold text-gray-900">{r.voyage.name}</p>
-                        <span className={`inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${r.voyage.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : r.voyage.status === 'active' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
-                          {r.voyage.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-gray-600">{r.vesselName}</td>
-                      <td className="px-3 py-3 text-gray-600">{r.voyage.charter_type ? (CHARTER_LABELS[r.voyage.charter_type] || r.voyage.charter_type) : '—'}</td>
-                      <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {r.voyage.departure_date ? new Date(r.voyage.departure_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                        {r.voyage.arrival_date ? ` → ${new Date(r.voyage.arrival_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-gray-900 tabular-nums">{rev > 0 ? fmtCurrency(rev) : '—'}</td>
-                      <td className="px-3 py-3 text-right text-gray-600 tabular-nums">{r.expenses > 0 ? fmtCurrency(r.expenses) : '—'}</td>
-                      <td className={`px-5 py-3 text-right font-bold tabular-nums ${r.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{(rev > 0 || r.expenses > 0) ? fmtCurrency(r.net) : '—'}</td>
-                    </tr>
+                    <React.Fragment key={r.voyage.id}>
+                      <tr
+                        className={`border-t border-gray-100 transition-colors ${hasExpenses ? 'cursor-pointer hover:bg-gray-50' : ''} ${isOpen ? 'bg-gray-50' : ''}`}
+                        onClick={() => hasExpenses && setExpanded(isOpen ? null : r.voyage.id)}
+                      >
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            {hasExpenses && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
+                            <div>
+                              <p className="font-semibold text-gray-900">{r.voyage.name}</p>
+                              <span className={`inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${r.voyage.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : r.voyage.status === 'active' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                                {r.voyage.status}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-gray-600">{r.vesselName}</td>
+                        <td className="px-3 py-3 text-gray-600">{r.voyage.charter_type ? (CHARTER_LABELS[r.voyage.charter_type] || r.voyage.charter_type) : '—'}</td>
+                        <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">
+                          {r.voyage.departure_date ? new Date(r.voyage.departure_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          {r.voyage.arrival_date ? ` → ${new Date(r.voyage.arrival_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                        </td>
+                        <td className="px-3 py-3 text-right font-semibold text-gray-900 tabular-nums">{rev > 0 ? fmtCurrency(rev) : '—'}</td>
+                        <td className="px-3 py-3 text-right text-gray-600 tabular-nums">{r.expenses > 0 ? fmtCurrency(r.expenses) : '—'}</td>
+                        <td className={`px-5 py-3 text-right font-bold tabular-nums ${r.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{(rev > 0 || r.expenses > 0) ? fmtCurrency(r.net) : '—'}</td>
+                      </tr>
+                      {isOpen && r.expenseDetails.map(exp => (
+                        <tr key={exp.id} className="bg-gray-50/70 border-t border-gray-100/60">
+                          <td className="pl-14 pr-3 py-2.5" colSpan={2}>
+                            <p className="text-xs font-medium text-gray-700">{exp.description || exp.category}</p>
+                            <span className="text-[10px] text-gray-400 uppercase tracking-wide">{exp.category}{exp.department ? ` · ${exp.department}` : ''}</span>
+                          </td>
+                          <td className="px-3 py-2.5" colSpan={2}>
+                            <span className="text-xs text-gray-400">{new Date(exp.expense_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          </td>
+                          <td className="px-3 py-2.5"></td>
+                          <td className="px-3 py-2.5 text-right text-xs text-gray-600 tabular-nums">{fmtCurrency(exp.amount)}</td>
+                          <td className="px-5 py-2.5"></td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

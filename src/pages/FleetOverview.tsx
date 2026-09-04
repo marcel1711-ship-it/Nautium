@@ -11,6 +11,7 @@ import { formatDate, isLowStock, recalculateTaskStatuses } from '../utils/helper
 import { InventoryItem, MaintenanceHistory, MaintenanceTask, OperationalExpense, Vessel } from '../types';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
+import { UpcomingVoyagesCard } from '../components/Voyages/VoyageCalendar';
 
 interface FleetOverviewProps { onNavigate: (page: string, params?: any) => void; }
 
@@ -762,6 +763,15 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
                 ))}
               </div>
             </section>
+          )}
+
+          {/* ── UPCOMING VOYAGES ── */}
+          {currentUser?.company_id && (
+            <UpcomingVoyagesCard
+              companyId={currentUser.company_id}
+              vessels={vesselStats.map(s => s.vessel)}
+              onNavigate={onNavigate}
+            />
           )}
 
           {/* ── VESSEL CARDS ── */}

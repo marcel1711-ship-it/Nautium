@@ -13,10 +13,11 @@ import {
 } from '../data/demoData';
 import { supabase, fetchByCompany } from '../lib/supabase';
 import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency, recalculateTaskStatuses } from '../utils/helpers';
-import { MaintenanceTask, InventoryItem, MaintenanceHistory, getRoleDepartment, UserRole } from '../types';
+import { MaintenanceTask, InventoryItem, MaintenanceHistory, Vessel, getRoleDepartment, UserRole } from '../types';
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
+import { UpcomingVoyagesCard } from '../components/Voyages/VoyageCalendar';
 
 
 interface DashboardProps {
@@ -479,12 +480,12 @@ const CaptainDashboard: React.FC<{
   tasks: MaintenanceTask[]; inventory: InventoryItem[]; history: MaintenanceHistory[];
   loading: boolean; overallHealth: number; maintenanceHealth: number; inventoryHealth: number;
   complianceHealth: number; complianceAlerts: ComplianceAlert[];
-  vessel: VesselInfo | null;
+  vessel: VesselInfo | null; vessels: Vessel[];
   onNavigate: (page: string, params?: any) => void;
   t: (key: string) => string; companyId: string;
   currentUser: any;
   selectedVesselId: string | null;
-}> = ({ tasks, inventory, history, loading, overallHealth, maintenanceHealth, inventoryHealth, complianceHealth, complianceAlerts, vessel, onNavigate, t, companyId, currentUser, selectedVesselId }) => {
+}> = ({ tasks, inventory, history, loading, overallHealth, maintenanceHealth, inventoryHealth, complianceHealth, complianceAlerts, vessel, vessels, onNavigate, t, companyId, currentUser, selectedVesselId }) => {
   const [expenses, setExpenses] = useState<DeptExpense[]>([]);
   const [deptInventory, setDeptInventory] = useState<DeptInventory[]>([]);
   const [loadingCosts, setLoadingCosts] = useState(true);
@@ -837,6 +838,14 @@ const CaptainDashboard: React.FC<{
         </div>
       )}
 
+      {/* UPCOMING VOYAGES */}
+      <UpcomingVoyagesCard
+        companyId={companyId}
+        vessels={vessels}
+        selectedVesselId={selectedVesselId}
+        onNavigate={onNavigate}
+      />
+
       {/* COMPLIANCE ALERTS */}
       <div style={{ background: 'white', borderRadius: 20, border: expiredCerts > 0 || criticalCerts > 0 ? '1px solid #fecaca' : '1px solid #e5e7eb', padding: '20px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -1100,6 +1109,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [inventory, setInventory]   = useState<InventoryItem[]>([]);
   const [history, setHistory]       = useState<MaintenanceHistory[]>([]);
   const [vessel, setVessel]         = useState<VesselInfo | null>(null);
+  const [allVessels, setAllVessels] = useState<Vessel[]>([]);
   const [compliance, setCompliance] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
 
@@ -1149,6 +1159,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       setInventory(inventoryData);
       setHistory(historyData.slice(0, 5));
       setCompliance(complianceData);
+      setAllVessels(vessels || []);
       const v = selectedVesselId ? vessels.find((v: any) => v.id === selectedVesselId) : vessels[0];
       if (v) setVessel({ id: v.id, name: v.name, photo_url: v.photo_url || null });
     } catch {
@@ -1197,7 +1208,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           loading={loading} overallHealth={overallHealth}
           maintenanceHealth={maintenanceHealth} inventoryHealth={inventoryHealth}
           complianceHealth={complianceHealth} complianceAlerts={complianceAlerts}
-          vessel={vessel} onNavigate={onNavigate} t={t}
+          vessel={vessel} vessels={allVessels} onNavigate={onNavigate} t={t}
           companyId={currentUser?.company_id || ''}
           currentUser={currentUser}
           selectedVesselId={selectedVesselId}

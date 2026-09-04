@@ -290,6 +290,7 @@ export interface OperationalExpense {
   created_by?: string;
   /** Department that owns this expense */
   department?: OperationalExpenseDepartment | null;
+  voyage_id?: string | null;
   created_at: string;
 }
 
@@ -331,6 +332,9 @@ export interface Voyage {
   arrival_date?: string;
   status: 'planned' | 'active' | 'completed';
   notes: string;
+  revenue?: number;
+  revenue_currency?: string;
+  charter_type?: string | null;
   created_at: string;
 }
 

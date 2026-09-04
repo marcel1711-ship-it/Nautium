@@ -578,6 +578,9 @@ const VoyageModal: React.FC<{
     arrival_date:   item?.arrival_date || '',
     status:         item?.status || 'planned',
     notes:          item?.notes || '',
+    revenue:        item?.revenue != null ? String(item.revenue) : '',
+    revenue_currency: item?.revenue_currency || 'USD',
+    charter_type:   item?.charter_type || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -595,6 +598,9 @@ const VoyageModal: React.FC<{
         arrival_date:   form.arrival_date || null,
         status:         form.status,
         notes:          form.notes,
+        revenue:        form.revenue ? parseFloat(form.revenue) : 0,
+        revenue_currency: form.revenue_currency,
+        charter_type:   form.charter_type || null,
       };
       if (item) {
         await dbUpdate('voyages', item.id, payload);
@@ -662,6 +668,36 @@ const VoyageModal: React.FC<{
               <option value="active">Active</option>
               <option value="completed">Completed</option>
             </select>
+          </div>
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Revenue (optional)</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Charter Type</label>
+                <select value={form.charter_type} onChange={e => setForm({ ...form, charter_type: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="">None</option>
+                  <option value="charter">Charter</option>
+                  <option value="owner_use">Owner Use</option>
+                  <option value="repositioning">Repositioning</option>
+                  <option value="event">Event</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
+                <div className="flex gap-2">
+                  <select value={form.revenue_currency} onChange={e => setForm({ ...form, revenue_currency: e.target.value })}
+                    className="w-20 px-2 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                  </select>
+                  <input type="number" min="0" step="0.01" value={form.revenue} onChange={e => setForm({ ...form, revenue: e.target.value })}
+                    placeholder="0.00"
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

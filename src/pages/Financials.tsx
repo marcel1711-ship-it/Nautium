@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, BarChart3, Receipt, TrendingUp, Calendar, Ship } from 'lucide-react';
+import { DollarSign, BarChart3, Receipt, TrendingUp, Calendar, Ship, FileDown, Anchor } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../lib/supabase';
 import { Costs } from './Costs';
 import { Budget } from './Budget';
+import { downloadHTML } from '../utils/helpers';
+import { Voyage } from '../types';
 
 interface FinancialsProps {
   onNavigate: (page: string, params?: any) => void;
@@ -34,7 +36,7 @@ const getPeriodRange = (p: PeriodFilter) => {
   return { start: `${p.year}-${pad(p.month)}-01`, end: `${p.year}-${pad(p.month)}-${pad(lastDay)}` };
 };
 
-type Tab = 'overview' | 'expenses' | 'budget';
+type Tab = 'overview' | 'expenses' | 'budget' | 'voyages';
 
 export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   // ── selectedVesselId del Header es la fuente de verdad ──────────────────
@@ -186,6 +188,33 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const periodLabel = filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
   const vesselLabel = overviewVessel === 'all' ? 'All Vessels' : vessels.find(v => v.id === overviewVessel)?.name || '';
 
+  const handleExportOverview = () => {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Financial Report — ${vesselLabel} — ${periodLabel}</title>
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111}
+    h1{font-size:22px;margin-bottom:4px}h2{font-size:16px;margin:24px 0 8px;color:#374151}
+    .meta{color:#6b7280;font-size:13px;margin-bottom:24px}.kpi-row{display:flex;gap:16px;margin-bottom:24px}
+    .kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    .kpi .label{font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;letter-spacing:0.05em}
+    .kpi .value{font-size:24px;font-weight:700;margin-top:4px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px}
+    th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:0.05em}
+    .right{text-align:right}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af}
+    @media print{body{padding:20px}.kpi-row{break-inside:avoid}}</style></head><body>
+    <h1>Financial Overview</h1><p class="meta">${vesselLabel} · ${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
+    <div class="kpi-row"><div class="kpi"><div class="label">Period Spend</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
+    <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : 'No budget'}</div></div>
+    <div class="kpi"><div class="label">Remaining</div><div class="value">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) : '—'}</div></div></div>
+    <h2>Spend Breakdown</h2><table><thead><tr><th>Category</th><th class="right">Amount</th></tr></thead><tbody>
+    <tr><td>Operational</td><td class="right">${fmtCurrency(spendBreakdown.operational)}</td></tr>
+    <tr><td>Fuel</td><td class="right">${fmtCurrency(spendBreakdown.fuel)}</td></tr>
+    <tr><td>Parts Used</td><td class="right">${fmtCurrency(spendBreakdown.parts)}</td></tr>
+    <tr><td>External Service</td><td class="right">${fmtCurrency(spendBreakdown.service)}</td></tr>
+    ${spendBreakdown.crew > 0 ? `<tr><td>Crew Salaries</td><td class="right">${fmtCurrency(spendBreakdown.crew)}</td></tr>` : ''}
+    <tr style="font-weight:700;border-top:2px solid #374151"><td>Total</td><td class="right">${fmtCurrency(periodSpend)}</td></tr>
+    </tbody></table><div class="footer">Nautium — www.nautium.app</div></body></html>`;
+    downloadHTML(html, `financial-overview-${vesselLabel.replace(/\s+/g,'-').toLowerCase()}-${periodLabel.replace(/\s+/g,'-').toLowerCase()}`);
+  };
+
   return (
     <div className="space-y-6 pt-4">
       <div>
@@ -203,6 +232,9 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
           </button>
           <button onClick={() => setTab('budget')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${tab === 'budget' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             <BarChart3 className="w-4 h-4" />Budget
+          </button>
+          <button onClick={() => setTab('voyages')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${tab === 'voyages' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Anchor className="w-4 h-4" />Voyages
           </button>
         </div>
 
@@ -235,6 +267,11 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
       {tab === 'overview' && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <button onClick={handleExportOverview} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+              <FileDown className="w-4 h-4" /> Export Report
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-3"><DollarSign className="w-5 h-5 text-blue-600" /></div>
@@ -302,6 +339,189 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
           <Budget onNavigate={onNavigate} controlledYear={filter.year} controlledMonth={filter.month} isFullYear={filter.isFullYear} />
         </div>
       )}
+
+      {tab === 'voyages' && companyId && (
+        <VoyagePL companyId={companyId} vesselId={overviewVessel} vessels={vessels} filter={filter} />
+      )}
+    </div>
+  );
+};
+
+/* ── VOYAGE P&L ──────────────────────────────────────────────────────────────── */
+
+interface VoyagePLRow {
+  voyage: Voyage;
+  vesselName: string;
+  expenses: number;
+  fuelCost: number;
+  net: number;
+}
+
+const CHARTER_LABELS: Record<string, string> = {
+  charter: 'Charter',
+  owner_use: 'Owner Use',
+  repositioning: 'Repositioning',
+  event: 'Event',
+};
+
+const VoyagePL: React.FC<{
+  companyId: string;
+  vesselId: string;
+  vessels: VesselOption[];
+  filter: PeriodFilter;
+}> = ({ companyId, vesselId, vessels, filter }) => {
+  const [rows, setRows] = useState<VoyagePLRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadVoyages(); }, [companyId, vesselId, filter]);
+
+  const loadVoyages = async () => {
+    setLoading(true);
+    try {
+      const { start, end } = getPeriodRange(filter);
+      let q = supabase.from('voyages').select('*').eq('company_id', companyId).gte('departure_date', start).lte('departure_date', end).order('departure_date', { ascending: false });
+      if (vesselId !== 'all') q = q.eq('vessel_id', vesselId);
+      const { data: voyages } = await q;
+      if (!voyages || voyages.length === 0) { setRows([]); setLoading(false); return; }
+
+      const voyageIds = voyages.map((v: any) => v.id);
+      const vesselMap = Object.fromEntries(vessels.map(v => [v.id, v.name]));
+
+      const { data: expenses } = await supabase.from('operational_expenses').select('voyage_id, amount').eq('company_id', companyId).in('voyage_id', voyageIds);
+      const expenseByVoyage: Record<string, number> = {};
+      (expenses || []).forEach((e: any) => { if (e.voyage_id) expenseByVoyage[e.voyage_id] = (expenseByVoyage[e.voyage_id] || 0) + Number(e.amount || 0); });
+
+      const result: VoyagePLRow[] = voyages.map((v: any) => {
+        const rev = Number(v.revenue || 0);
+        const exp = expenseByVoyage[v.id] || 0;
+        return { voyage: v, vesselName: vesselMap[v.vessel_id] || 'Unknown', expenses: exp, fuelCost: 0, net: rev - exp };
+      });
+      setRows(result);
+    } catch (err) { console.error('VoyagePL load error:', err); }
+    finally { setLoading(false); }
+  };
+
+  const totalRevenue = rows.reduce((s, r) => s + Number(r.voyage.revenue || 0), 0);
+  const totalExpenses = rows.reduce((s, r) => s + r.expenses, 0);
+  const totalNet = totalRevenue - totalExpenses;
+  const periodLabel = filter.isFullYear ? `${filter.year}` : `${MONTHS[filter.month - 1]} ${filter.year}`;
+
+  const handleExport = () => {
+    const rowsHtml = rows.map(r => `<tr>
+      <td>${r.voyage.name}</td><td>${r.vesselName}</td>
+      <td>${r.voyage.charter_type ? (CHARTER_LABELS[r.voyage.charter_type] || r.voyage.charter_type) : '—'}</td>
+      <td>${r.voyage.departure_date || '—'}</td><td>${r.voyage.status}</td>
+      <td class="right">${fmtCurrency(Number(r.voyage.revenue || 0))}</td>
+      <td class="right">${fmtCurrency(r.expenses)}</td>
+      <td class="right" style="font-weight:600;color:${r.net >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(r.net)}</td>
+    </tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Voyage P&L — ${periodLabel}</title>
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111}
+    h1{font-size:22px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:24px}
+    .kpi-row{display:flex;gap:16px;margin-bottom:24px}.kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    .kpi .label{font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;letter-spacing:0.05em}.kpi .value{font-size:24px;font-weight:700;margin-top:4px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px}
+    th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:0.05em}.right{text-align:right}
+    .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af}
+    @media print{body{padding:20px}}</style></head><body>
+    <h1>Voyage P&L</h1><p class="meta">${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
+    <div class="kpi-row"><div class="kpi"><div class="label">Total Revenue</div><div class="value">${fmtCurrency(totalRevenue)}</div></div>
+    <div class="kpi"><div class="label">Total Expenses</div><div class="value">${fmtCurrency(totalExpenses)}</div></div>
+    <div class="kpi"><div class="label">Net P&L</div><div class="value" style="color:${totalNet >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(totalNet)}</div></div></div>
+    <table><thead><tr><th>Voyage</th><th>Vessel</th><th>Type</th><th>Date</th><th>Status</th><th class="right">Revenue</th><th class="right">Expenses</th><th class="right">Net</th></tr></thead>
+    <tbody>${rowsHtml}
+    <tr style="font-weight:700;border-top:2px solid #374151"><td colspan="5">Total</td><td class="right">${fmtCurrency(totalRevenue)}</td><td class="right">${fmtCurrency(totalExpenses)}</td><td class="right" style="color:${totalNet >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(totalNet)}</td></tr>
+    </tbody></table><div class="footer">Nautium — www.nautium.app</div></body></html>`;
+    downloadHTML(html, `voyage-pl-${periodLabel.replace(/\s+/g,'-').toLowerCase()}`);
+  };
+
+  if (loading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded-2xl animate-pulse" />)}</div>;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-3"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Total Revenue</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(totalRevenue)}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{rows.length} voyage{rows.length !== 1 ? 's' : ''} in {periodLabel}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mb-3"><Receipt className="w-5 h-5 text-red-500" /></div>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Voyage Expenses</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(totalExpenses)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-3"><DollarSign className="w-5 h-5 text-blue-600" /></div>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Net P&L</p>
+          <p className={`text-2xl font-bold mt-1 ${totalNet >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtCurrency(totalNet)}</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h3 className="text-sm font-bold text-gray-900">Voyage Details</h3>
+          {rows.length > 0 && (
+            <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <FileDown className="w-3.5 h-3.5" /> Export
+            </button>
+          )}
+        </div>
+        {rows.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Anchor className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No voyages found for this period</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-t border-gray-100">
+                  <th className="text-left px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Voyage</th>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vessel</th>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Type</th>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Dates</th>
+                  <th className="text-right px-3 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Revenue</th>
+                  <th className="text-right px-3 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Expenses</th>
+                  <th className="text-right px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => {
+                  const rev = Number(r.voyage.revenue || 0);
+                  return (
+                    <tr key={r.voyage.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3">
+                        <p className="font-semibold text-gray-900">{r.voyage.name}</p>
+                        <span className={`inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${r.voyage.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : r.voyage.status === 'active' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {r.voyage.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-gray-600">{r.vesselName}</td>
+                      <td className="px-3 py-3 text-gray-600">{r.voyage.charter_type ? (CHARTER_LABELS[r.voyage.charter_type] || r.voyage.charter_type) : '—'}</td>
+                      <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">
+                        {r.voyage.departure_date ? new Date(r.voyage.departure_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                        {r.voyage.arrival_date ? ` → ${new Date(r.voyage.arrival_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold text-gray-900 tabular-nums">{rev > 0 ? fmtCurrency(rev) : '—'}</td>
+                      <td className="px-3 py-3 text-right text-gray-600 tabular-nums">{r.expenses > 0 ? fmtCurrency(r.expenses) : '—'}</td>
+                      <td className={`px-5 py-3 text-right font-bold tabular-nums ${r.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{(rev > 0 || r.expenses > 0) ? fmtCurrency(r.net) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 bg-gray-50">
+                  <td colSpan={4} className="px-5 py-3 font-bold text-gray-900">Total</td>
+                  <td className="px-3 py-3 text-right font-bold text-gray-900 tabular-nums">{fmtCurrency(totalRevenue)}</td>
+                  <td className="px-3 py-3 text-right font-bold text-gray-900 tabular-nums">{fmtCurrency(totalExpenses)}</td>
+                  <td className={`px-5 py-3 text-right font-bold tabular-nums ${totalNet >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtCurrency(totalNet)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -824,6 +824,7 @@ const AddExpenseModal: React.FC<{
   const [saving, setSaving] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
   const [thresholdBlock, setThresholdBlock] = useState<{ threshold: number; amount: number } | null>(null);
+  const [voyageOptions, setVoyageOptions] = useState<{ id: string; name: string }[]>([]);
 
   const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
 
@@ -835,7 +836,14 @@ const AddExpenseModal: React.FC<{
     currency:     'USD',
     expense_date: new Date().toISOString().split('T')[0],
     department:   defaultDepartment || 'General' as OperationalExpenseDepartment,
+    voyage_id:    '',
   });
+
+  useEffect(() => {
+    if (!form.vessel_id || !companyId) { setVoyageOptions([]); return; }
+    supabase.from('voyages').select('id, name').eq('company_id', companyId).eq('vessel_id', form.vessel_id).order('departure_date', { ascending: false })
+      .then(({ data }) => setVoyageOptions((data || []).map((v: any) => ({ id: v.id, name: v.name }))));
+  }, [form.vessel_id, companyId]);
 
   // Categorías filtradas según el departamento seleccionado
   const availableCategories = EXPENSE_CATEGORIES.filter(cat =>
@@ -922,6 +930,7 @@ const AddExpenseModal: React.FC<{
         status:             'approved',
         requested_by:       currentUser.id,
         requested_by_name:  currentUser.full_name,
+        voyage_id:          form.voyage_id || null,
       });
 
       onSaved('approved');
@@ -1086,6 +1095,18 @@ const AddExpenseModal: React.FC<{
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required />
           </div>
+
+          {/* Voyage (optional) */}
+          {voyageOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Link to Voyage</label>
+              <select value={form.voyage_id} onChange={e => setForm({ ...form, voyage_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">No voyage (general expense)</option>
+                {voyageOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2 border-t border-gray-200">
             <button type="button" onClick={onClose}

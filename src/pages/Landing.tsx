@@ -78,8 +78,8 @@ const T = {
       title: 'Built for the people who run vessels',
       profiles: [
         { title: 'Captains & Owners', desc: 'See the full picture at a glance. Every department, every task, every cost — without asking the crew for updates. Full oversight, zero micromanagement.' },
+        { title: 'Fleet Managers', desc: 'Manage multiple vessels from one dashboard. Track maintenance, costs, compliance and crew across your entire fleet — no more juggling spreadsheets and WhatsApp groups.' },
         { title: 'Chief Engineers & Officers', desc: 'Stop managing your department with spreadsheets and WhatsApp. Maintenance schedules, inventory, manuals and alerts — all in one place, always up to date.' },
-        { title: 'Chief Stewardesses & Chefs', desc: 'Interior and galley finally get their own space. Track your inventory, manage your tasks, and never run out of stock mid-charter again.' },
       ],
     },
     trust: {
@@ -175,8 +175,8 @@ const T = {
       title: 'Hecho para quienes operan embarcaciones',
       profiles: [
         { title: 'Capitanes y Propietarios', desc: 'Ve el panorama completo de un vistazo. Cada departamento, cada tarea, cada coste — sin tener que preguntar a la tripulación. Control total, sin microgestión.' },
+        { title: 'Fleet Managers', desc: 'Gestiona múltiples embarcaciones desde un solo dashboard. Mantenimiento, costes, compliance y tripulación de toda tu flota — sin hojas de cálculo ni grupos de WhatsApp.' },
         { title: 'Jefes de Máquinas y Oficiales', desc: 'Deja de gestionar tu departamento con hojas de cálculo y WhatsApp. Mantenimiento, inventario, manuales y alertas — todo en un lugar, siempre actualizado.' },
-        { title: 'Jefas de Azafatas y Chefs', desc: 'Interior y cocina por fin tienen su propio espacio. Controla tu inventario, gestiona tus tareas y no te quedes sin stock en medio de un charter.' },
       ],
     },
     trust: {

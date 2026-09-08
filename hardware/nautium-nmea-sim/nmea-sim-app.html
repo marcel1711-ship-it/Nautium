@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nautium NMEA Sim v2.0</title>
+<style>
+:root {
+  --bg-primary: #030712;
+  --bg-card: #111827;
+  --bg-card-hover: #1f2937;
+  --border: #1f2937;
+  --border-light: #374151;
+  --text: #f9fafb;
+  --text-dim: #9ca3af;
+  --text-muted: #6b7280;
+  --cyan: #22d3ee;
+  --cyan-dim: #0891b2;
+  --green: #22c55e;
+  --green-dim: #166534;
+  --yellow: #eab308;
+  --yellow-dim: #854d0e;
+  --red: #ef4444;
+  --red-dim: #991b1b;
+  --orange: #f97316;
+  --blue: #3b82f6;
+  --blue-dim: #1e40af;
+  --purple: #a855f7;
+  --amber: #f59e0b;
+  --slider-track: #374151;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; }
+input[type="number"] {
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  background: var(--bg-primary);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input[type="number"]:focus { border-color: var(--cyan); }
+input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.header-brand svg { width: 28px; height: 28px; color: var(--cyan); }
+.header-brand h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.header-brand .version {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(34,211,238,0.1);
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  display: inline-block;
+  transition: background 0.3s;
+}
+.status-dot.connected { background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+.status-text { font-size: 0.8rem; color: var(--text-dim); }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: var(--bg-card-hover);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border-light); border-color: var(--text-muted); }
+.btn-primary {
+  background: var(--cyan-dim);
+  border-color: var(--cyan);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--cyan); color: #000; }
+.btn-danger { border-color: var(--red-dim); color: var(--red); }
+.btn-danger:hover { background: var(--red-dim); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+/* Browser warning */
+.browser-warning {
+  background: rgba(234,179,8,0.1);
+  border: 1px solid var(--yellow-dim);
+  color: var(--yellow);
+  padding: 10px 24px;
+  font-size: 0.85rem;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.browser-warning.show { display: flex; }
+
+/* Grid */
+.main-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 20px 24px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+@media (max-width: 1200px) { .main-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) {
+  .main-grid { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+  .header { padding: 10px 12px; }
+}
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.card.alarm { border-color: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.15); }
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.01);
+}
+.card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title .icon { font-size: 1rem; }
+.card-body { padding: 16px; }
+.alarm-badge {
+  display: none;
+  font-size: 0.65rem;
+  background: var(--red);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+.alarm-badge.show { display: inline-block; }
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Toggle switch */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.toggle-label { font-size: 0.8rem; font-weight: 500; }
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+.toggle input { display: none; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--slider-track);
+  border-radius: 12px;
+  transition: background 0.3s;
+}
+.toggle input:checked + .toggle-track { background: var(--green); }
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.toggle input:checked ~ .toggle-thumb { transform: translateX(20px); }
+
+/* Throttle slider */
+.throttle-container { margin-bottom: 14px; }
+.throttle-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.throttle-value {
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  margin-bottom: 2px;
+}
+.throttle-value .thr-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.thr-fwd { background: rgba(34,211,238,0.15); color: var(--cyan); }
+.thr-rev { background: rgba(249,115,22,0.15); color: var(--orange); }
+.thr-idle { background: rgba(107,114,128,0.15); color: var(--text-muted); }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--slider-track);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 6px rgba(34,211,238,0.4);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid var(--bg-primary);
+}
+
+/* Readouts */
+.readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.readout {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  text-align: center;
+}
+.readout-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+.readout-value {
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.readout.alarm .readout-value { color: var(--red); }
+.readout.warning .readout-value { color: var(--yellow); }
+
+/* Generator sub-section */
+.gen-section {
+  padding: 12px 0;
+}
+.gen-section + .gen-section { border-top: 1px solid var(--border); }
+.gen-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Battery bar */
+.soc-bar-container {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  height: 20px;
+  overflow: hidden;
+  margin: 8px 0;
+  position: relative;
+}
+.soc-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s, background 0.5s;
+  min-width: 2px;
+}
+.soc-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Tank */
+.tank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.tank-row + .tank-row { border-top: 1px solid var(--border); }
+.tank-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  width: 90px;
+  flex-shrink: 0;
+}
+.tank-bar-container {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  height: 24px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+.tank-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s, background 0.3s;
+}
+.tank-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.tank-slider {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* GPS card */
+.gps-field {
+  margin-bottom: 12px;
+}
+.gps-field label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.gps-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.compass {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  position: relative;
+  margin: 8px auto;
+  background: var(--bg-primary);
+}
+.compass-needle {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 2px;
+  height: 22px;
+  background: var(--red);
+  transform-origin: bottom center;
+  border-radius: 1px;
+  margin-left: -1px;
+  transition: transform 0.3s;
+}
+.compass-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.compass-n {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+/* Fault buttons */
+.fault-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.fault-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  line-height: 1.3;
+}
+.fault-btn:hover { border-color: var(--text-muted); }
+.fault-btn.active {
+  background: rgba(239,68,68,0.1);
+  border-color: var(--red);
+  color: var(--red);
+  animation: pulse-fault 2s ease-in-out infinite;
+}
+@keyframes pulse-fault {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.2); }
+  50% { box-shadow: 0 0 12px 2px rgba(239,68,68,0.3); }
+}
+.fault-btn .fault-icon { font-size: 1.1rem; }
+.fault-group-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+.fault-group-label:first-child { margin-top: 0; }
+
+/* Activity log */
+.log-section {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 24px 24px;
+}
+@media (max-width: 768px) { .log-section { padding: 0 12px 12px; } }
+.log-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.log-header h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.log-body {
+  height: 160px;
+  overflow-y: auto;
+  padding: 8px 16px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+.log-body::-webkit-scrollbar { width: 6px; }
+.log-body::-webkit-scrollbar-track { background: transparent; }
+.log-body::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+.log-entry { white-space: nowrap; }
+.log-ts { color: var(--text-muted); margin-right: 8px; }
+.log-sent { color: var(--cyan); }
+.log-recv { color: var(--text-muted); }
+.log-err { color: var(--red); }
+.log-fault { color: var(--amber); }
+
+/* Load color helpers */
+.load-green { color: var(--green); }
+.load-yellow { color: var(--yellow); }
+.load-red { color: var(--red); }
+
+/* Scrollbar global */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Browser Warning -->
+<div class="browser-warning" id="browserWarning">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  Web Serial API is not supported in this browser. Please use <strong style="margin:0 4px">Google Chrome</strong> or <strong style="margin:0 4px">Microsoft Edge</strong> (version 89+).
+</div>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0020 0h-3"/></svg>
+    <h1>Nautium NMEA Sim</h1>
+    <span class="version">v2.0</span>
+  </div>
+  <div class="header-actions">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-text" id="statusText">Disconnected</span>
+    <button class="btn btn-primary" id="connectBtn" onclick="toggleConnection()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h4v16H6z"/><path d="M14 4h4v16h-4z"/><path d="M10 12h4"/></svg>
+      Connect
+    </button>
+    <button class="btn btn-danger" onclick="sendReset()">Reset All</button>
+  </div>
+</header>
+
+<!-- Main Grid -->
+<main class="main-grid">
+
+  <!-- Engine Port -->
+  <div class="card" id="cardEngPort">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9881;</span> Engine Port</span>
+      <span class="alarm-badge" id="alarmEngPort">ALARM</span>
+    </div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <span class="toggle-label">Engine Power</span>
+        <label class="toggle">
+          <input type="checkbox" id="epOn" onchange="sendCmd('ep','on',this.checked?1:0)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="throttle-container">
+        <div class="throttle-value" id="epThrDisplay">0 <span class="thr-label thr-idle">IDLE</span></div>
+        <input type="range" min="-100" max="100" value="0" id="epThr"
+          oninput="snapThrottle(this); updateThrDisplay('ep')"
+          onchange="sendCmd('ep','thr',parseInt(this.value))">
+        <div class="throttle-labels"><span>REV -100</span><span>FWD +100</span></div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="epRpm"><div class="readout-label">RPM</div><div class="readout-value">--</div></div>
+        <div class="readout" id="epTmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+        <div class="readout" id="epOil"><div class="readout-label">Oil kPa</div><div class="readout-value">--</div></div>
+        <div class="readout" id="epHrs"><div class="readout-label">Hours</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Engine Starboard -->
+  <div class="card" id="cardEngStbd">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9881;</span> Engine Starboard</span>
+      <span class="alarm-badge" id="alarmEngStbd">ALARM</span>
+    </div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <span class="toggle-label">Engine Power</span>
+        <label class="toggle">
+          <input type="checkbox" id="esOn" onchange="sendCmd('es','on',this.checked?1:0)">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="throttle-container">
+        <div class="throttle-value" id="esThrDisplay">0 <span class="thr-label thr-idle">IDLE</span></div>
+        <input type="range" min="-100" max="100" value="0" id="esThr"
+          oninput="snapThrottle(this); updateThrDisplay('es')"
+          onchange="sendCmd('es','thr',parseInt(this.value))">
+        <div class="throttle-labels"><span>REV -100</span><span>FWD +100</span></div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="esRpm"><div class="readout-label">RPM</div><div class="readout-value">--</div></div>
+        <div class="readout" id="esTmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+        <div class="readout" id="esOil"><div class="readout-label">Oil kPa</div><div class="readout-value">--</div></div>
+        <div class="readout" id="esHrs"><div class="readout-label">Hours</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generators -->
+  <div class="card" id="cardGen">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9889;</span> Generators</span>
+      <span class="alarm-badge" id="alarmGen">ALARM</span>
+    </div>
+    <div class="card-body">
+      <div class="gen-section">
+        <div class="gen-label">Generator 1</div>
+        <div class="toggle-row">
+          <span class="toggle-label">Power</span>
+          <label class="toggle">
+            <input type="checkbox" id="g1On" onchange="sendCmd('g1','on',this.checked?1:0)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="readouts">
+          <div class="readout" id="g1V"><div class="readout-label">Voltage</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g1Ld"><div class="readout-label">Load %</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g1Tmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g1Hrs"><div class="readout-label">Hours</div><div class="readout-value">--</div></div>
+        </div>
+      </div>
+      <div class="gen-section">
+        <div class="gen-label">Generator 2</div>
+        <div class="toggle-row">
+          <span class="toggle-label">Power</span>
+          <label class="toggle">
+            <input type="checkbox" id="g2On" onchange="sendCmd('g2','on',this.checked?1:0)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="readouts">
+          <div class="readout" id="g2V"><div class="readout-label">Voltage</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g2Ld"><div class="readout-label">Load %</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g2Tmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+          <div class="readout" id="g2Hrs"><div class="readout-label">Hours</div><div class="readout-value">--</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Battery Banks -->
+  <div class="card" id="cardBat">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#128267;</span> Battery Banks</span>
+      <span class="alarm-badge" id="alarmBat">ALARM</span>
+    </div>
+    <div class="card-body">
+      <div class="gen-section">
+        <div class="gen-label">Bank 1</div>
+        <div class="soc-bar-container">
+          <div class="soc-bar" id="b1SocBar" style="width:0%;background:var(--green)"></div>
+          <div class="soc-bar-label" id="b1SocLabel">--</div>
+        </div>
+        <div class="readouts">
+          <div class="readout" id="b1V"><div class="readout-label">Voltage</div><div class="readout-value">--</div></div>
+          <div class="readout" id="b1A"><div class="readout-label">Current A</div><div class="readout-value">--</div></div>
+          <div class="readout" id="b1Tmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+          <div class="readout">
+            <div class="readout-label">Charge Mode</div>
+            <div class="readout-value">
+              <label class="toggle" style="display:inline-block;vertical-align:middle">
+                <input type="checkbox" id="b1Chg" onchange="sendCmd('b1','chg',this.checked?1:0)">
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gen-section">
+        <div class="gen-label">Bank 2</div>
+        <div class="soc-bar-container">
+          <div class="soc-bar" id="b2SocBar" style="width:0%;background:var(--green)"></div>
+          <div class="soc-bar-label" id="b2SocLabel">--</div>
+        </div>
+        <div class="readouts">
+          <div class="readout" id="b2V"><div class="readout-label">Voltage</div><div class="readout-value">--</div></div>
+          <div class="readout" id="b2A"><div class="readout-label">Current A</div><div class="readout-value">--</div></div>
+          <div class="readout" id="b2Tmp"><div class="readout-label">Temp &deg;C</div><div class="readout-value">--</div></div>
+          <div class="readout">
+            <div class="readout-label">Charge Mode</div>
+            <div class="readout-value">
+              <label class="toggle" style="display:inline-block;vertical-align:middle">
+                <input type="checkbox" id="b2Chg" onchange="sendCmd('b2','chg',this.checked?1:0)">
+                <div class="toggle-track"></div>
+                <div class="toggle-thumb"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tanks -->
+  <div class="card" id="cardTanks">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9981;</span> Tanks</span>
+    </div>
+    <div class="card-body">
+      <div class="tank-row">
+        <div class="tank-label">Diesel Main</div>
+        <div class="tank-bar-container" id="dmBarC">
+          <div class="tank-bar" id="dmBar" style="width:50%;background:var(--green)"></div>
+          <div class="tank-pct" id="dmPct">50%</div>
+        </div>
+        <input type="range" class="tank-slider" min="0" max="100" step="0.5" value="50" id="dmSlider"
+          oninput="updateTankPreview('dm',this.value)"
+          onchange="sendCmd('t','dm',parseFloat(this.value))">
+      </div>
+      <div class="tank-row">
+        <div class="tank-label">Diesel Gen</div>
+        <div class="tank-bar-container" id="dgBarC">
+          <div class="tank-bar" id="dgBar" style="width:50%;background:var(--green)"></div>
+          <div class="tank-pct" id="dgPct">50%</div>
+        </div>
+        <input type="range" class="tank-slider" min="0" max="100" step="0.5" value="50" id="dgSlider"
+          oninput="updateTankPreview('dg',this.value)"
+          onchange="sendCmd('t','dg',parseFloat(this.value))">
+      </div>
+      <div class="tank-row">
+        <div class="tank-label">Fresh Water</div>
+        <div class="tank-bar-container" id="fwBarC">
+          <div class="tank-bar" id="fwBar" style="width:50%;background:var(--blue)"></div>
+          <div class="tank-pct" id="fwPct">50%</div>
+        </div>
+        <input type="range" class="tank-slider" min="0" max="100" step="0.5" value="50" id="fwSlider"
+          oninput="updateTankPreview('fw',this.value)"
+          onchange="sendCmd('t','fw',parseFloat(this.value))">
+      </div>
+    </div>
+  </div>
+
+  <!-- GPS -->
+  <div class="card" id="cardGps">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#128225;</span> GPS Navigation</span>
+    </div>
+    <div class="card-body">
+      <div class="gps-row">
+        <div class="gps-field">
+          <label>Latitude</label>
+          <input type="number" id="gpsLat" step="0.0001" value="25.7617"
+            onchange="sendCmd('gps','lat',parseFloat(this.value))">
+        </div>
+        <div class="gps-field">
+          <label>Longitude</label>
+          <input type="number" id="gpsLon" step="0.0001" value="-80.1918"
+            onchange="sendCmd('gps','lon',parseFloat(this.value))">
+        </div>
+      </div>
+      <div class="gps-field">
+        <label>Speed Over Ground (knots)</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="0" max="25" step="0.1" value="0" id="gpsSog" style="flex:1"
+            oninput="document.getElementById('gpsSogVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('gps','sog',parseFloat(this.value))">
+          <span id="gpsSogVal" style="font-family:monospace;font-size:1rem;font-weight:600;min-width:40px;text-align:right">0.0</span>
+          <span style="font-size:0.75rem;color:var(--text-muted)">kn</span>
+        </div>
+      </div>
+      <div class="gps-field">
+        <label>Course Over Ground (degrees)</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="0" max="359" step="1" value="0" id="gpsCog" style="flex:1"
+            oninput="updateCompass(this.value)"
+            onchange="sendCmd('gps','cog',parseInt(this.value))">
+          <span id="gpsCogVal" style="font-family:monospace;font-size:1rem;font-weight:600;min-width:36px;text-align:right">0</span>
+          <span style="font-size:0.75rem;color:var(--text-muted)">&deg;</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center">
+        <div class="compass">
+          <span class="compass-n">N</span>
+          <div class="compass-needle" id="compassNeedle"></div>
+          <div class="compass-center"></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:0.72rem;color:var(--text-muted)" id="gpsDesc">25.7617&deg;N, 80.1918&deg;W</div>
+    </div>
+  </div>
+
+  <!-- Fault Simulation -->
+  <div class="card" id="cardFaults">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9888;</span> Diagnostic Fault Simulator</span>
+      <button class="btn btn-sm btn-danger" onclick="clearAllFaults()">Clear All</button>
+    </div>
+    <div class="card-body">
+      <div class="fault-group-label">Engine Port</div>
+      <div class="fault-grid">
+        <button class="fault-btn" id="fault_ep_oil" onclick="toggleFault('ep_oil')">
+          <span class="fault-icon">&#128167;</span>Low Oil Pressure
+        </button>
+        <button class="fault-btn" id="fault_ep_temp" onclick="toggleFault('ep_temp')">
+          <span class="fault-icon">&#127777;</span>Overtemperature
+        </button>
+      </div>
+      <div class="fault-group-label">Engine Starboard</div>
+      <div class="fault-grid">
+        <button class="fault-btn" id="fault_es_oil" onclick="toggleFault('es_oil')">
+          <span class="fault-icon">&#128167;</span>Low Oil Pressure
+        </button>
+        <button class="fault-btn" id="fault_es_temp" onclick="toggleFault('es_temp')">
+          <span class="fault-icon">&#127777;</span>Overtemperature
+        </button>
+      </div>
+      <div class="fault-group-label">Generator 1</div>
+      <div class="fault-grid" style="grid-template-columns:1fr">
+        <button class="fault-btn" id="fault_g1_temp" onclick="toggleFault('g1_temp')">
+          <span class="fault-icon">&#127777;</span>Overtemperature
+        </button>
+      </div>
+      <div class="fault-group-label">Generator 2</div>
+      <div class="fault-grid" style="grid-template-columns:1fr">
+        <button class="fault-btn" id="fault_g2_temp" onclick="toggleFault('g2_temp')">
+          <span class="fault-icon">&#127777;</span>Overtemperature
+        </button>
+      </div>
+      <div class="fault-group-label">Battery 1</div>
+      <div class="fault-grid" style="grid-template-columns:1fr">
+        <button class="fault-btn" id="fault_b1_low" onclick="toggleFault('b1_low')">
+          <span class="fault-icon">&#9889;</span>Low Voltage
+        </button>
+      </div>
+      <div class="fault-group-label">Battery 2</div>
+      <div class="fault-grid" style="grid-template-columns:1fr">
+        <button class="fault-btn" id="fault_b2_low" onclick="toggleFault('b2_low')">
+          <span class="fault-icon">&#9889;</span>Low Voltage
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Activity Log -->
+<section class="log-section">
+  <div class="log-card">
+    <div class="log-header">
+      <h3>Activity Log</h3>
+      <button class="btn btn-sm" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+</section>
+
+<script>
+/* ── State ── */
+let port = null;
+let reader = null;
+let writer = null;
+let readableStreamClosed = null;
+let writableStreamClosed = null;
+let connected = false;
+let lineBuf = '';
+const activeFaults = new Set();
+
+/* ── Web Serial Check ── */
+if (!('serial' in navigator)) {
+  document.getElementById('browserWarning').classList.add('show');
+  document.getElementById('connectBtn').disabled = true;
+  document.getElementById('connectBtn').style.opacity = '0.5';
+}
+
+/* ── Connection ── */
+async function toggleConnection() {
+  if (connected) { await disconnect(); }
+  else { await connect(); }
+}
+
+async function connect() {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+
+    const textDecoder = new TextDecoderStream();
+    readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+    reader = textDecoder.readable.getReader();
+
+    const textEncoder = new TextEncoderStream();
+    writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+    writer = textEncoder.writable.getWriter();
+
+    connected = true;
+    updateConnectionUI();
+    logEntry('Connected to serial port', 'sent');
+    readLoop();
+  } catch (err) {
+    logEntry('Connection failed: ' + err.message, 'err');
+  }
+}
+
+async function disconnect() {
+  try {
+    if (reader) { await reader.cancel(); await readableStreamClosed.catch(()=>{}); reader = null; }
+    if (writer) { await writer.close(); await writableStreamClosed.catch(()=>{}); writer = null; }
+    if (port) { await port.close(); port = null; }
+  } catch (e) { /* ignore */ }
+  connected = false;
+  updateConnectionUI();
+  logEntry('Disconnected', 'sent');
+}
+
+function updateConnectionUI() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  const btn = document.getElementById('connectBtn');
+  if (connected) {
+    dot.classList.add('connected');
+    txt.textContent = 'Connected';
+    btn.textContent = 'Disconnect';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-danger');
+  } else {
+    dot.classList.remove('connected');
+    txt.textContent = 'Disconnected';
+    btn.textContent = 'Connect';
+    btn.classList.add('btn-primary');
+    btn.classList.remove('btn-danger');
+  }
+}
+
+/* ── Serial Read ── */
+async function readLoop() {
+  while (connected && reader) {
+    try {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        lineBuf += value;
+        const lines = lineBuf.split('\n');
+        lineBuf = lines.pop();
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed) processIncoming(trimmed);
+        }
+      }
+    } catch (e) {
+      if (connected) logEntry('Read error: ' + e.message, 'err');
+      break;
+    }
+  }
+}
+
+/* ── Serial Write ── */
+async function serialSend(obj) {
+  const json = JSON.stringify(obj);
+  if (connected && writer) {
+    try {
+      await writer.write(json + '\n');
+      logEntry('TX: ' + json, 'sent');
+    } catch (e) {
+      logEntry('Write error: ' + e.message, 'err');
+    }
+  } else {
+    logEntry('Not connected. Would send: ' + json, 'err');
+  }
+}
+
+function sendCmd(c, p, v) {
+  if (p !== undefined && v !== undefined) {
+    serialSend({ c, p, v });
+  } else {
+    serialSend({ c });
+  }
+}
+
+function sendReset() {
+  serialSend({ c: 'reset' });
+  // Reset local UI
+  activeFaults.clear();
+  document.querySelectorAll('.fault-btn').forEach(b => b.classList.remove('active'));
+  updateFaultAlarms();
+  document.getElementById('epThr').value = 0; updateThrDisplay('ep');
+  document.getElementById('esThr').value = 0; updateThrDisplay('es');
+  document.getElementById('epOn').checked = false;
+  document.getElementById('esOn').checked = false;
+  document.getElementById('g1On').checked = false;
+  document.getElementById('g2On').checked = false;
+  document.getElementById('b1Chg').checked = false;
+  document.getElementById('b2Chg').checked = false;
+}
+
+/* ── Process incoming status ── */
+function processIncoming(raw) {
+  try {
+    const d = JSON.parse(raw);
+    logEntry('RX: status update', 'recv');
+    // Engine Port
+    if (d.ep) {
+      setReadout('epRpm', d.ep.rpm, '');
+      setReadout('epTmp', d.ep.tmp, '°C', d.ep.tmp > 90 ? 'alarm' : '');
+      setReadout('epOil', d.ep.oil, ' kPa', d.ep.oil < 200 ? 'alarm' : '');
+      setReadout('epHrs', d.ep.hrs, '');
+      document.getElementById('epOn').checked = !!d.ep.on;
+    }
+    // Engine Starboard
+    if (d.es) {
+      setReadout('esRpm', d.es.rpm, '');
+      setReadout('esTmp', d.es.tmp, '°C', d.es.tmp > 90 ? 'alarm' : '');
+      setReadout('esOil', d.es.oil, ' kPa', d.es.oil < 200 ? 'alarm' : '');
+      setReadout('esHrs', d.es.hrs, '');
+      document.getElementById('esOn').checked = !!d.es.on;
+    }
+    // Generator 1
+    if (d.g1) {
+      setReadout('g1V', d.g1.v, ' V');
+      setReadout('g1Ld', d.g1.ld, '%', loadClass(d.g1.ld));
+      setReadout('g1Tmp', d.g1.tmp, '°C');
+      setReadout('g1Hrs', d.g1.hrs, '');
+      document.getElementById('g1On').checked = !!d.g1.on;
+    }
+    // Generator 2
+    if (d.g2) {
+      setReadout('g2V', d.g2.v, ' V');
+      setReadout('g2Ld', d.g2.ld, '%', loadClass(d.g2.ld));
+      setReadout('g2Tmp', d.g2.tmp, '°C');
+      setReadout('g2Hrs', d.g2.hrs, '');
+      document.getElementById('g2On').checked = !!d.g2.on;
+    }
+    // Battery 1
+    if (d.b1) {
+      updateSocBar('b1', d.b1.soc);
+      setReadout('b1V', d.b1.v, ' V');
+      setReadout('b1A', d.b1.a, ' A');
+      setReadout('b1Tmp', d.b1.tmp, '°C');
+      document.getElementById('b1Chg').checked = !!d.b1.chg;
+    }
+    // Battery 2
+    if (d.b2) {
+      updateSocBar('b2', d.b2.soc);
+      setReadout('b2V', d.b2.v, ' V');
+      setReadout('b2A', d.b2.a, ' A');
+      setReadout('b2Tmp', d.b2.tmp, '°C');
+      document.getElementById('b2Chg').checked = !!d.b2.chg;
+    }
+    // Tanks
+    if (d.dm !== undefined) updateTankDisplay('dm', d.dm);
+    if (d.dg !== undefined) updateTankDisplay('dg', d.dg);
+    if (d.fw !== undefined) updateTankDisplay('fw', d.fw, true);
+    // GPS
+    if (d.gps) {
+      document.getElementById('gpsLat').value = d.gps.lat;
+      document.getElementById('gpsLon').value = d.gps.lon;
+      document.getElementById('gpsSog').value = d.gps.sog;
+      document.getElementById('gpsSogVal').textContent = d.gps.sog.toFixed(1);
+      document.getElementById('gpsCog').value = d.gps.cog;
+      updateCompass(d.gps.cog);
+      updateGpsDesc(d.gps.lat, d.gps.lon);
+    }
+    // Faults
+    if (d.faults) {
+      activeFaults.clear();
+      d.faults.forEach(f => activeFaults.add(f));
+      document.querySelectorAll('.fault-btn').forEach(btn => {
+        const fid = btn.id.replace('fault_', '');
+        btn.classList.toggle('active', activeFaults.has(fid));
+      });
+      updateFaultAlarms();
+      if (d.faults.length > 0) {
+        logEntry('Active faults: ' + d.faults.join(', '), 'fault');
+      }
+    }
+  } catch (e) {
+    logEntry('Parse error: ' + e.message + ' | Raw: ' + raw.substring(0, 120), 'err');
+  }
+}
+
+/* ── UI Helpers ── */
+function setReadout(id, val, suffix, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const valEl = el.querySelector('.readout-value');
+  if (val === undefined || val === null) { valEl.textContent = '--'; el.className = 'readout'; return; }
+  valEl.textContent = (typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(1)) : val) + (suffix || '');
+  el.className = 'readout' + (cls ? ' ' + cls : '');
+}
+
+function loadClass(ld) {
+  if (ld > 80) return 'alarm';
+  if (ld > 60) return 'warning';
+  return '';
+}
+
+function updateSocBar(prefix, soc) {
+  const bar = document.getElementById(prefix + 'SocBar');
+  const label = document.getElementById(prefix + 'SocLabel');
+  if (soc === undefined || soc === null) { bar.style.width = '0%'; label.textContent = '--'; return; }
+  bar.style.width = Math.max(0, Math.min(100, soc)) + '%';
+  label.textContent = soc + '%';
+  if (soc > 50) bar.style.background = 'var(--green)';
+  else if (soc > 20) bar.style.background = 'var(--yellow)';
+  else bar.style.background = 'var(--red)';
+}
+
+function tankColor(pct, isWater) {
+  if (isWater) {
+    if (pct > 50) return 'var(--blue)';
+    if (pct > 25) return '#6366f1';
+    return 'var(--red)';
+  }
+  if (pct > 50) return 'var(--green)';
+  if (pct > 25) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+function updateTankDisplay(key, pct, isWater) {
+  const bar = document.getElementById(key + 'Bar');
+  const pctEl = document.getElementById(key + 'Pct');
+  const slider = document.getElementById(key + 'Slider');
+  bar.style.width = pct + '%';
+  bar.style.background = tankColor(pct, isWater);
+  pctEl.textContent = pct.toFixed(1) + '%';
+  slider.value = pct;
+}
+
+function updateTankPreview(key, val) {
+  const pct = parseFloat(val);
+  const isWater = key === 'fw';
+  const bar = document.getElementById(key + 'Bar');
+  const pctEl = document.getElementById(key + 'Pct');
+  bar.style.width = pct + '%';
+  bar.style.background = tankColor(pct, isWater);
+  pctEl.textContent = pct.toFixed(1) + '%';
+}
+
+function snapThrottle(el) {
+  const v = parseInt(el.value);
+  if (v >= -5 && v <= 5) el.value = 0;
+}
+
+function updateThrDisplay(prefix) {
+  const val = parseInt(document.getElementById(prefix + 'Thr').value);
+  const display = document.getElementById(prefix + 'ThrDisplay');
+  let label, cls;
+  if (val > 0) { label = 'FWD'; cls = 'thr-fwd'; }
+  else if (val < 0) { label = 'REV'; cls = 'thr-rev'; }
+  else { label = 'IDLE'; cls = 'thr-idle'; }
+  display.innerHTML = val + ' <span class="thr-label ' + cls + '">' + label + '</span>';
+}
+
+function updateCompass(deg) {
+  document.getElementById('compassNeedle').style.transform = 'rotate(' + deg + 'deg)';
+  document.getElementById('gpsCogVal').textContent = deg;
+}
+
+function updateGpsDesc(lat, lon) {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  document.getElementById('gpsDesc').textContent =
+    Math.abs(lat).toFixed(4) + '°' + ns + ', ' + Math.abs(lon).toFixed(4) + '°' + ew;
+}
+
+/* ── Faults ── */
+function toggleFault(faultId) {
+  const isActive = activeFaults.has(faultId);
+  if (isActive) {
+    activeFaults.delete(faultId);
+    sendCmd('fault', faultId, 0);
+  } else {
+    activeFaults.add(faultId);
+    sendCmd('fault', faultId, 1);
+  }
+  document.getElementById('fault_' + faultId).classList.toggle('active', !isActive);
+  updateFaultAlarms();
+}
+
+function clearAllFaults() {
+  activeFaults.forEach(f => sendCmd('fault', f, 0));
+  activeFaults.clear();
+  document.querySelectorAll('.fault-btn').forEach(b => b.classList.remove('active'));
+  updateFaultAlarms();
+}
+
+function updateFaultAlarms() {
+  const epFaults = ['ep_oil', 'ep_temp'].some(f => activeFaults.has(f));
+  const esFaults = ['es_oil', 'es_temp'].some(f => activeFaults.has(f));
+  const genFaults = ['g1_temp', 'g2_temp'].some(f => activeFaults.has(f));
+  const batFaults = ['b1_low', 'b2_low'].some(f => activeFaults.has(f));
+
+  document.getElementById('cardEngPort').classList.toggle('alarm', epFaults);
+  document.getElementById('alarmEngPort').classList.toggle('show', epFaults);
+  document.getElementById('cardEngStbd').classList.toggle('alarm', esFaults);
+  document.getElementById('alarmEngStbd').classList.toggle('show', esFaults);
+  document.getElementById('cardGen').classList.toggle('alarm', genFaults);
+  document.getElementById('alarmGen').classList.toggle('show', genFaults);
+  document.getElementById('cardBat').classList.toggle('alarm', batFaults);
+  document.getElementById('alarmBat').classList.toggle('show', batFaults);
+}
+
+/* ── Log ── */
+const logBody = document.getElementById('logBody');
+const MAX_LOG = 200;
+let logCount = 0;
+
+function logEntry(msg, type) {
+  const now = new Date();
+  const ts = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  const cls = type === 'sent' ? 'log-sent' : type === 'recv' ? 'log-recv' : type === 'fault' ? 'log-fault' : 'log-err';
+  div.innerHTML = '<span class="log-ts">' + ts + '</span><span class="' + cls + '">' + escHtml(msg) + '</span>';
+  logBody.appendChild(div);
+  logCount++;
+  if (logCount > MAX_LOG) { logBody.removeChild(logBody.firstChild); logCount--; }
+  logBody.scrollTop = logBody.scrollHeight;
+}
+
+function clearLog() { logBody.innerHTML = ''; logCount = 0; }
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Init ── */
+updateThrDisplay('ep');
+updateThrDisplay('es');
+updateCompass(0);
+
+// Keyboard shortcut: Escape to disconnect
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && connected) disconnect();
+});
+</script>
+</body>
+</html>

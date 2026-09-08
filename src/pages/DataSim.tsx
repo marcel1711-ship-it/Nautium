@@ -102,26 +102,42 @@ function Toggle({ on, onToggle, label, icon: Icon, color = 'emerald' }: {
   );
 }
 
-function Slider({ value, onChange, min, max, step = 1, label, unit, color = '#3b82f6' }: {
+function Slider({ value, onChange, min, max, step = 1, label, unit, color = '#3b82f6', centerZero = false }: {
   value: number; onChange: (v: number) => void; min: number; max: number;
-  step?: number; label: string; unit: string; color?: string;
+  step?: number; label: string; unit: string; color?: string; centerZero?: boolean;
 }) {
-  const pct = ((value - min) / (max - min)) * 100;
+  const range = max - min;
+  const pct = ((value - min) / range) * 100;
+  const centerPct = centerZero ? ((0 - min) / range) * 100 : 0;
+
+  let bg: string;
+  if (centerZero) {
+    const lo = Math.min(centerPct, pct);
+    const hi = Math.max(centerPct, pct);
+    const barColor = value < 0 ? '#f97316' : color;
+    bg = `linear-gradient(to right, #374151 0%, #374151 ${lo}%, ${barColor} ${lo}%, ${barColor} ${hi}%, #374151 ${hi}%, #374151 100%)`;
+  } else {
+    bg = `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #374151 ${pct}%, #374151 100%)`;
+  }
+
+  const displayValue = centerZero
+    ? `${value > 0 ? '+' : ''}${value.toFixed(step < 1 ? 1 : 0)}`
+    : value.toFixed(step < 1 ? 1 : 0);
+  const dirLabel = centerZero ? (value > 0 ? ' FWD' : value < 0 ? ' REV' : ' IDLE') : '';
+
   return (
     <div className="py-2">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-300">{label}</span>
-        <span className="text-sm font-mono font-bold tabular-nums" style={{ color }}>
-          {value.toFixed(step < 1 ? 1 : 0)}{unit}
+        <span className="text-sm font-mono font-bold tabular-nums" style={{ color: value < 0 && centerZero ? '#f97316' : color }}>
+          {displayValue}{unit}<span className="text-[10px] ml-1 text-gray-400">{dirLabel}</span>
         </span>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
         className="w-full h-2 rounded-full appearance-none cursor-pointer"
-        style={{
-          background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, #374151 ${pct}%, #374151 100%)`,
-        }}
+        style={{ background: bg }}
       />
     </div>
   );
@@ -180,12 +196,14 @@ export function DataSim() {
     const p = PRESETS[preset];
     if (!p) return [];
 
-    const rpmPort = s.enginePortOn ? Math.round(800 + (s.throttlePort / 100) * 1200) : 0;
-    const rpmStbd = s.engineStbdOn ? Math.round(800 + (s.throttleStbd / 100) * 1200) : 0;
-    const tempPort = s.enginePortOn ? Math.round((45 + (s.throttlePort / 100) * 45) * 10) / 10 : 22;
-    const tempStbd = s.engineStbdOn ? Math.round((45 + (s.throttleStbd / 100) * 45) * 10) / 10 : 22;
-    const oilPort = s.enginePortOn ? Math.round((3.5 + (s.throttlePort / 100) * 1.5) * 10) / 10 : 0;
-    const oilStbd = s.engineStbdOn ? Math.round((3.4 + (s.throttleStbd / 100) * 1.5) * 10) / 10 : 0;
+    const absThrottlePort = Math.abs(s.throttlePort);
+    const absThrottleStbd = Math.abs(s.throttleStbd);
+    const rpmPort = s.enginePortOn ? Math.round(800 + (absThrottlePort / 100) * 1200) : 0;
+    const rpmStbd = s.engineStbdOn ? Math.round(800 + (absThrottleStbd / 100) * 1200) : 0;
+    const tempPort = s.enginePortOn ? Math.round((45 + (absThrottlePort / 100) * 45) * 10) / 10 : 22;
+    const tempStbd = s.engineStbdOn ? Math.round((45 + (absThrottleStbd / 100) * 45) * 10) / 10 : 22;
+    const oilPort = s.enginePortOn ? Math.round((3.5 + (absThrottlePort / 100) * 1.5) * 10) / 10 : 0;
+    const oilStbd = s.engineStbdOn ? Math.round((3.4 + (absThrottleStbd / 100) * 1.5) * 10) / 10 : 0;
 
     const readings: any[] = [];
 
@@ -284,11 +302,11 @@ export function DataSim() {
 
       if (s.enginePortOn) {
         s.enginePortHours += dt;
-        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (s.throttlePort / 100) * 0.04));
+        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (Math.abs(s.throttlePort) / 100) * 0.04));
       }
       if (s.engineStbdOn) {
         s.engineStbdHours += dt;
-        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (s.throttleStbd / 100) * 0.04));
+        s.dieselMain = Math.max(0, s.dieselMain - (0.01 + (Math.abs(s.throttleStbd) / 100) * 0.04));
       }
       if (s.gen1On) {
         s.gen1Hours += dt;
@@ -343,12 +361,14 @@ export function DataSim() {
     };
   }, [running, interval, sendReadings, simulateTick]);
 
-  const rpmPort = state.enginePortOn ? Math.round(800 + (state.throttlePort / 100) * 1200) : 0;
-  const rpmStbd = state.engineStbdOn ? Math.round(800 + (state.throttleStbd / 100) * 1200) : 0;
-  const speedPort = state.enginePortOn ? Math.round((state.throttlePort / 100) * 22 * 10) / 10 : 0;
-  const speedStbd = state.engineStbdOn ? Math.round((state.throttleStbd / 100) * 22 * 10) / 10 : 0;
-  const tempPort = state.enginePortOn ? Math.round(45 + (state.throttlePort / 100) * 45) : 22;
-  const tempStbd = state.engineStbdOn ? Math.round(45 + (state.throttleStbd / 100) * 45) : 22;
+  const absTP = Math.abs(state.throttlePort);
+  const absTS = Math.abs(state.throttleStbd);
+  const rpmPort = state.enginePortOn ? Math.round(800 + (absTP / 100) * 1200) : 0;
+  const rpmStbd = state.engineStbdOn ? Math.round(800 + (absTS / 100) * 1200) : 0;
+  const speedPort = state.enginePortOn ? Math.round(Math.sign(state.throttlePort) * (absTP / 100) * 22 * 10) / 10 : 0;
+  const speedStbd = state.engineStbdOn ? Math.round(Math.sign(state.throttleStbd) * (absTS / 100) * 22 * 10) / 10 : 0;
+  const tempPort = state.enginePortOn ? Math.round(45 + (absTP / 100) * 45) : 22;
+  const tempStbd = state.engineStbdOn ? Math.round(45 + (absTS / 100) * 45) : 22;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -403,7 +423,7 @@ export function DataSim() {
               <Toggle on={state.enginePortOn} onToggle={() => setState(s => ({ ...s, enginePortOn: !s.enginePortOn, throttlePort: s.enginePortOn ? 0 : s.throttlePort }))} label="Engine Port" icon={Gauge} />
               <Slider
                 value={state.throttlePort} onChange={v => setState(s => ({ ...s, throttlePort: v }))}
-                min={0} max={100} label="Throttle Port" unit="%" color="#22d3ee"
+                min={-100} max={100} label="Throttle Port" unit="%" color="#22d3ee" centerZero
               />
               <div className="grid grid-cols-3 gap-1 mt-2 bg-gray-800/50 rounded-lg p-2">
                 <MetricDisplay label="RPM" value={rpmPort} unit="rpm" color="#22d3ee" />
@@ -418,7 +438,7 @@ export function DataSim() {
               <Toggle on={state.engineStbdOn} onToggle={() => setState(s => ({ ...s, engineStbdOn: !s.engineStbdOn, throttleStbd: s.engineStbdOn ? 0 : s.throttleStbd }))} label="Engine Stbd" icon={Gauge} />
               <Slider
                 value={state.throttleStbd} onChange={v => setState(s => ({ ...s, throttleStbd: v }))}
-                min={0} max={100} label="Throttle Stbd" unit="%" color="#06b6d4"
+                min={-100} max={100} label="Throttle Stbd" unit="%" color="#06b6d4" centerZero
               />
               <div className="grid grid-cols-3 gap-1 mt-2 bg-gray-800/50 rounded-lg p-2">
                 <MetricDisplay label="RPM" value={rpmStbd} unit="rpm" color="#06b6d4" />
@@ -527,8 +547,8 @@ export function DataSim() {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Engine Port', value: state.enginePortOn ? 'ON' : 'OFF', color: state.enginePortOn ? '#34d399' : '#6b7280', sub: `${rpmPort} RPM · ${state.throttlePort}%` },
-                { label: 'Engine Stbd', value: state.engineStbdOn ? 'ON' : 'OFF', color: state.engineStbdOn ? '#34d399' : '#6b7280', sub: `${rpmStbd} RPM · ${state.throttleStbd}%` },
+                { label: 'Engine Port', value: state.enginePortOn ? 'ON' : 'OFF', color: state.enginePortOn ? '#34d399' : '#6b7280', sub: `${rpmPort} RPM · ${state.throttlePort > 0 ? '+' : ''}${state.throttlePort}%` },
+                { label: 'Engine Stbd', value: state.engineStbdOn ? 'ON' : 'OFF', color: state.engineStbdOn ? '#34d399' : '#6b7280', sub: `${rpmStbd} RPM · ${state.throttleStbd > 0 ? '+' : ''}${state.throttleStbd}%` },
                 { label: 'Generator 1', value: state.gen1On ? 'ON' : 'OFF', color: state.gen1On ? '#fbbf24' : '#6b7280', sub: `${state.gen1Hours.toFixed(0)} hrs` },
                 { label: 'Generator 2', value: state.gen2On ? 'ON' : 'OFF', color: state.gen2On ? '#fbbf24' : '#6b7280', sub: `${state.gen2Hours.toFixed(0)} hrs` },
               ].map(s => (

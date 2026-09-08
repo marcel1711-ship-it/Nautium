@@ -12,8 +12,10 @@ interface CreateUserRequest {
   company_id: string;
   company_name: string;
   full_name: string;
-  role?: 'customer_admin' | 'standard_user';
+  role?: string;
   vessel_ids?: string[];
+  department?: string | null;
+  financial_access?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -71,7 +73,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { email, password, company_id, company_name, full_name, role, vessel_ids }: CreateUserRequest = await req.json();
+    const { email, password, company_id, company_name, full_name, role, vessel_ids, department, financial_access }: CreateUserRequest = await req.json();
 
     if (!email || !password || !company_id) {
       return new Response(
@@ -94,13 +96,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const metaPayload = {
+    const metaPayload: Record<string, any> = {
       role: role || 'customer_admin',
       company_id,
       company_name,
       full_name,
       vessel_ids: vessel_ids || [],
     };
+    if (department) metaPayload.department = department;
+    if (financial_access) metaPayload.financial_access = true;
 
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,

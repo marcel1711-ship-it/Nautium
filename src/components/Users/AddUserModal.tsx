@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, AlertCircle, Eye, EyeOff, Ship, ChevronDown } from 'lucide-react';
+import { X, UserPlus, AlertCircle, Eye, EyeOff, Ship, ChevronDown, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -106,6 +106,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
     role: 'captain' as string,
     vessel_ids: [] as string[],
     department: '' as string,
+    financial_access: false,
   });
 
   // Auto-set department when role changes
@@ -125,6 +126,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
         role: 'captain',
         vessel_ids: [],
         department: '',
+        financial_access: false,
       });
       if (currentUser?.role === 'master_admin' && !companyId) {
         fetchCompanies();
@@ -210,6 +212,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
           role: formData.role,
           vessel_ids: formData.vessel_ids,
           department,
+          financial_access: formData.role === 'captain' ? formData.financial_access : false,
         }),
       });
       let result: any;
@@ -377,6 +380,26 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Financial access — captain only */}
+          {formData.role === 'captain' && (
+            <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <DollarSign className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Financial Access</p>
+                  <p className="text-xs text-gray-500">Allow this captain to view Financials for their vessel</p>
+                </div>
+              </div>
+              <button type="button"
+                onClick={() => setFormData(p => ({ ...p, financial_access: !p.financial_access }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.financial_access ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.financial_access ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
           )}
 

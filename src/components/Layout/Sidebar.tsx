@@ -31,7 +31,7 @@ const FLEET_MANAGER_ROLES= ['customer_admin', 'fleet_manager'];
 
 const navItems: NavItem[] = [
   { id: 'dashboard',              labelKey: 'nav.dashboard',             icon: LayoutDashboard, roles: [...FULL_ACCESS_ROLES, ...FLEET_ROLES, ...CREW_ROLES] },
-  { id: 'financials',             labelKey: 'nav.financials',            icon: DollarSign,      roles: ['customer_admin', 'fleet_manager'] },
+  { id: 'financials',             labelKey: 'nav.financials',            icon: DollarSign,      roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'customers',              labelKey: 'nav.customers',             icon: Building2,       roles: ['master_admin'], badge: 'Admin' },
   { id: 'onboarding-submissions', labelKey: 'nav.onboardingSubmissions', icon: ClipboardList,   roles: ['master_admin'], badge: 'Admin' },
   { id: 'users',                  labelKey: 'nav.users',                 icon: Users,           roles: ['master_admin'], badge: 'Admin' },
@@ -96,6 +96,7 @@ const SidebarContent: React.FC<SidebarProps & { onClose?: () => void }> = ({
     .filter(item => {
       if (!currentUser) return false;
       if (!item.roles.includes(role)) return false;
+      if (item.id === 'financials' && role === 'captain' && !currentUser.financial_access) return false;
       if (item.id === 'fleet-overview' && currentUser.vessel_ids.length <= 1) return false;
       return true;
     })

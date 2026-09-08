@@ -55,6 +55,7 @@ export interface User {
   status: 'active' | 'inactive';
   vessel_ids: string[];
   department?: string | null;
+  financial_access?: boolean;
   created_at: string;
 }
 

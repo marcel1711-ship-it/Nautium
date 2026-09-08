@@ -288,7 +288,7 @@ const AppContent: React.FC = () => {
           : <Dashboard onNavigate={handleNavigate} />;
 
       case 'financials':
-        return isFleetManagerRole
+        return (isFleetManagerRole || (isCaptainOnly && currentUser?.financial_access))
           ? <Financials onNavigate={handleNavigate} />
           : <Dashboard onNavigate={handleNavigate} />;
 

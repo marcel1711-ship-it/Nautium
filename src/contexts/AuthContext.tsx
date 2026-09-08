@@ -171,6 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       role,
       status: 'active',
       vessel_ids: vesselIds,
+      financial_access: supabaseUser.app_metadata?.financial_access || supabaseUser.user_metadata?.financial_access || false,
       created_at: supabaseUser.created_at,
     };
 

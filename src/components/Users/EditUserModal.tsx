@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, AlertCircle, Eye, EyeOff, Ship, ChevronDown } from 'lucide-react';
+import { X, User, AlertCircle, Eye, EyeOff, Ship, ChevronDown, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -13,6 +13,10 @@ interface AuthUser {
     full_name?: string;
     vessel_ids?: string[];
     department?: string;
+    financial_access?: boolean;
+  };
+  app_metadata?: {
+    financial_access?: boolean;
   };
 }
 
@@ -99,6 +103,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
     password: '',
     vessel_ids: [] as string[],
     department: '',
+    financial_access: false,
   });
 
   const selectedRoleDef = ALL_ROLES.find(r => r.value === formData.role);
@@ -114,6 +119,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
         password: '',
         vessel_ids: user.user_metadata.vessel_ids || [],
         department: user.user_metadata.department || roleDef?.dept || '',
+        financial_access: user.app_metadata?.financial_access || user.user_metadata.financial_access || false,
       });
       setError(null);
       setShowPassword(false);
@@ -170,6 +176,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
           role: formData.role,
           vessel_ids: formData.vessel_ids,
           department,
+          financial_access: formData.role === 'captain' ? formData.financial_access : false,
           password: formData.password || undefined,
         }),
       });
@@ -329,6 +336,26 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
               {formData.vessel_ids.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">No vessels selected — user will have access to all vessels.</p>
               )}
+            </div>
+          )}
+
+          {/* Financial access — captain only */}
+          {formData.role === 'captain' && (
+            <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <DollarSign className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Financial Access</p>
+                  <p className="text-xs text-gray-500">Allow this captain to view Financials</p>
+                </div>
+              </div>
+              <button type="button"
+                onClick={() => setFormData(p => ({ ...p, financial_access: !p.financial_access }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.financial_access ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.financial_access ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
           )}
 

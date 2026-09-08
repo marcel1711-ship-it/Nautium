@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { action, user_id, email, full_name, role, password, vessel_ids } = body;
+    const { action, user_id, email, full_name, role, password, vessel_ids, department, financial_access } = body;
 
     if (!action) {
       return new Response(JSON.stringify({ error: 'Missing required field: action' }), {
@@ -137,6 +137,8 @@ Deno.serve(async (req: Request) => {
       if (full_name !== undefined) { updatedUserMeta.full_name = full_name; updatedAppMeta.full_name = full_name; }
       if (role !== undefined) { updatedUserMeta.role = role; updatedAppMeta.role = role; }
       if (vessel_ids !== undefined) { updatedUserMeta.vessel_ids = vessel_ids; updatedAppMeta.vessel_ids = vessel_ids; }
+      if (department !== undefined) { updatedUserMeta.department = department; updatedAppMeta.department = department; }
+      if (financial_access !== undefined) { updatedUserMeta.financial_access = financial_access; updatedAppMeta.financial_access = financial_access; }
 
       const updatePayload: Record<string, any> = { user_metadata: updatedUserMeta, app_metadata: updatedAppMeta };
       if (password) updatePayload.password = password;

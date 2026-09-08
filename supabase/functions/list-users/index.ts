@@ -92,6 +92,10 @@ Deno.serve(async (req: Request) => {
         company_name: u.company_name,
         full_name: u.full_name,
         vessel_ids: u.vessel_ids ?? [],
+        financial_access: u.financial_access ?? false,
+      },
+      app_metadata: {
+        financial_access: u.financial_access ?? false,
       },
     }));
 

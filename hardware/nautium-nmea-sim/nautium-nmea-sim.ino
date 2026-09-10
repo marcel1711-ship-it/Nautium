@@ -12,38 +12,64 @@
  *   - GPS position with drift simulation
  *   - Fault injection (oil pressure, overtemp, low voltage)
  *
- * Wiring (ESP32 -> CAN transceiver):
- *   GPIO 4  -> CAN TX
- *   GPIO 5  -> CAN RX
+ * Wiring (ESP32 -> MCP2515+TJA1050 CAN module):
+ *   GPIO 5  -> CS
+ *   GPIO 18 -> SCK
+ *   GPIO 23 -> MOSI (SI)
+ *   GPIO 19 -> MISO (SO)
+ *   GPIO 2  -> INT
  *   3.3V    -> VCC
  *   GND     -> GND
- *   CAN_H   -> NMEA 2000 backbone (pin 5 / blue)
- *   CAN_L   -> NMEA 2000 backbone (pin 4 / white)
- *   Shield  -> NMEA 2000 backbone (pin 3 / shield)
+ *
+ * MCP2515 CAN output -> NMEA 2000 backbone:
+ *   CAN_H   -> Micro-C pin 5 (blue)
+ *   CAN_L   -> Micro-C pin 4 (white)
+ *   Shield  -> Micro-C pin 3 (shield)
+ *
+ * Status LEDs (active HIGH, each with 220 ohm resistor):
+ *   GPIO 12 -> LED green  (PWR - power on)
+ *   GPIO 13 -> LED orange (CAN - bus active)
+ *   GPIO 14 -> LED blue   (TX  - transmitting)
  *
  * Libraries needed (install via Arduino Library Manager):
  *   - NMEA2000 by Timo Lappalainen
- *   - NMEA2000_esp32 by Timo Lappalainen
+ *   - NMEA2000_mcp by Timo Lappalainen
  *   - ArduinoJson v7 by Benoit Blanchon
  *
  * Serial protocol: line-delimited JSON at 115200 baud.
  * See protocol spec in project docs for command reference.
  *
- * Version: 2.0.0
+ * Version: 3.0.0
  */
 
 #include <Arduino.h>
-#include <NMEA2000_CAN.h>
+#include <SPI.h>
+#include <N2kMsg.h>
+#include <NMEA2000.h>
+#include <NMEA2000_mcp.h>
 #include <N2kMessages.h>
 #include <ArduinoJson.h>
 #include <math.h>
 
 // ── Version ──
-#define FW_VERSION "2.0.0"
+#define FW_VERSION "3.0.0"
 
-// ── CAN pins ──
-#define ESP32_CAN_TX_PIN GPIO_NUM_4
-#define ESP32_CAN_RX_PIN GPIO_NUM_5
+// ── MCP2515 SPI pins ──
+#define MCP2515_CS_PIN   5
+#define MCP2515_INT_PIN  2
+// SCK=18, MOSI=23, MISO=19 are ESP32 default SPI pins
+
+// ── LED pins ──
+#define LED_PWR_PIN  12
+#define LED_CAN_PIN  13
+#define LED_TX_PIN   14
+
+// ── MCP2515 CAN controller (16MHz crystal, default for most modules) ──
+tNMEA2000_mcp NMEA2000(MCP2515_CS_PIN, MCP_16MHz, MCP2515_INT_PIN);
+
+// ── LED state ──
+unsigned long ledTxOff = 0;
+unsigned long ledCanOff = 0;
 
 // ── Timing ──
 #define SEND_INTERVAL_MS     1000   // NMEA + status every 1 second
@@ -160,6 +186,14 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
+  // LED setup
+  pinMode(LED_PWR_PIN, OUTPUT);
+  pinMode(LED_CAN_PIN, OUTPUT);
+  pinMode(LED_TX_PIN, OUTPUT);
+  digitalWrite(LED_PWR_PIN, HIGH);
+  digitalWrite(LED_CAN_PIN, LOW);
+  digitalWrite(LED_TX_PIN, LOW);
+
   printBanner();
 
   // NMEA 2000 setup
@@ -168,7 +202,7 @@ void setup() {
     200,                         // Product code
     "Nautium NMEA Sim",          // Model ID
     FW_VERSION,                  // Software version
-    "2.0.0"                      // Model version
+    "3.0.0"                      // Model version
   );
 
   NMEA2000.SetDeviceInformation(
@@ -201,7 +235,7 @@ void printBanner() {
   Serial.println("  NMEA Sim v" FW_VERSION " - Full Boat Simulator");
   Serial.println("  ──────────────────────────────────────────");
   Serial.println("  Serial: 115200 baud, line-delimited JSON");
-  Serial.println("  CAN:    GPIO4 TX, GPIO5 RX");
+  Serial.println("  CAN:    MCP2515 via SPI (CS=5, INT=2)");
   Serial.println();
   Serial.println("  Commands (JSON):");
   Serial.println("    {\"c\":\"ep\",\"p\":\"thr\",\"v\":50}   Engine port throttle");
@@ -375,6 +409,11 @@ static tN2kTransmissionGear getGear(double throttle) {
 }
 
 void sendNMEA() {
+  digitalWrite(LED_TX_PIN, HIGH);
+  ledTxOff = millis() + 100;
+  digitalWrite(LED_CAN_PIN, HIGH);
+  ledCanOff = millis() + 200;
+
   tN2kMsg N2kMsg;
 
   // ── PGN 127488 - Engine Rapid Update (RPM) ──
@@ -761,6 +800,10 @@ void loop() {
 
   readSerial();
   NMEA2000.ParseMessages();
+
+  // Turn off LED blinks after timeout
+  if (ledTxOff && now >= ledTxOff)  { digitalWrite(LED_TX_PIN, LOW);  ledTxOff = 0; }
+  if (ledCanOff && now >= ledCanOff) { digitalWrite(LED_CAN_PIN, LOW); ledCanOff = 0; }
 
   // Simulation tick (100ms for smooth value transitions)
   if (now - lastSim >= SIM_INTERVAL_MS) {

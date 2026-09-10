@@ -7,6 +7,12 @@
       "runtimeArgs": ["vite"],
       "port": 5174,
       "autoPort": true
+    },
+    {
+      "name": "nmea-sim",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "hardware/nautium-nmea-sim", "-l", "5180"],
+      "port": 5180
     }
   ]
 }

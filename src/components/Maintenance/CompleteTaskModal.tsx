@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin } from 'lucide-react';
+import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin, Clock } from 'lucide-react';
 import { MaintenanceTask, InventoryItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -21,6 +21,7 @@ export interface CompletionData {
   parts_used: { inventory_id: string; quantity: number; name: string }[];
   issues_detected: string;
   external_service_cost: number | null;
+  equipment_hours_reading: number | null;
 }
 interface PartRow {
   inventory_id: string;
@@ -51,6 +52,7 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
   const [addingPart, setAddingPart] = useState(false);
   const [newPartId, setNewPartId] = useState('');
   const [newPartQty, setNewPartQty] = useState(1);
+  const [equipmentHoursReading, setEquipmentHoursReading] = useState<number | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -59,6 +61,7 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
   const [showDraftRestored, setShowDraftRestored] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const hasEquipment = !!(task.equipment_id || (task as any).equipment_id);
   const isRecurring = (task as any).is_recurring !== false;
 
   useEffect(() => {
@@ -146,6 +149,7 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
       parts_used: parts.filter(p => p.quantity > 0).map(p => ({ inventory_id: p.inventory_id, quantity: p.quantity, name: p.name })),
       issues_detected: issuesDetected,
       external_service_cost: externalServiceCost,
+      equipment_hours_reading: equipmentHoursReading,
     };
     clearDraft();
     onComplete(completionData);
@@ -223,6 +227,26 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
               </p>
             )}
           </div>
+
+          {/* Equipment Hours Reading */}
+          {hasEquipment && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-amber-900 mb-2">
+                <Clock className="w-4 h-4" />
+                {t('maintenance.currentEquipmentHours')}
+              </label>
+              <input
+                type="number"
+                value={equipmentHoursReading ?? ''}
+                onChange={e => setEquipmentHoursReading(e.target.value === '' ? null : parseFloat(e.target.value))}
+                className="w-full px-4 py-3 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
+                placeholder={t('maintenance.enterHoursFromHourmeter')}
+                min="0"
+                step="0.1"
+              />
+              <p className="mt-1.5 text-xs text-amber-700">{t('maintenance.hoursWillUpdateEquipment')}</p>
+            </div>
+          )}
 
           {/* Completed by */}
           <div className="grid grid-cols-2 gap-4">

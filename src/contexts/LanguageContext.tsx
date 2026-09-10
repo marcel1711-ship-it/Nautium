@@ -297,6 +297,9 @@ const translations: Record<Language, Record<string, string>> = {
     'maintenance.confirmCompletionText': 'I confirm that this maintenance task has been completed successfully. Stock will be automatically deducted for',
     'maintenance.uploadingPhotos': 'Uploading photos...',
     'maintenance.completeTaskBtn': 'Complete Task',
+    'maintenance.currentEquipmentHours': 'Current Equipment Hours',
+    'maintenance.enterHoursFromHourmeter': 'Enter current reading from hourmeter...',
+    'maintenance.hoursWillUpdateEquipment': 'This reading will automatically update the equipment hours record.',
 
     // ── Inventory ──
     'inventory.title': 'Inventory Management',
@@ -574,6 +577,9 @@ const translations: Record<Language, Record<string, string>> = {
     'customers.addFirst': 'Add Your First Customer',
     'customers.contactPerson': 'Contact Person',
     'customers.renewalDate': 'Renewal Date',
+    'customers.daysLeft': 'days left',
+    'customers.expired': 'Expired',
+    'customers.expiresToday': 'Expires today',
     'customers.vessels': 'Vessels',
     'customers.users': 'Users',
     'customers.viewVessels': 'View Vessels',
@@ -939,6 +945,9 @@ const translations: Record<Language, Record<string, string>> = {
     'maintenance.confirmCompletionText': 'Confirmo que esta tarea de mantenimiento se ha completado satisfactoriamente. El stock se descontará automáticamente de',
     'maintenance.uploadingPhotos': 'Subiendo fotos...',
     'maintenance.completeTaskBtn': 'Completar tarea',
+    'maintenance.currentEquipmentHours': 'Horas actuales del equipo',
+    'maintenance.enterHoursFromHourmeter': 'Ingrese la lectura actual del horímetro...',
+    'maintenance.hoursWillUpdateEquipment': 'Esta lectura actualizará automáticamente las horas del equipo.',
 
     // ── Inventario ──
     'inventory.title': 'Gestión de inventario',
@@ -1216,6 +1225,9 @@ const translations: Record<Language, Record<string, string>> = {
     'customers.addFirst': 'Añadir el primer cliente',
     'customers.contactPerson': 'Persona de contacto',
     'customers.renewalDate': 'Fecha de renovación',
+    'customers.daysLeft': 'días restantes',
+    'customers.expired': 'Vencido',
+    'customers.expiresToday': 'Vence hoy',
     'customers.vessels': 'Embarcaciones',
     'customers.users': 'Usuarios',
     'customers.viewVessels': 'Ver embarcaciones',

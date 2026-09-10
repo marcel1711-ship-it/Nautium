@@ -380,19 +380,32 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const nextStatus = diffDays < 0 ? 'overdue' : diffDays <= 7 ? 'due_soon' : 'upcoming';
 
+      // If crew entered equipment hours reading, update the equipment record
+      if (completionData.equipment_hours_reading != null && selectedTaskObj.equipment_id) {
+        await dbUpdate('equipment', selectedTaskObj.equipment_id, {
+          equipment_hours: completionData.equipment_hours_reading,
+        });
+      }
+
       const hoursUpdate: Record<string, any> = {
         status: nextStatus,
         last_completed_date: completionDate,
         next_due_date: nextDueStr,
       };
       if ((selectedTaskObj as any).hours_interval && selectedTaskObj.equipment_id) {
-        const eq = equipmentMap[selectedTaskObj.equipment_id];
-        const currentHours = Number((eq as any)?.equipment_hours || 0);
+        const currentHours = completionData.equipment_hours_reading != null
+          ? completionData.equipment_hours_reading
+          : Number((equipmentMap[selectedTaskObj.equipment_id] as any)?.equipment_hours || 0);
         hoursUpdate.last_hours_reading = currentHours;
         hoursUpdate.next_due_hours = currentHours + Number((selectedTaskObj as any).hours_interval);
       }
       await dbUpdate('maintenance_tasks', selectedTaskObj.id, hoursUpdate);
     } else {
+      if (completionData.equipment_hours_reading != null && selectedTaskObj.equipment_id) {
+        await dbUpdate('equipment', selectedTaskObj.equipment_id, {
+          equipment_hours: completionData.equipment_hours_reading,
+        });
+      }
       await dbUpdate('maintenance_tasks', selectedTaskObj.id, {
         status: 'completed',
         last_completed_date: completionDate,

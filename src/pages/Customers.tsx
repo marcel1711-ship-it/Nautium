@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Search, Plus, AlertCircle, Mail, Phone,
-  Pencil, Trash2, Ruler, Weight, CreditCard, Clock, Users as UsersIcon,
+  Pencil, Trash2, Ruler, Weight, CreditCard, Clock, Users as UsersIcon, CalendarClock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -36,6 +36,22 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   trial:    { bg: '#fef9c3', text: '#854d0e', dot: '#d97706' },
   inactive: { bg: '#fee2e2', text: '#991b1b', dot: '#dc2626' },
 };
+
+function getDaysUntilRenewal(renewalDate: string | null | undefined): number | null {
+  if (!renewalDate) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const renewal = new Date(renewalDate);
+  renewal.setHours(0, 0, 0, 0);
+  return Math.ceil((renewal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function getRenewalStyle(days: number): { bg: string; text: string } {
+  if (days < 0) return { bg: '#fee2e2', text: '#991b1b' };
+  if (days <= 30) return { bg: '#fee2e2', text: '#dc2626' };
+  if (days <= 60) return { bg: '#fef9c3', text: '#92400e' };
+  return { bg: '#dcfce7', text: '#15803d' };
+}
 
 export const Customers: React.FC<CustomersProps> = ({ onNavigate }) => {
   const { currentUser } = useAuth();
@@ -439,6 +455,27 @@ export const Customers: React.FC<CustomersProps> = ({ onNavigate }) => {
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('customers.renewalDate')}</div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 2 }}>{formatDate(customer.subscription_renewal_date)}</div>
+                          {(() => {
+                            const days = getDaysUntilRenewal(customer.subscription_renewal_date);
+                            if (days === null) return null;
+                            const style = getRenewalStyle(days);
+                            const label = days < 0
+                              ? t('customers.expired')
+                              : days === 0
+                                ? t('customers.expiresToday')
+                                : `${days} ${t('customers.daysLeft')}`;
+                            return (
+                              <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                marginTop: 4, padding: '2px 8px', borderRadius: 10,
+                                fontSize: 11, fontWeight: 600,
+                                background: style.bg, color: style.text,
+                              }}>
+                                <CalendarClock size={11} />
+                                {label}
+                              </div>
+                            );
+                          })()}
                         </div>
                         {customer.customer_type === 'yacht_owner' ? (
                           <>

@@ -183,6 +183,37 @@ Deno.serve(async (req: Request) => {
           totalSent++;
         }
 
+        // Push notifications
+        const totalOverdueForPush = vesselsWithAlerts.reduce((n, v) => n + v.overdue.length, 0);
+        const totalLowStockForPush = vesselsWithAlerts.reduce((n, v) => n + v.lowStock.length, 0);
+        const pushParts: string[] = [];
+        if (totalOverdueForPush > 0) pushParts.push(`${totalOverdueForPush} maintenance alert${totalOverdueForPush > 1 ? 's' : ''}`);
+        if (totalLowStockForPush > 0) pushParts.push(`${totalLowStockForPush} low stock alert${totalLowStockForPush > 1 ? 's' : ''}`);
+
+        try {
+          const pushRes = await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                company_id: company.id,
+                title: `Nautium Alert — ${company.name}`,
+                message: pushParts.join(' & '),
+                url: '/maintenance',
+                tag: 'nautium-daily-alert',
+              }),
+            }
+          );
+          const pushResult = await pushRes.json();
+          console.log(`Push notifications for ${company.name}:`, pushResult);
+        } catch (pushErr) {
+          console.error(`Push notification error for ${company.name}:`, pushErr);
+        }
+
         results.push({ company: company.name, sent: true, perVessel: perVesselCount });
       } catch (companyErr: any) {
         console.error(`Error processing company ${company.name}:`, companyErr);

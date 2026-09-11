@@ -16,6 +16,7 @@ import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
 import { downloadCSV } from '../utils/helpers';
 import { MonitorTab } from '../components/Equipment/MonitorTab';
+import { NmeaDevicesTab } from '../components/Equipment/NmeaDevicesTab';
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
@@ -94,7 +95,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const [showModal, setShowModal]           = useState(false);
   const [editingItem, setEditingItem]       = useState<EquipmentType | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab]           = useState<'list' | 'monitor'>('list');
+  const [activeTab, setActiveTab]           = useState<'list' | 'monitor' | 'nmea'>('list');
 
   // Cost tracking per equipment
   const [historyRaw, setHistoryRaw] = useState<any[]>([]);
@@ -353,6 +354,14 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
             >
               <Activity className="w-3.5 h-3.5" />Monitor
             </button>
+            <button
+              onClick={() => setActiveTab('nmea')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'nmea' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />NMEA
+            </button>
           </div>
 
           {/* Export */}
@@ -402,6 +411,15 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       {/* ── Monitor Tab ── */}
       {activeTab === 'monitor' && (
         <MonitorTab
+          vesselId={selectedVesselId || ''}
+          companyId={companyId || currentUser?.company_id || ''}
+          equipment={equipment}
+        />
+      )}
+
+      {/* ── NMEA Devices Tab ── */}
+      {activeTab === 'nmea' && (
+        <NmeaDevicesTab
           vesselId={selectedVesselId || ''}
           companyId={companyId || currentUser?.company_id || ''}
           equipment={equipment}

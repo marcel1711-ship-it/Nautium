@@ -39,7 +39,7 @@
  * Serial protocol: line-delimited JSON at 115200 baud.
  * See protocol spec in project docs for command reference.
  *
- * Version: 3.0.0
+ * Version: 4.0.0
  */
 
 #include <Arduino.h>
@@ -52,7 +52,7 @@
 #include <math.h>
 
 // ── Version ──
-#define FW_VERSION "3.0.0"
+#define FW_VERSION "4.0.0"
 
 // ── MCP2515 SPI pins ──
 #define MCP2515_CS_PIN   5
@@ -93,6 +93,22 @@ struct FaultState {
   bool g2_temp;     // generator 2 overtemp
   bool b1_low;      // battery 1 low voltage
   bool b2_low;      // battery 2 low voltage
+};
+
+// ── PGN Group Enable/Disable ──
+struct PgnGroupFlags {
+  bool engines;     // 127488, 127489, 127493 (default: true)
+  bool batteries;   // 127508 (default: true)
+  bool tanks;       // 127505 (default: true)
+  bool gps;         // 129025, 129026 (default: true)
+  bool faults;      // 65226 (default: true)
+  bool environment; // 130310 (default: false)
+  bool depth;       // 128267 (default: false)
+  bool wind;        // 130306 (default: false)
+  bool heading;     // 127250 (default: false)
+  bool attitude;    // 127257 (default: false)
+  bool waterSpeed;  // 128259 (default: false)
+  bool rudder;      // 127245 (default: false)
 };
 
 // ── Simulation State ──
@@ -138,6 +154,44 @@ struct GPSState {
   bool   overrideCog;    // browser is controlling cog
 };
 
+struct EnvironmentState {
+  double waterTemp;           // deg C
+  double outsideTemp;         // deg C
+  double atmosphericPressure; // hPa (mbar)
+  double humidity;            // % (0-100)
+};
+
+struct DepthState {
+  double depthBelowTransducer; // meters
+  double offset;               // meters (positive = below waterline)
+};
+
+struct WindState {
+  double windSpeed;     // m/s
+  double windAngle;     // degrees (0-360)
+  bool   apparent;      // true=apparent, false=true wind
+};
+
+struct HeadingState {
+  double heading;       // degrees magnetic
+  double deviation;     // degrees
+  double variation;     // degrees
+};
+
+struct AttitudeState {
+  double yaw;           // degrees
+  double pitch;         // degrees
+  double roll;          // degrees
+};
+
+struct WaterSpeedState {
+  double speedThroughWater; // knots
+};
+
+struct RudderState {
+  double rudderAngle;   // degrees (-45 to +45, negative = port)
+};
+
 // ── Default values ──
 #define DEF_EP_HOURS   2847.0
 #define DEF_ES_HOURS   2831.0
@@ -156,16 +210,36 @@ TankState      dieselGen   = { 50.0, 0, 1000.0 };   // N2kft_Fuel
 TankState      freshWater  = { 70.0, 1, 2000.0 };   // N2kft_Water
 GPSState       gps         = { 25.7617, -80.1918, 0, 180.0, false, false, false, false };
 FaultState     faults      = { false, false, false, false, false, false, false, false };
+PgnGroupFlags  pgnGroups   = { true, true, true, true, true, false, false, false, false, false, false, false };
+
+// ── New sensor state instances ──
+EnvironmentState envState       = { 22.0, 28.0, 1013.25, 65.0 };
+DepthState       depthState     = { 15.0, 0.5 };
+WindState        windState      = { 5.0, 45.0, true };
+HeadingState     headingState   = { 180.0, -2.0, -4.5 };
+AttitudeState    attitudeState  = { 0.0, 0.5, 1.0 };
+WaterSpeedState  waterSpeedState = { 0.0 };
+RudderState      rudderState    = { 0.0 };
+
+// ── Previous COG for rudder simulation ──
+double prevCog = 180.0;
 
 // ── NMEA 2000 PGN list ──
 const unsigned long TX_PGNS[] = {
+  127245UL,   // Rudder
+  127250UL,   // Vessel Heading
+  127257UL,   // Attitude
   127488UL,   // Engine Rapid - RPM
   127489UL,   // Engine Dynamic - temp, oil, hours
   127493UL,   // Transmission Parameters - gear
   127505UL,   // Fluid Level - tanks
   127508UL,   // DC Battery Status - voltage/current/soc
+  128259UL,   // Speed Water Referenced
+  128267UL,   // Water Depth
   129025UL,   // Position Rapid Update - lat/lon
   129026UL,   // COG/SOG Rapid Update
+  130306UL,   // Wind Data
+  130310UL,   // Environmental Parameters
   65226UL,    // DM1 Diagnostic Message
   0
 };
@@ -178,6 +252,16 @@ void handleSerialLine(const char* line);
 void resetAll();
 void printBanner();
 void sendDM1();
+void sendEnvironment();
+void sendDepth();
+void sendWind();
+void sendHeading();
+void sendAttitude();
+void sendWaterSpeed();
+void sendRudder();
+
+// ── Unit conversion helpers ──
+static double knotsToMs(double kn) { return kn * 1852.0 / 3600.0; }
 
 // ====================================================================
 //  Setup
@@ -202,7 +286,7 @@ void setup() {
     200,                         // Product code
     "Nautium NMEA Sim",          // Model ID
     FW_VERSION,                  // Software version
-    "3.0.0"                      // Model version
+    "4.0.0"                      // Model version
   );
 
   NMEA2000.SetDeviceInformation(
@@ -234,16 +318,22 @@ void printBanner() {
   Serial.println();
   Serial.println("  NMEA Sim v" FW_VERSION " - Full Boat Simulator");
   Serial.println("  ──────────────────────────────────────────");
+  Serial.println("  15 PGNs: engines, tanks, batteries, GPS,");
+  Serial.println("  faults, environment, depth, wind, heading,");
+  Serial.println("  attitude, water speed, rudder");
+  Serial.println("  PGN groups can be enabled/disabled at runtime");
   Serial.println("  Serial: 115200 baud, line-delimited JSON");
   Serial.println("  CAN:    MCP2515 via SPI (CS=5, INT=2)");
   Serial.println();
   Serial.println("  Commands (JSON):");
-  Serial.println("    {\"c\":\"ep\",\"p\":\"thr\",\"v\":50}   Engine port throttle");
-  Serial.println("    {\"c\":\"ep\",\"p\":\"on\",\"v\":1}     Engine port on/off");
-  Serial.println("    {\"c\":\"es\",\"p\":\"thr\",\"v\":-30}  Engine stbd throttle");
-  Serial.println("    {\"c\":\"gps\",\"p\":\"lat\",\"v\":25.7} GPS latitude");
+  Serial.println("    {\"c\":\"ep\",\"p\":\"thr\",\"v\":50}     Engine port throttle");
+  Serial.println("    {\"c\":\"ep\",\"p\":\"on\",\"v\":1}       Engine port on/off");
+  Serial.println("    {\"c\":\"es\",\"p\":\"thr\",\"v\":-30}    Engine stbd throttle");
+  Serial.println("    {\"c\":\"gps\",\"p\":\"lat\",\"v\":25.7}  GPS latitude");
   Serial.println("    {\"c\":\"fault\",\"p\":\"ep_oil\",\"v\":1} Activate fault");
-  Serial.println("    {\"c\":\"reset\"}                  Reset all");
+  Serial.println("    {\"c\":\"pgn\",\"p\":\"env\",\"v\":1}     Enable PGN group");
+  Serial.println("    {\"c\":\"env\",\"p\":\"wt\",\"v\":20.0}   Set water temp");
+  Serial.println("    {\"c\":\"reset\"}                    Reset all");
   Serial.println("  ──────────────────────────────────────────");
   Serial.println();
 }
@@ -395,6 +485,72 @@ void updateSimulation(float dt) {
     gps.lat += sogDegPerSec * cos(cogRad) * dt;
     gps.lon += sogDegPerSec * sin(cogRad) * dt / cos(gps.lat * PI / 180.0);
   }
+
+  // ── Environment: slow random drift on temps, pressure oscillates ──
+  if (pgnGroups.environment) {
+    envState.waterTemp += (random(-10, 11) / 100.0) * dt;
+    envState.waterTemp = constrain(envState.waterTemp, 0.0, 40.0);
+    envState.outsideTemp += (random(-10, 11) / 100.0) * dt;
+    envState.outsideTemp = constrain(envState.outsideTemp, -10.0, 50.0);
+    envState.atmosphericPressure += (random(-5, 6) / 100.0) * dt;
+    envState.atmosphericPressure = constrain(envState.atmosphericPressure, 950.0, 1060.0);
+    envState.humidity += (random(-5, 6) / 100.0) * dt;
+    envState.humidity = constrain(envState.humidity, 10.0, 100.0);
+  }
+
+  // ── Depth: gentle random variation around current depth ──
+  if (pgnGroups.depth) {
+    depthState.depthBelowTransducer += (random(-50, 51) / 100.0) * dt;
+    depthState.depthBelowTransducer = max(0.5, depthState.depthBelowTransducer);
+  }
+
+  // ── Wind: random gusts, angle drifts slowly ──
+  if (pgnGroups.wind) {
+    windState.windSpeed += (random(-200, 201) / 100.0) * dt;
+    windState.windSpeed = constrain(windState.windSpeed, 0.0, 30.0);
+    windState.windAngle += (random(-50, 51) / 10.0) * dt;
+    windState.windAngle = fmod(windState.windAngle, 360.0);
+    if (windState.windAngle < 0) windState.windAngle += 360.0;
+  }
+
+  // ── Heading: follows COG when engines running, random drift when stopped ──
+  if (pgnGroups.heading) {
+    if (engCount > 0 && gps.sog > 0.5) {
+      headingState.heading = approach(headingState.heading, gps.cog, 15.0, dt);
+    } else {
+      headingState.heading += (random(-10, 11) / 10.0) * dt;
+    }
+    headingState.heading = fmod(headingState.heading, 360.0);
+    if (headingState.heading < 0) headingState.heading += 360.0;
+  }
+
+  // ── Attitude: sine-wave pitch/roll based on wind speed (rougher seas) ──
+  if (pgnGroups.attitude) {
+    double seaFactor = constrain(windState.windSpeed / 15.0, 0.1, 1.0);
+    double t = millis() / 1000.0;
+    attitudeState.pitch = seaFactor * 3.0 * sin(t * 0.8);
+    attitudeState.roll  = seaFactor * 5.0 * sin(t * 0.5 + 1.2);
+    attitudeState.yaw   = seaFactor * 1.0 * sin(t * 0.3 + 2.5);
+  }
+
+  // ── Water speed: correlates with SOG (slightly less due to current) ──
+  if (pgnGroups.waterSpeed) {
+    double targetSTW = gps.sog * 0.92;  // hull slip / current
+    waterSpeedState.speedThroughWater = approach(
+      waterSpeedState.speedThroughWater, targetSTW, 2.0, dt);
+    waterSpeedState.speedThroughWater = max(0.0, waterSpeedState.speedThroughWater);
+  }
+
+  // ── Rudder: correlates inversely with COG change rate ──
+  if (pgnGroups.rudder) {
+    double cogDelta = gps.cog - prevCog;
+    // Normalize to -180..+180
+    if (cogDelta > 180.0) cogDelta -= 360.0;
+    if (cogDelta < -180.0) cogDelta += 360.0;
+    double targetAngle = constrain(-cogDelta * 5.0, -45.0, 45.0);
+    rudderState.rudderAngle = approach(rudderState.rudderAngle, targetAngle, 20.0, dt);
+  }
+  prevCog = gps.cog;
 }
 
 // ====================================================================
@@ -416,80 +572,96 @@ void sendNMEA() {
 
   tN2kMsg N2kMsg;
 
-  // ── PGN 127488 - Engine Rapid Update (RPM) ──
-  SetN2kEngineParamRapid(N2kMsg, 0, enginePort.rpm, N2kDoubleNA, N2kInt8NA);
-  NMEA2000.SendMsg(N2kMsg);
+  // ── Engine PGNs (127488, 127489, 127493) ──
+  if (pgnGroups.engines) {
+    // PGN 127488 - Engine Rapid Update (RPM)
+    SetN2kEngineParamRapid(N2kMsg, 0, enginePort.rpm, N2kDoubleNA, N2kInt8NA);
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kEngineParamRapid(N2kMsg, 1, engineStbd.rpm, N2kDoubleNA, N2kInt8NA);
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kEngineParamRapid(N2kMsg, 1, engineStbd.rpm, N2kDoubleNA, N2kInt8NA);
+    NMEA2000.SendMsg(N2kMsg);
 
-  // ── PGN 127489 - Engine Dynamic (temp, oil pressure, hours) ──
-  // Oil pressure field expects Pascals, temp fields expect Kelvin
-  SetN2kEngineDynamicParam(N2kMsg, 0,
-    enginePort.oilPressure * 100.0,       // oil pressure in Pa (kPa * 100)
-    CToKelvin(enginePort.coolantTemp),     // oil temp (using coolant as proxy)
-    CToKelvin(enginePort.coolantTemp),     // coolant temp
-    N2kDoubleNA,                           // alternator voltage
-    N2kDoubleNA,                           // fuel rate
-    enginePort.hours,                      // engine hours
-    N2kDoubleNA,                           // coolant pressure
-    N2kDoubleNA,                           // fuel pressure
-    N2kInt8NA,                             // engine load
-    N2kInt8NA                              // engine torque
-  );
-  NMEA2000.SendMsg(N2kMsg);
+    // PGN 127489 - Engine Dynamic (temp, oil pressure, hours)
+    SetN2kEngineDynamicParam(N2kMsg, 0,
+      enginePort.oilPressure * 100.0,       // oil pressure in Pa (kPa * 100)
+      CToKelvin(enginePort.coolantTemp),     // oil temp (using coolant as proxy)
+      CToKelvin(enginePort.coolantTemp),     // coolant temp
+      N2kDoubleNA,                           // alternator voltage
+      N2kDoubleNA,                           // fuel rate
+      enginePort.hours,                      // engine hours
+      N2kDoubleNA,                           // coolant pressure
+      N2kDoubleNA,                           // fuel pressure
+      N2kInt8NA,                             // engine load
+      N2kInt8NA                              // engine torque
+    );
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kEngineDynamicParam(N2kMsg, 1,
-    engineStbd.oilPressure * 100.0,
-    CToKelvin(engineStbd.coolantTemp),
-    CToKelvin(engineStbd.coolantTemp),
-    N2kDoubleNA, N2kDoubleNA,
-    engineStbd.hours,
-    N2kDoubleNA, N2kDoubleNA,
-    N2kInt8NA, N2kInt8NA
-  );
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kEngineDynamicParam(N2kMsg, 1,
+      engineStbd.oilPressure * 100.0,
+      CToKelvin(engineStbd.coolantTemp),
+      CToKelvin(engineStbd.coolantTemp),
+      N2kDoubleNA, N2kDoubleNA,
+      engineStbd.hours,
+      N2kDoubleNA, N2kDoubleNA,
+      N2kInt8NA, N2kInt8NA
+    );
+    NMEA2000.SendMsg(N2kMsg);
 
-  // ── PGN 127493 - Transmission Parameters (gear) ──
-  SetN2kTransmissionParameters(N2kMsg, 0, getGear(enginePort.throttle),
-    N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kTG_Forward, N2kTG_Forward);
-  NMEA2000.SendMsg(N2kMsg);
+    // PGN 127493 - Transmission Parameters (gear)
+    SetN2kTransmissionParameters(N2kMsg, 0, getGear(enginePort.throttle),
+      N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kTG_Forward, N2kTG_Forward);
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kTransmissionParameters(N2kMsg, 1, getGear(engineStbd.throttle),
-    N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kTG_Forward, N2kTG_Forward);
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kTransmissionParameters(N2kMsg, 1, getGear(engineStbd.throttle),
+      N2kDoubleNA, N2kDoubleNA, N2kInt8NA, N2kTG_Forward, N2kTG_Forward);
+    NMEA2000.SendMsg(N2kMsg);
+  }
 
-  // ── PGN 127505 - Fluid Level (tanks) ──
-  SetN2kFluidLevel(N2kMsg, 0, N2kft_Fuel, dieselMain.level, dieselMain.capacity);
-  NMEA2000.SendMsg(N2kMsg);
+  // ── Tank PGNs (127505) ──
+  if (pgnGroups.tanks) {
+    SetN2kFluidLevel(N2kMsg, 0, N2kft_Fuel, dieselMain.level, dieselMain.capacity);
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kFluidLevel(N2kMsg, 1, N2kft_Fuel, dieselGen.level, dieselGen.capacity);
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kFluidLevel(N2kMsg, 1, N2kft_Fuel, dieselGen.level, dieselGen.capacity);
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kFluidLevel(N2kMsg, 2, N2kft_Water, freshWater.level, freshWater.capacity);
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kFluidLevel(N2kMsg, 2, N2kft_Water, freshWater.level, freshWater.capacity);
+    NMEA2000.SendMsg(N2kMsg);
+  }
 
-  // ── PGN 127508 - Battery Status (voltage, current, temp, SOC) ──
-  SetN2kDCBatStatus(N2kMsg, 0, bat1.voltage, bat1.current,
-    CToKelvin(bat1.temperature), bat1.soc);
-  NMEA2000.SendMsg(N2kMsg);
+  // ── Battery PGNs (127508) ──
+  if (pgnGroups.batteries) {
+    SetN2kDCBatStatus(N2kMsg, 0, bat1.voltage, bat1.current,
+      CToKelvin(bat1.temperature), bat1.soc);
+    NMEA2000.SendMsg(N2kMsg);
 
-  SetN2kDCBatStatus(N2kMsg, 1, bat2.voltage, bat2.current,
-    CToKelvin(bat2.temperature), bat2.soc);
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kDCBatStatus(N2kMsg, 1, bat2.voltage, bat2.current,
+      CToKelvin(bat2.temperature), bat2.soc);
+    NMEA2000.SendMsg(N2kMsg);
+  }
 
-  // ── PGN 129025 - Position Rapid Update (lat/lon) ──
-  SetN2kLatLonRapid(N2kMsg, gps.lat, gps.lon);
-  NMEA2000.SendMsg(N2kMsg);
+  // ── GPS PGNs (129025, 129026) ──
+  if (pgnGroups.gps) {
+    SetN2kLatLonRapid(N2kMsg, gps.lat, gps.lon);
+    NMEA2000.SendMsg(N2kMsg);
 
-  // ── PGN 129026 - COG/SOG Rapid Update ──
-  SetN2kCOGSOGRapid(N2kMsg, 1, N2khr_true,
-    DegToRad(gps.cog),               // COG in radians
-    gps.sog * 1852.0 / 3600.0);      // SOG: knots to m/s
-  NMEA2000.SendMsg(N2kMsg);
+    SetN2kCOGSOGRapid(N2kMsg, 1, N2khr_true,
+      DegToRad(gps.cog),               // COG in radians
+      gps.sog * 1852.0 / 3600.0);      // SOG: knots to m/s
+    NMEA2000.SendMsg(N2kMsg);
+  }
 
-  // ── PGN 65226 - DM1 Diagnostic (active faults) ──
-  sendDM1();
+  // ── Fault PGN (65226) ──
+  if (pgnGroups.faults) sendDM1();
+
+  // ── New PGN groups ──
+  if (pgnGroups.environment) sendEnvironment();
+  if (pgnGroups.depth) sendDepth();
+  if (pgnGroups.wind) sendWind();
+  if (pgnGroups.heading) sendHeading();
+  if (pgnGroups.attitude) sendAttitude();
+  if (pgnGroups.waterSpeed) sendWaterSpeed();
+  if (pgnGroups.rudder) sendRudder();
 }
 
 // ====================================================================
@@ -539,6 +711,78 @@ void sendDM1() {
     N2kMsg.AddByte(1);  // occurrence count = 1
   }
 
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// ====================================================================
+//  New PGN Send Functions
+// ====================================================================
+
+// PGN 130310 - Environmental Parameters
+void sendEnvironment() {
+  tN2kMsg N2kMsg;
+  SetN2kOutsideEnvironmentalParameters(N2kMsg, 1,
+    CToKelvin(envState.waterTemp),
+    CToKelvin(envState.outsideTemp),
+    envState.atmosphericPressure * 100.0);  // hPa to Pa
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 128267 - Water Depth
+void sendDepth() {
+  tN2kMsg N2kMsg;
+  SetN2kWaterDepth(N2kMsg, 1,
+    depthState.depthBelowTransducer,
+    depthState.offset);
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 130306 - Wind Data
+void sendWind() {
+  tN2kMsg N2kMsg;
+  SetN2kWindSpeed(N2kMsg, 1,
+    windState.windSpeed,
+    DegToRad(windState.windAngle),
+    windState.apparent ? N2kWind_Apparent : N2kWind_True_North);
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 127250 - Vessel Heading
+void sendHeading() {
+  tN2kMsg N2kMsg;
+  SetN2kMagneticHeading(N2kMsg, 1,
+    DegToRad(headingState.heading),
+    DegToRad(headingState.deviation),
+    DegToRad(headingState.variation));
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 127257 - Attitude
+void sendAttitude() {
+  tN2kMsg N2kMsg;
+  SetN2kAttitude(N2kMsg, 1,
+    DegToRad(attitudeState.yaw),
+    DegToRad(attitudeState.pitch),
+    DegToRad(attitudeState.roll));
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 128259 - Speed Water Referenced
+void sendWaterSpeed() {
+  tN2kMsg N2kMsg;
+  SetN2kBoatSpeed(N2kMsg, 1,
+    knotsToMs(waterSpeedState.speedThroughWater));
+  NMEA2000.SendMsg(N2kMsg);
+}
+
+// PGN 127245 - Rudder
+void sendRudder() {
+  tN2kMsg N2kMsg;
+  SetN2kRudder(N2kMsg,
+    DegToRad(rudderState.rudderAngle),
+    0,
+    N2kRDO_NoDirectionOrder,
+    N2kDoubleNA);
   NMEA2000.SendMsg(N2kMsg);
 }
 
@@ -620,6 +864,73 @@ void sendStatusJSON() {
   if (faults.g2_temp) fa.add("g2_temp");
   if (faults.b1_low)  fa.add("b1_low");
   if (faults.b2_low)  fa.add("b2_low");
+
+  // Environment
+  if (pgnGroups.environment) {
+    JsonObject env = doc["env"].to<JsonObject>();
+    env["wt"] = round(envState.waterTemp * 10.0) / 10.0;
+    env["ot"] = round(envState.outsideTemp * 10.0) / 10.0;
+    env["ap"] = round(envState.atmosphericPressure * 10.0) / 10.0;
+    env["hu"] = (int)round(envState.humidity);
+  }
+
+  // Depth
+  if (pgnGroups.depth) {
+    JsonObject dep = doc["dep"].to<JsonObject>();
+    dep["dbt"] = round(depthState.depthBelowTransducer * 10.0) / 10.0;
+    dep["off"] = round(depthState.offset * 10.0) / 10.0;
+  }
+
+  // Wind
+  if (pgnGroups.wind) {
+    JsonObject wnd = doc["wnd"].to<JsonObject>();
+    wnd["spd"] = round(windState.windSpeed * 10.0) / 10.0;
+    wnd["ang"] = (int)round(windState.windAngle);
+    wnd["app"] = windState.apparent ? 1 : 0;
+  }
+
+  // Heading
+  if (pgnGroups.heading) {
+    JsonObject hdg = doc["hdg"].to<JsonObject>();
+    hdg["hdg"] = round(headingState.heading * 10.0) / 10.0;
+    hdg["dev"] = round(headingState.deviation * 10.0) / 10.0;
+    hdg["var"] = round(headingState.variation * 10.0) / 10.0;
+  }
+
+  // Attitude
+  if (pgnGroups.attitude) {
+    JsonObject att = doc["att"].to<JsonObject>();
+    att["yaw"]   = round(attitudeState.yaw * 10.0) / 10.0;
+    att["pitch"] = round(attitudeState.pitch * 10.0) / 10.0;
+    att["roll"]  = round(attitudeState.roll * 10.0) / 10.0;
+  }
+
+  // Water speed
+  if (pgnGroups.waterSpeed) {
+    JsonObject spd = doc["spd"].to<JsonObject>();
+    spd["stw"] = round(waterSpeedState.speedThroughWater * 10.0) / 10.0;
+  }
+
+  // Rudder
+  if (pgnGroups.rudder) {
+    JsonObject rud = doc["rud"].to<JsonObject>();
+    rud["ang"] = round(rudderState.rudderAngle * 10.0) / 10.0;
+  }
+
+  // PGN group flags
+  JsonObject pgn = doc["pgn"].to<JsonObject>();
+  pgn["eng"] = pgnGroups.engines ? 1 : 0;
+  pgn["bat"] = pgnGroups.batteries ? 1 : 0;
+  pgn["tnk"] = pgnGroups.tanks ? 1 : 0;
+  pgn["gps"] = pgnGroups.gps ? 1 : 0;
+  pgn["flt"] = pgnGroups.faults ? 1 : 0;
+  pgn["env"] = pgnGroups.environment ? 1 : 0;
+  pgn["dep"] = pgnGroups.depth ? 1 : 0;
+  pgn["wnd"] = pgnGroups.wind ? 1 : 0;
+  pgn["hdg"] = pgnGroups.heading ? 1 : 0;
+  pgn["att"] = pgnGroups.attitude ? 1 : 0;
+  pgn["spd"] = pgnGroups.waterSpeed ? 1 : 0;
+  pgn["rud"] = pgnGroups.rudder ? 1 : 0;
 
   serializeJson(doc, Serial);
   Serial.println();  // newline delimiter
@@ -730,6 +1041,90 @@ void handleSerialLine(const char* line) {
     return;
   }
 
+  // ── PGN Group Enable/Disable ──
+  if (strcmp(cmd, "pgn") == 0) {
+    bool enabled = (val != 0);
+    if (strcmp(prm, "eng") == 0)      pgnGroups.engines = enabled;
+    else if (strcmp(prm, "bat") == 0) pgnGroups.batteries = enabled;
+    else if (strcmp(prm, "tnk") == 0) pgnGroups.tanks = enabled;
+    else if (strcmp(prm, "gps") == 0) pgnGroups.gps = enabled;
+    else if (strcmp(prm, "flt") == 0) pgnGroups.faults = enabled;
+    else if (strcmp(prm, "env") == 0) pgnGroups.environment = enabled;
+    else if (strcmp(prm, "dep") == 0) pgnGroups.depth = enabled;
+    else if (strcmp(prm, "wnd") == 0) pgnGroups.wind = enabled;
+    else if (strcmp(prm, "hdg") == 0) pgnGroups.heading = enabled;
+    else if (strcmp(prm, "att") == 0) pgnGroups.attitude = enabled;
+    else if (strcmp(prm, "spd") == 0) pgnGroups.waterSpeed = enabled;
+    else if (strcmp(prm, "rud") == 0) pgnGroups.rudder = enabled;
+    Serial.println("{\"ack\":\"pgn\"}");
+    return;
+  }
+
+  // ── Environment ──
+  if (strcmp(cmd, "env") == 0) {
+    if (strcmp(prm, "wt") == 0)      envState.waterTemp = val;
+    else if (strcmp(prm, "ot") == 0) envState.outsideTemp = val;
+    else if (strcmp(prm, "ap") == 0) envState.atmosphericPressure = val;
+    else if (strcmp(prm, "hu") == 0) envState.humidity = constrain(val, 0.0, 100.0);
+    Serial.println("{\"ack\":\"env\"}");
+    return;
+  }
+
+  // ── Depth ──
+  if (strcmp(cmd, "dep") == 0) {
+    if (strcmp(prm, "depth") == 0)     depthState.depthBelowTransducer = max(0.0, val);
+    else if (strcmp(prm, "offset") == 0) depthState.offset = val;
+    Serial.println("{\"ack\":\"dep\"}");
+    return;
+  }
+
+  // ── Wind ──
+  if (strcmp(cmd, "wnd") == 0) {
+    if (strcmp(prm, "speed") == 0)     windState.windSpeed = max(0.0, val);
+    else if (strcmp(prm, "angle") == 0) {
+      windState.windAngle = fmod(val, 360.0);
+      if (windState.windAngle < 0) windState.windAngle += 360.0;
+    }
+    else if (strcmp(prm, "mode") == 0) windState.apparent = (val == 0);  // 0=apparent, 1=true
+    Serial.println("{\"ack\":\"wnd\"}");
+    return;
+  }
+
+  // ── Heading ──
+  if (strcmp(cmd, "hdg") == 0) {
+    if (strcmp(prm, "heading") == 0) {
+      headingState.heading = fmod(val, 360.0);
+      if (headingState.heading < 0) headingState.heading += 360.0;
+    }
+    else if (strcmp(prm, "dev") == 0) headingState.deviation = val;
+    else if (strcmp(prm, "var") == 0) headingState.variation = val;
+    Serial.println("{\"ack\":\"hdg\"}");
+    return;
+  }
+
+  // ── Attitude ──
+  if (strcmp(cmd, "att") == 0) {
+    if (strcmp(prm, "yaw") == 0)        attitudeState.yaw = val;
+    else if (strcmp(prm, "pitch") == 0) attitudeState.pitch = val;
+    else if (strcmp(prm, "roll") == 0)  attitudeState.roll = val;
+    Serial.println("{\"ack\":\"att\"}");
+    return;
+  }
+
+  // ── Water Speed ──
+  if (strcmp(cmd, "spd") == 0) {
+    if (strcmp(prm, "stw") == 0) waterSpeedState.speedThroughWater = max(0.0, val);
+    Serial.println("{\"ack\":\"spd\"}");
+    return;
+  }
+
+  // ── Rudder ──
+  if (strcmp(cmd, "rud") == 0) {
+    if (strcmp(prm, "angle") == 0) rudderState.rudderAngle = constrain(val, -45.0, 45.0);
+    Serial.println("{\"ack\":\"rud\"}");
+    return;
+  }
+
   // ── Faults ──
   if (strcmp(cmd, "fault") == 0) {
     bool active = (val != 0);
@@ -767,6 +1162,15 @@ void resetAll() {
   freshWater.level = 70.0;
   gps = { 25.7617, -80.1918, 0, 180.0, false, false, false, false };
   faults = { false, false, false, false, false, false, false, false };
+  pgnGroups = { true, true, true, true, true, false, false, false, false, false, false, false };
+  envState       = { 22.0, 28.0, 1013.25, 65.0 };
+  depthState     = { 15.0, 0.5 };
+  windState      = { 5.0, 45.0, true };
+  headingState   = { 180.0, -2.0, -4.5 };
+  attitudeState  = { 0.0, 0.5, 1.0 };
+  waterSpeedState = { 0.0 };
+  rudderState    = { 0.0 };
+  prevCog = 180.0;
 }
 
 // ====================================================================

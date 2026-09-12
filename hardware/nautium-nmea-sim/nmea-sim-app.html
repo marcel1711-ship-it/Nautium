@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nautium NMEA Sim v2.0</title>
+<title>Nautium NMEA Sim v4.0</title>
 <style>
 :root {
   --bg-primary: #030712;
@@ -568,6 +568,175 @@ input[type="range"]::-moz-range-thumb {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+/* PGN Configuration Panel */
+.pgn-panel {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.pgn-panel.collapsed { max-height: 0 !important; border-bottom: none; }
+.pgn-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.pgn-panel-header h2 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pgn-panel-header .chevron {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: transform 0.3s;
+}
+.pgn-panel-header.open .chevron { transform: rotate(180deg); }
+.pgn-panel-body {
+  padding: 12px 24px 16px;
+}
+.pgn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 16px;
+}
+@media (max-width: 768px) {
+  .pgn-grid { grid-template-columns: repeat(2, 1fr); }
+  .pgn-panel-body { padding: 10px 12px 14px; }
+  .pgn-panel-header { padding: 8px 12px; }
+}
+.pgn-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}
+.pgn-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.pgn-item-name {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.pgn-item-pgn {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* Wind arrow indicator */
+.wind-indicator {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  position: relative;
+  margin: 8px auto;
+  background: var(--bg-primary);
+}
+.wind-arrow {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 22px solid var(--cyan);
+  transform-origin: center 22px;
+  margin-left: -5px;
+  transition: transform 0.3s;
+}
+.wind-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Rudder indicator */
+.rudder-indicator {
+  height: 30px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.rudder-center-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--text-muted);
+}
+.rudder-bar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: calc(50% - 3px);
+  width: 6px;
+  background: var(--cyan);
+  border-radius: 3px;
+  transition: transform 0.3s;
+}
+.rudder-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Field row for new cards */
+.field-row {
+  margin-bottom: 12px;
+}
+.field-row label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.field-row .slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.field-row .slider-row input[type="range"] { flex: 1; }
+.field-row .slider-val {
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 1rem;
+  font-weight: 600;
+  min-width: 50px;
+  text-align: right;
+}
+.field-row .slider-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 </style>
 </head>
 <body>
@@ -583,7 +752,7 @@ input[type="range"]::-moz-range-thumb {
   <div class="header-brand">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0020 0h-3"/></svg>
     <h1>Nautium NMEA Sim</h1>
-    <span class="version">v2.0</span>
+    <span class="version">v4.0</span>
   </div>
   <div class="header-actions">
     <span class="status-dot" id="statusDot"></span>
@@ -595,6 +764,150 @@ input[type="range"]::-moz-range-thumb {
     <button class="btn btn-danger" onclick="sendReset()">Reset All</button>
   </div>
 </header>
+
+<!-- PGN Configuration Panel -->
+<div class="pgn-panel-header open" id="pgnPanelHeader" onclick="togglePgnPanel()">
+  <h2>&#9881; PGN Configuration</h2>
+  <span class="chevron">&#9660;</span>
+</div>
+<div class="pgn-panel" id="pgnPanel">
+  <div class="pgn-panel-body">
+    <div class="pgn-grid">
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_eng" checked onchange="togglePgn('eng')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Engines</div>
+          <div class="pgn-item-pgn">127488 / 127489 / 127493</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_bat" checked onchange="togglePgn('bat')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Batteries</div>
+          <div class="pgn-item-pgn">127508</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_tnk" checked onchange="togglePgn('tnk')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Tanks</div>
+          <div class="pgn-item-pgn">127505</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_gps" checked onchange="togglePgn('gps')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">GPS</div>
+          <div class="pgn-item-pgn">129025 / 129026</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_flt" checked onchange="togglePgn('flt')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Faults</div>
+          <div class="pgn-item-pgn">65226</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_env" onchange="togglePgn('env')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Environment</div>
+          <div class="pgn-item-pgn">130310</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_dep" onchange="togglePgn('dep')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Depth</div>
+          <div class="pgn-item-pgn">128267</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_wnd" onchange="togglePgn('wnd')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Wind</div>
+          <div class="pgn-item-pgn">130306</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_hdg" onchange="togglePgn('hdg')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Heading</div>
+          <div class="pgn-item-pgn">127250</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_att" onchange="togglePgn('att')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Attitude</div>
+          <div class="pgn-item-pgn">127257</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_spd" onchange="togglePgn('spd')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Water Speed</div>
+          <div class="pgn-item-pgn">128259</div>
+        </div>
+      </div>
+      <div class="pgn-item">
+        <label class="toggle">
+          <input type="checkbox" id="pgn_rud" onchange="togglePgn('rud')">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <div class="pgn-item-info">
+          <div class="pgn-item-name">Rudder</div>
+          <div class="pgn-item-pgn">127245</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Main Grid -->
 <main class="main-grid">
@@ -899,6 +1212,254 @@ input[type="range"]::-moz-range-thumb {
     </div>
   </div>
 
+  <!-- Environment -->
+  <div class="card" id="cardEnv" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#127777;</span> Environment</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Water Temperature (&deg;C)</label>
+        <input type="number" id="envWtInput" step="0.1" value="22"
+          onchange="sendCmd('env','wt',parseFloat(this.value))">
+      </div>
+      <div class="field-row">
+        <label>Outside Temperature (&deg;C)</label>
+        <input type="number" id="envOtInput" step="0.1" value="25"
+          onchange="sendCmd('env','ot',parseFloat(this.value))">
+      </div>
+      <div class="field-row">
+        <label>Atmospheric Pressure (hPa)</label>
+        <input type="number" id="envApInput" step="0.1" value="1013.25"
+          onchange="sendCmd('env','ap',parseFloat(this.value))">
+      </div>
+      <div class="field-row">
+        <label>Humidity (%)</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="100" step="1" value="50" id="envHuSlider"
+            oninput="document.getElementById('envHuVal').textContent=this.value"
+            onchange="sendCmd('env','hu',parseInt(this.value))">
+          <span class="slider-val" id="envHuVal">50</span>
+          <span class="slider-unit">%</span>
+        </div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="envWt"><div class="readout-label">Water Temp</div><div class="readout-value">--</div></div>
+        <div class="readout" id="envOt"><div class="readout-label">Outside Temp</div><div class="readout-value">--</div></div>
+        <div class="readout" id="envAp"><div class="readout-label">Pressure</div><div class="readout-value">--</div></div>
+        <div class="readout" id="envHu"><div class="readout-label">Humidity</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Depth -->
+  <div class="card" id="cardDepth" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9875;</span> Depth</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Depth (meters)</label>
+        <input type="number" id="depDepthInput" step="0.1" value="10"
+          onchange="sendCmd('dep','depth',parseFloat(this.value))">
+      </div>
+      <div class="field-row">
+        <label>Offset (meters)</label>
+        <input type="number" id="depOffsetInput" step="0.1" value="0"
+          onchange="sendCmd('dep','offset',parseFloat(this.value))">
+      </div>
+      <div class="readouts" style="grid-template-columns:1fr 1fr">
+        <div class="readout" id="depDepth"><div class="readout-label">Depth</div><div class="readout-value">--</div></div>
+        <div class="readout" id="depOffset"><div class="readout-label">Offset</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wind -->
+  <div class="card" id="cardWind" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#127788;</span> Wind</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Wind Speed (knots)</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="60" step="0.1" value="0" id="wndSpeedSlider"
+            oninput="document.getElementById('wndSpeedVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('wnd','speed',parseFloat(this.value))">
+          <span class="slider-val" id="wndSpeedVal">0.0</span>
+          <span class="slider-unit">kn</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Wind Angle (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="359" step="1" value="0" id="wndAngleSlider"
+            oninput="document.getElementById('wndAngleVal').textContent=this.value"
+            onchange="sendCmd('wnd','angle',parseInt(this.value))">
+          <span class="slider-val" id="wndAngleVal">0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Wind Reference: <span id="wndModeLabel">Apparent</span></span>
+        <label class="toggle">
+          <input type="checkbox" id="wndMode" onchange="sendCmd('wnd','mode',this.checked?1:0); document.getElementById('wndModeLabel').textContent=this.checked?'True':'Apparent'">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="display:flex;justify-content:center">
+        <div class="wind-indicator">
+          <div class="wind-arrow" id="windArrow"></div>
+          <div class="wind-center"></div>
+        </div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="wndSpeed"><div class="readout-label">Speed</div><div class="readout-value">--</div></div>
+        <div class="readout" id="wndAngle"><div class="readout-label">Angle</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heading -->
+  <div class="card" id="cardHeading" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#129517;</span> Heading</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Heading (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="359" step="1" value="0" id="hdgHeadingSlider"
+            oninput="document.getElementById('hdgHeadingVal').textContent=this.value; updateHeadingCompass(this.value)"
+            onchange="sendCmd('hdg','heading',parseInt(this.value))">
+          <span class="slider-val" id="hdgHeadingVal">0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Deviation (&deg;)</label>
+        <input type="number" id="hdgDevInput" step="0.1" value="0"
+          onchange="sendCmd('hdg','dev',parseFloat(this.value))">
+      </div>
+      <div class="field-row">
+        <label>Variation (&deg;)</label>
+        <input type="number" id="hdgVarInput" step="0.1" value="0"
+          onchange="sendCmd('hdg','var',parseFloat(this.value))">
+      </div>
+      <div style="display:flex;justify-content:center">
+        <div class="compass">
+          <span class="compass-n">N</span>
+          <div class="compass-needle" id="headingNeedle"></div>
+          <div class="compass-center"></div>
+        </div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="hdgHeading"><div class="readout-label">Heading</div><div class="readout-value">--</div></div>
+        <div class="readout" id="hdgDev"><div class="readout-label">Deviation</div><div class="readout-value">--</div></div>
+        <div class="readout" id="hdgVar"><div class="readout-label">Variation</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attitude -->
+  <div class="card" id="cardAttitude" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9992;</span> Attitude</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Pitch (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="-30" max="30" step="0.1" value="0" id="attPitchSlider"
+            oninput="document.getElementById('attPitchVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('att','pitch',parseFloat(this.value))">
+          <span class="slider-val" id="attPitchVal">0.0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Roll (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="-45" max="45" step="0.1" value="0" id="attRollSlider"
+            oninput="document.getElementById('attRollVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('att','roll',parseFloat(this.value))">
+          <span class="slider-val" id="attRollVal">0.0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Yaw (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="-180" max="180" step="0.1" value="0" id="attYawSlider"
+            oninput="document.getElementById('attYawVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('att','yaw',parseFloat(this.value))">
+          <span class="slider-val" id="attYawVal">0.0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="readouts">
+        <div class="readout" id="attPitch"><div class="readout-label">Pitch</div><div class="readout-value">--</div></div>
+        <div class="readout" id="attRoll"><div class="readout-label">Roll</div><div class="readout-value">--</div></div>
+        <div class="readout" id="attYaw"><div class="readout-label">Yaw</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Water Speed -->
+  <div class="card" id="cardSpeed" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#127754;</span> Water Speed</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Speed Through Water (knots)</label>
+        <div class="slider-row">
+          <input type="range" min="0" max="30" step="0.1" value="0" id="spdStwSlider"
+            oninput="document.getElementById('spdStwVal').textContent=parseFloat(this.value).toFixed(1)"
+            onchange="sendCmd('spd','stw',parseFloat(this.value))">
+          <span class="slider-val" id="spdStwVal">0.0</span>
+          <span class="slider-unit">kn</span>
+        </div>
+      </div>
+      <div class="readouts" style="grid-template-columns:1fr">
+        <div class="readout" id="spdStw"><div class="readout-label">STW</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rudder -->
+  <div class="card" id="cardRudder" style="display:none">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">&#9875;</span> Rudder</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <label>Rudder Angle (degrees)</label>
+        <div class="slider-row">
+          <input type="range" min="-45" max="45" step="1" value="0" id="rudAngleSlider"
+            oninput="document.getElementById('rudAngleVal').textContent=this.value; updateRudderBar(this.value)"
+            onchange="sendCmd('rud','angle',parseInt(this.value))">
+          <span class="slider-val" id="rudAngleVal">0</span>
+          <span class="slider-unit">&deg;</span>
+        </div>
+      </div>
+      <div class="rudder-indicator">
+        <div class="rudder-center-line"></div>
+        <div class="rudder-bar" id="rudderBar"></div>
+      </div>
+      <div class="rudder-labels">
+        <span>PORT (-)</span>
+        <span>CENTER</span>
+        <span>STBD (+)</span>
+      </div>
+      <div class="readouts" style="grid-template-columns:1fr">
+        <div class="readout" id="rudAngle"><div class="readout-label">Rudder Angle</div><div class="readout-value">--</div></div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <!-- Activity Log -->
@@ -922,6 +1483,10 @@ let writableStreamClosed = null;
 let connected = false;
 let lineBuf = '';
 const activeFaults = new Set();
+const pgnGroups = {
+  eng: true, bat: true, tnk: true, gps: true, flt: true,
+  env: false, dep: false, wnd: false, hdg: false, att: false, spd: false, rud: false
+};
 
 /* ── Web Serial Check ── */
 if (!('serial' in navigator)) {
@@ -1047,6 +1612,11 @@ function sendReset() {
   document.getElementById('g2On').checked = false;
   document.getElementById('b1Chg').checked = false;
   document.getElementById('b2Chg').checked = false;
+  // Reset PGN toggles to defaults
+  pgnGroups.env = false; pgnGroups.dep = false; pgnGroups.wnd = false;
+  pgnGroups.hdg = false; pgnGroups.att = false; pgnGroups.spd = false;
+  pgnGroups.rud = false;
+  updatePgnUI();
 }
 
 /* ── Process incoming status ── */
@@ -1128,6 +1698,65 @@ function processIncoming(raw) {
       if (d.faults.length > 0) {
         logEntry('Active faults: ' + d.faults.join(', '), 'fault');
       }
+    }
+    // PGN group state sync from firmware
+    if (d.pgn) {
+      pgnGroups.eng = !!d.pgn.eng;
+      pgnGroups.bat = !!d.pgn.bat;
+      pgnGroups.tnk = !!d.pgn.tnk;
+      pgnGroups.gps = !!d.pgn.gps;
+      pgnGroups.flt = !!d.pgn.flt;
+      pgnGroups.env = !!d.pgn.env;
+      pgnGroups.dep = !!d.pgn.dep;
+      pgnGroups.wnd = !!d.pgn.wnd;
+      pgnGroups.hdg = !!d.pgn.hdg;
+      pgnGroups.att = !!d.pgn.att;
+      pgnGroups.spd = !!d.pgn.spd;
+      pgnGroups.rud = !!d.pgn.rud;
+      updatePgnUI();
+    }
+    // Environment
+    if (d.env) {
+      setReadout('envWt', d.env.wt, '°C');
+      setReadout('envOt', d.env.ot, '°C');
+      setReadout('envAp', d.env.ap, ' hPa');
+      setReadout('envHu', d.env.hu, '%');
+    }
+    // Depth
+    if (d.dep) {
+      setReadout('depDepth', d.dep.dbt, ' m');
+      setReadout('depOffset', d.dep.off, ' m');
+    }
+    // Wind
+    if (d.wnd) {
+      setReadout('wndSpeed', d.wnd.spd, ' m/s');
+      setReadout('wndAngle', d.wnd.ang, '°');
+      const arrow = document.getElementById('windArrow');
+      if (arrow) arrow.style.transform = 'rotate(' + d.wnd.ang + 'deg)';
+    }
+    // Heading
+    if (d.hdg) {
+      setReadout('hdgHeading', d.hdg.hdg, '°');
+      setReadout('hdgDev', d.hdg.dev, '°');
+      setReadout('hdgVar', d.hdg['var'], '°');
+      const needle = document.getElementById('headingNeedle');
+      if (needle) needle.style.transform = 'rotate(' + d.hdg.hdg + 'deg)';
+    }
+    // Attitude
+    if (d.att) {
+      setReadout('attYaw', d.att.yaw, '°');
+      setReadout('attPitch', d.att.pitch, '°');
+      setReadout('attRoll', d.att.roll, '°');
+    }
+    // Water Speed
+    if (d.spd) {
+      setReadout('spdStw', d.spd.stw, ' kn');
+    }
+    // Rudder
+    if (d.rud) {
+      setReadout('rudAngle', d.rud.ang, '°');
+      const bar = document.getElementById('rudderBar');
+      if (bar) bar.style.transform = 'translateX(' + (d.rud.ang / 45 * 50) + '%)';
     }
   } catch (e) {
     logEntry('Parse error: ' + e.message + ' | Raw: ' + raw.substring(0, 120), 'err');
@@ -1278,6 +1907,56 @@ function clearLog() { logBody.innerHTML = ''; logCount = 0; }
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── PGN Panel ── */
+function togglePgnPanel() {
+  const panel = document.getElementById('pgnPanel');
+  const header = document.getElementById('pgnPanelHeader');
+  panel.classList.toggle('collapsed');
+  header.classList.toggle('open');
+}
+
+function togglePgn(group) {
+  pgnGroups[group] = !pgnGroups[group];
+  sendCmd('pgn', group, pgnGroups[group] ? 1 : 0);
+  updatePgnUI();
+}
+
+function updatePgnUI() {
+  const cardMap = {
+    eng: ['cardEngPort', 'cardEngStbd', 'cardGen'],
+    bat: ['cardBat'],
+    tnk: ['cardTanks'],
+    gps: ['cardGps'],
+    flt: ['cardFaults'],
+    env: ['cardEnv'],
+    dep: ['cardDepth'],
+    wnd: ['cardWind'],
+    hdg: ['cardHeading'],
+    att: ['cardAttitude'],
+    spd: ['cardSpeed'],
+    rud: ['cardRudder'],
+  };
+  for (const [key, cardIds] of Object.entries(cardMap)) {
+    for (const id of cardIds) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = pgnGroups[key] ? '' : 'none';
+    }
+    const toggle = document.getElementById('pgn_' + key);
+    if (toggle) toggle.checked = pgnGroups[key];
+  }
+}
+
+/* ── New Card Helpers ── */
+function updateHeadingCompass(deg) {
+  const needle = document.getElementById('headingNeedle');
+  if (needle) needle.style.transform = 'rotate(' + deg + 'deg)';
+}
+
+function updateRudderBar(angle) {
+  const bar = document.getElementById('rudderBar');
+  if (bar) bar.style.transform = 'translateX(' + (angle / 45 * 50) + '%)';
 }
 
 /* ── Init ── */

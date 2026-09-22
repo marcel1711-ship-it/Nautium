@@ -54,6 +54,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const now = new Date();
   const [filter, setFilter] = useState<PeriodFilter>({ year: now.getFullYear(), month: now.getMonth() + 1, isFullYear: false });
   const [periodSpend, setPeriodSpend] = useState(0);
+  const [periodRevenue, setPeriodRevenue] = useState(0);
   const [periodBudget, setPeriodBudget] = useState(0);
   const [spendBreakdown, setSpendBreakdown] = useState({ operational: 0, fuel: 0, parts: 0, service: 0, crew: 0 });
 
@@ -183,6 +184,16 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     setSpendBreakdown({ operational: operationalTotal, fuel: fuelTotal, parts: partsTotal, service: serviceTotal, crew: crewCostForPeriod });
     setPeriodSpend(totalSpend);
 
+    // Revenue from voyages
+    const voyageFilters = [
+      ...vesselFilter,
+      { field: 'departure_date', op: 'gte' as const, value: start },
+      { field: 'departure_date', op: 'lte' as const, value: end },
+    ];
+    const voyages = await fetchFiltered('voyages', companyId, voyageFilters, { select_cols: 'revenue' });
+    const revenueTotal = voyages.reduce((s: number, v: any) => s + Number(v.revenue || 0), 0);
+    setPeriodRevenue(revenueTotal);
+
     // Budget
     const budgetFilters = [
       ...vesselFilter,
@@ -199,6 +210,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   };
 
   const budgetUsedPct = periodBudget > 0 ? Math.round((periodSpend / periodBudget) * 100) : 0;
+  const netPL = periodRevenue - periodSpend;
   const periodLabel = filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
   const vesselLabel = overviewVessel === 'all' ? 'All Vessels' : vessels.find(v => v.id === overviewVessel)?.name || '';
 
@@ -215,6 +227,11 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     .right{text-align:right}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af}
     @media print{body{padding:20px}.kpi-row{break-inside:avoid}}</style></head><body>
     <h1>Financial Overview</h1><p class="meta">${vesselLabel} · ${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
+    <h2>Profit & Loss</h2>
+    <div class="kpi-row"><div class="kpi"><div class="label">Total Revenue</div><div class="value">${fmtCurrency(periodRevenue)}</div></div>
+    <div class="kpi"><div class="label">Total Expenses</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
+    <div class="kpi"><div class="label">Net P&L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div></div>
+    <h2>Budget</h2>
     <div class="kpi-row"><div class="kpi"><div class="label">Period Spend</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
     <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : 'No budget'}</div></div>
     <div class="kpi"><div class="label">Remaining</div><div class="value">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) : '—'}</div></div></div>
@@ -286,22 +303,48 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
               <FileDown className="w-4 h-4" /> Export Report
             </button>
           </div>
+
+          {/* P&L Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-3"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Total Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(periodRevenue)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">From voyages · {periodLabel}</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mb-3"><Receipt className="w-5 h-5 text-red-500" /></div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Total Expenses</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(periodSpend)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{vesselLabel}</p>
+            </div>
+            <div className={`rounded-2xl border p-5 ${netPL >= 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-red-50/40 border-red-200'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${netPL >= 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                <DollarSign className={`w-5 h-5 ${netPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`} />
+              </div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Net P&L</p>
+              <p className={`text-2xl font-bold mt-1 ${netPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtCurrency(netPL)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{netPL >= 0 ? 'Profit' : 'Loss'}</p>
+            </div>
+          </div>
+
+          {/* Budget Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-3"><DollarSign className="w-5 h-5 text-blue-600" /></div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{periodLabel}</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Period Spend</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(periodSpend)}</p>
               <p className="text-xs text-gray-400 mt-0.5">{vesselLabel}</p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-3"><BarChart3 className="w-5 h-5 text-emerald-600" /></div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-3"><BarChart3 className="w-5 h-5 text-amber-600" /></div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Budget Used</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{periodBudget > 0 ? `${budgetUsedPct}%` : 'No budget'}</p>
               {periodBudget > 0 && <p className="text-xs text-gray-400 mt-0.5">of {fmtCurrency(periodBudget)}</p>}
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-3"><TrendingUp className="w-5 h-5 text-purple-600" /></div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Remaining</p>
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-3"><BarChart3 className="w-5 h-5 text-purple-600" /></div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Budget Remaining</p>
               <p className={`text-2xl font-bold mt-1 ${periodSpend > periodBudget && periodBudget > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                 {periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) : '—'}
               </p>

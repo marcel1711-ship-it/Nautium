@@ -69,6 +69,82 @@ export async function clearCachedData(): Promise<void> {
   } catch { /* best-effort */ }
 }
 
+// ── Optimistic cache updates (apply offline writes to cached reads) ──────────
+
+export async function updateCachedRecord(table: string, id: string, updates: Record<string, any>): Promise<void> {
+  try {
+    const store = await tx(DATA_STORE, 'readwrite');
+    const allKeys: string[] = await new Promise((resolve) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve((req.result as string[]) || []);
+      req.onerror = () => resolve([]);
+    });
+
+    for (const key of allKeys) {
+      if (!key.startsWith(`${table}::`)) continue;
+      const entry = await new Promise<any>((resolve) => {
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (!entry?.data || !Array.isArray(entry.data)) continue;
+      const idx = entry.data.findIndex((r: any) => r.id === id);
+      if (idx === -1) continue;
+      entry.data[idx] = { ...entry.data[idx], ...updates };
+      store.put(entry, key);
+    }
+  } catch { /* best-effort */ }
+}
+
+export async function insertCachedRecord(table: string, record: Record<string, any>): Promise<void> {
+  try {
+    const store = await tx(DATA_STORE, 'readwrite');
+    const allKeys: string[] = await new Promise((resolve) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve((req.result as string[]) || []);
+      req.onerror = () => resolve([]);
+    });
+
+    for (const key of allKeys) {
+      if (!key.startsWith(`${table}::`)) continue;
+      const entry = await new Promise<any>((resolve) => {
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (!entry?.data || !Array.isArray(entry.data)) continue;
+      const companyId = key.split('::')[1];
+      if (record.company_id && record.company_id !== companyId) continue;
+      entry.data.unshift(record);
+      store.put(entry, key);
+    }
+  } catch { /* best-effort */ }
+}
+
+export async function deleteCachedRecord(table: string, id: string): Promise<void> {
+  try {
+    const store = await tx(DATA_STORE, 'readwrite');
+    const allKeys: string[] = await new Promise((resolve) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve((req.result as string[]) || []);
+      req.onerror = () => resolve([]);
+    });
+
+    for (const key of allKeys) {
+      if (!key.startsWith(`${table}::`)) continue;
+      const entry = await new Promise<any>((resolve) => {
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (!entry?.data || !Array.isArray(entry.data)) continue;
+      const before = entry.data.length;
+      entry.data = entry.data.filter((r: any) => r.id !== id);
+      if (entry.data.length < before) store.put(entry, key);
+    }
+  } catch { /* best-effort */ }
+}
+
 // ── Sync queue (offline mutations) ───────────────────────────────────────────
 
 export interface SyncEntry {

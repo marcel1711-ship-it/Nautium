@@ -9,6 +9,7 @@ import { Header } from './components/Layout/Header';
 import { ToastProvider } from './components/UI/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { initOfflineSync } from './lib/offlineSync';
+import { prefetchOfflineData, resetPrefetch } from './lib/offlinePrefetch';
 import { getRoleDepartment, UserRole } from './types';
 
 const Landing = lazy(() => import('./pages/Landing').then(m => ({ default: m.Landing })));
@@ -82,6 +83,14 @@ const AppContent: React.FC = () => {
   const programmaticNav = useRef(false);
 
   useEffect(() => { initOfflineSync(); }, []);
+
+  useEffect(() => {
+    if (currentUser?.company_id) {
+      prefetchOfflineData(currentUser.company_id);
+    } else {
+      resetPrefetch();
+    }
+  }, [currentUser?.company_id]);
 
   // ── Derive currentPage from URL ──────────────────────────────────────
   const currentPage = location.pathname.replace(/^\//, '') || 'dashboard';

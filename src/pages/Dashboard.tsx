@@ -11,7 +11,7 @@ import {
   demoMaintenanceTasks, demoInventoryItems,
   demoMaintenanceHistory, demoVessels,
 } from '../data/demoData';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { supabase, fetchByCompany, fetchByVessel, fetchFiltered, dbUpdate, dbInsert } from '../lib/supabase';
 import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency, recalculateTaskStatuses } from '../utils/helpers';
 import { MaintenanceTask, InventoryItem, MaintenanceHistory, Vessel, getRoleDepartment, UserRole } from '../types';
 import { FleetOverview } from './FleetOverview';
@@ -83,16 +83,16 @@ const PendingApprovalsCard: React.FC<{
   const loadPending = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('operational_expenses')
-        .select('id, category, description, amount, currency, expense_date, requested_by_name, vessel_id')
-        .eq('company_id', companyId)
-        .eq('status', 'pending_approval')
-        .order('created_at', { ascending: false });
+      const filters: { field: string; op: 'eq' | 'in'; value: any }[] = [
+        { field: 'status', op: 'eq', value: 'pending_approval' },
+      ];
+      if (vesselId) filters.push({ field: 'vessel_id', op: 'eq', value: vesselId });
 
-      if (vesselId) query = query.eq('vessel_id', vesselId);
-
-      const { data } = await query;
+      const data = await fetchFiltered('operational_expenses', companyId, filters, {
+        order_by: 'created_at',
+        ascending: false,
+        select_cols: 'id, category, description, amount, currency, expense_date, requested_by_name, vessel_id',
+      });
       setPending(data || []);
     } catch (err) {
       console.error('Error loading pending expenses:', err);
@@ -104,16 +104,15 @@ const PendingApprovalsCard: React.FC<{
   const handleApprove = async (expense: PendingExpense) => {
     setProcessing(expense.id);
     try {
-      await supabase.from('operational_expenses').update({
+      await dbUpdate('operational_expenses', expense.id, {
         status:            'approved',
         approved_by:       currentUser.id,
         approved_by_name:  currentUser.full_name,
         approved_at:       new Date().toISOString(),
         approval_notes:    approvalNotes[expense.id] || null,
-      }).eq('id', expense.id);
+      });
 
-      // Notificar al crew que fue aprobado
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: companyId,
         type:       'expense_approved',
         title:      'Expense approved',
@@ -139,16 +138,15 @@ const PendingApprovalsCard: React.FC<{
     }
     setProcessing(expense.id);
     try {
-      await supabase.from('operational_expenses').update({
+      await dbUpdate('operational_expenses', expense.id, {
         status:           'rejected',
         approved_by:      currentUser.id,
         approved_by_name: currentUser.full_name,
         approved_at:      new Date().toISOString(),
         approval_notes:   approvalNotes[expense.id],
-      }).eq('id', expense.id);
+      });
 
-      // Notificar al crew que fue rechazado
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: companyId,
         type:       'expense_rejected',
         title:      'Expense rejected',
@@ -302,18 +300,18 @@ const PendingPRsCard: React.FC<{
   useEffect(() => {
     const load = async () => {
       if (!companyId) return;
-      let query = supabase
-        .from('purchase_requests')
-        .select('id, pr_number, total_estimated_cost, currency, department, requested_by_name, status, urgency, created_at')
-        .eq('company_id', companyId)
-        .in('status', ['pending_captain', 'pending_fleet_manager'])
-        .order('created_at', { ascending: false });
-
+      const filters: { field: string; op: 'eq' | 'in'; value: any }[] = [
+        { field: 'status', op: 'in', value: ['pending_captain', 'pending_fleet_manager'] },
+      ];
       if (vesselId && vesselId !== 'all') {
-        query = query.eq('vessel_id', vesselId);
+        filters.push({ field: 'vessel_id', op: 'eq', value: vesselId });
       }
 
-      const { data } = await query;
+      const data = await fetchFiltered('purchase_requests', companyId, filters, {
+        order_by: 'created_at',
+        ascending: false,
+        select_cols: 'id, pr_number, total_estimated_cost, currency, department, requested_by_name, status, urgency, created_at',
+      });
       setPending(data || []);
       setLoading(false);
     };
@@ -529,16 +527,19 @@ const CaptainDashboard: React.FC<{
 
   const loadCrew = async () => {
     try {
-      let query = supabase.from('crew_members')
-        .select('id, full_name, position, department, status, photo_url')
-        .eq('company_id', companyId)
-        .in('status', ['active', 'on_leave'])
-        .order('department').order('position');
+      const filters: any[] = [
+        { field: 'status', op: 'in', value: ['active', 'on_leave'] },
+      ];
       if (selectedVesselId && selectedVesselId !== 'all') {
-        query = query.eq('vessel_id', selectedVesselId);
+        filters.push({ field: 'vessel_id', op: 'eq', value: selectedVesselId });
       }
-      const { data } = await query;
-      setCrewOnBoard(data || []);
+      const data = await fetchFiltered(
+        'crew_members', companyId, filters,
+        { select_cols: 'id, full_name, position, department, status, photo_url', order_by: 'department', ascending: true }
+      );
+      // Secondary sort by position (fetchFiltered supports single order_by)
+      data.sort((a: any, b: any) => (a.position || '').localeCompare(b.position || ''));
+      setCrewOnBoard(data);
     } catch { /* silent */ }
   };
 
@@ -583,14 +584,14 @@ const CaptainDashboard: React.FC<{
 
     try {
       if (vesselId && vesselId !== 'all') {
-        const [fuelRes, compRes, prRes] = await Promise.all([
-          supabase.from('fuel_resources').select('name, current_level, capacity, unit').eq('vessel_id', vesselId),
-          supabase.from('compliance_items').select('title, expiry_date, status').eq('vessel_id', vesselId),
-          supabase.from('purchase_requests').select('status, total_estimated_cost').eq('vessel_id', vesselId),
+        const [fuelResData, compResData, prResData] = await Promise.all([
+          fetchByVessel('fuel_resources', vesselId, { select_cols: 'name, current_level, capacity, unit' }),
+          fetchByVessel('compliance_items', vesselId, { select_cols: 'title, expiry_date, status' }),
+          fetchByVessel('purchase_requests', vesselId, { select_cols: 'status, total_estimated_cost' }),
         ]);
-        fuelResources = fuelRes.data || [];
-        complianceItems = compRes.data || [];
-        const prs = prRes.data || [];
+        fuelResources = fuelResData || [];
+        complianceItems = compResData || [];
+        const prs = prResData || [];
         prStats.pending = prs.filter((p: any) => p.status === 'pending_captain' || p.status === 'pending_fleet_manager').length;
         prStats.approved = prs.filter((p: any) => p.status === 'approved').length;
         prStats.totalValue = prs.filter((p: any) => p.status === 'approved').reduce((s: number, p: any) => s + (p.total_estimated_cost || 0), 0);
@@ -1003,6 +1004,7 @@ const MasterAdminDashboard: React.FC<{ onNavigate: (page: string, params?: any) 
   const [isLoading, setIsLoading] = useState(true);
   useEffect(() => { fetchData(); }, []);
   const fetchData = async () => {
+    // Online-only: master admin query (no company_id scope)
     try { setIsLoading(true); const { data } = await supabase.from('companies').select('*').order('created_at', { ascending: false }); setCompanies(data || []); }
     catch { showToast('Failed to load customer data', 'error'); } finally { setIsLoading(false); }
   };

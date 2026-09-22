@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoMaintenanceHistory, demoMaintenanceTasks, demoVessels } from '../data/demoData';
-import { supabase } from '../lib/supabase';
+import { dbUpdate, dbInsert, fetchByVessel, fetchFiltered, fetchByCompany } from '../lib/supabase';
 import { formatDate, isLowStock, recalculateTaskStatuses } from '../utils/helpers';
 import { InventoryItem, MaintenanceHistory, MaintenanceTask, OperationalExpense, Vessel } from '../types';
 import { useToast } from '../components/UI/Toast';
@@ -88,19 +88,18 @@ const FleetPendingApprovalsCard: React.FC<{
     if (!companyId) return;
     setLoading(true);
     try {
-      let query = supabase
-        .from('operational_expenses')
-        .select('id, category, description, amount, currency, expense_date, requested_by_name, vessel_id')
-        .eq('company_id', companyId)
-        .eq('status', 'pending_approval')
-        .order('created_at', { ascending: false });
-
-      // Si hay un barco específico seleccionado, filtrar por él
+      const filters: { field: string; op: string; value: any }[] = [
+        { field: 'status', op: 'eq', value: 'pending_approval' },
+      ];
       if (vesselFilter !== 'all') {
-        query = query.eq('vessel_id', vesselFilter);
+        filters.push({ field: 'vessel_id', op: 'eq', value: vesselFilter });
       }
-
-      const { data } = await query;
+      const data = await fetchFiltered(
+        'operational_expenses',
+        companyId,
+        filters,
+        { order_by: 'created_at', ascending: false, select_cols: 'id, category, description, amount, currency, expense_date, requested_by_name, vessel_id' }
+      );
       setPending(data || []);
     } catch (err) {
       console.error('Error loading pending expenses:', err);
@@ -114,15 +113,15 @@ const FleetPendingApprovalsCard: React.FC<{
   const handleApprove = async (expense: PendingExpense) => {
     setProcessing(expense.id);
     try {
-      await supabase.from('operational_expenses').update({
+      await dbUpdate('operational_expenses', expense.id, {
         status:           'approved',
         approved_by:      currentUser.id,
         approved_by_name: currentUser.full_name,
         approved_at:      new Date().toISOString(),
         approval_notes:   approvalNotes[expense.id] || null,
-      }).eq('id', expense.id);
+      });
 
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: companyId,
         type:    'expense_approved',
         title:   'Expense approved',
@@ -148,15 +147,15 @@ const FleetPendingApprovalsCard: React.FC<{
     }
     setProcessing(expense.id);
     try {
-      await supabase.from('operational_expenses').update({
+      await dbUpdate('operational_expenses', expense.id, {
         status:           'rejected',
         approved_by:      currentUser.id,
         approved_by_name: currentUser.full_name,
         approved_at:      new Date().toISOString(),
         approval_notes:   approvalNotes[expense.id],
-      }).eq('id', expense.id);
+      });
 
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: companyId,
         type:    'expense_rejected',
         title:   'Expense rejected',
@@ -290,18 +289,18 @@ const FleetPendingPRsCard: React.FC<{
     if (!companyId) return;
     setLoading(true);
     try {
-      let query = supabase
-        .from('purchase_requests')
-        .select('id, pr_number, total_estimated_cost, currency, department, requested_by_name, vessel_id, status, urgency, created_at')
-        .eq('company_id', companyId)
-        .in('status', ['pending_captain', 'pending_fleet_manager'])
-        .order('created_at', { ascending: false });
-
+      const filters: { field: string; op: string; value: any }[] = [
+        { field: 'status', op: 'in', value: ['pending_captain', 'pending_fleet_manager'] },
+      ];
       if (vesselFilter !== 'all') {
-        query = query.eq('vessel_id', vesselFilter);
+        filters.push({ field: 'vessel_id', op: 'eq', value: vesselFilter });
       }
-
-      const { data } = await query;
+      const data = await fetchFiltered(
+        'purchase_requests',
+        companyId,
+        filters,
+        { order_by: 'created_at', ascending: false, select_cols: 'id, pr_number, total_estimated_cost, currency, department, requested_by_name, vessel_id, status, urgency, created_at' }
+      );
       setPending(data || []);
     } catch {
       // silent
@@ -403,45 +402,50 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         setLoading(false); return;
       }
 
-      let vesselsQ = supabase.from('vessels').select('*').order('name', { ascending: true });
-      let tasksQ   = supabase.from('maintenance_tasks').select('*');
-      let invQ     = supabase.from('inventory_items').select('*');
-      let histQ    = supabase.from('maintenance_history').select('*').order('completion_date', { ascending: false });
-      let expQ     = supabase.from('operational_expenses').select('*').gte('expense_date', getCurrentMonthStart());
-      let compQ    = supabase.from('compliance_items').select('*');
-      let budgetQ  = supabase.from('vessel_budgets').select('vessel_id, department, budget_amount')
-        .eq('year', getCurrentYear()).eq('month', getCurrentMonth()).eq('department', 'Total');
-      let crewQ    = supabase.from('crew_members').select('vessel_id, monthly_salary').eq('status', 'active');
+      const budgetFilters = [
+        { field: 'year', op: 'eq' as const, value: getCurrentYear() },
+        { field: 'month', op: 'eq' as const, value: getCurrentMonth() },
+        { field: 'department', op: 'eq' as const, value: 'Total' },
+      ];
+      const expenseFilters = [
+        { field: 'expense_date', op: 'gte' as const, value: getCurrentMonthStart() },
+      ];
+      const crewFilters = [
+        { field: 'status', op: 'eq' as const, value: 'active' },
+      ];
+
+      let vesselsP, tasksP, invP, histP, expP, compP, budgetP, crewP;
 
       if (shouldFilterByVesselIds) {
-        vesselsQ = vesselsQ.in('id', allowedVesselIds);
-        tasksQ   = tasksQ.in('vessel_id', allowedVesselIds);
-        invQ     = invQ.in('vessel_id', allowedVesselIds);
-        histQ    = histQ.in('vessel_id', allowedVesselIds);
-        expQ     = expQ.in('vessel_id', allowedVesselIds);
-        compQ    = compQ.in('vessel_id', allowedVesselIds);
-        budgetQ  = budgetQ.in('vessel_id', allowedVesselIds);
-        crewQ    = crewQ.in('vessel_id', allowedVesselIds);
-      } else if (companyId) {
-        vesselsQ = vesselsQ.eq('company_id', companyId);
-        tasksQ   = tasksQ.eq('company_id', companyId);
-        invQ     = invQ.eq('company_id', companyId);
-        histQ    = histQ.eq('company_id', companyId);
-        expQ     = expQ.eq('company_id', companyId);
-        compQ    = compQ.eq('company_id', companyId);
-        budgetQ  = budgetQ.eq('company_id', companyId);
-        crewQ    = crewQ.eq('company_id', companyId);
+        const vf = (field: string) => [{ field, op: 'in' as const, value: allowedVesselIds }];
+        vesselsP = fetchFiltered('vessels', companyId, [{ field: 'id', op: 'in', value: allowedVesselIds }], { order_by: 'name', ascending: true });
+        tasksP   = fetchFiltered('maintenance_tasks', companyId, vf('vessel_id'));
+        invP     = fetchFiltered('inventory_items', companyId, vf('vessel_id'));
+        histP    = fetchFiltered('maintenance_history', companyId, vf('vessel_id'), { order_by: 'completion_date', ascending: false });
+        expP     = fetchFiltered('operational_expenses', companyId, [...vf('vessel_id'), ...expenseFilters]);
+        compP    = fetchFiltered('compliance_items', companyId, vf('vessel_id'));
+        budgetP  = fetchFiltered('vessel_budgets', companyId, [...vf('vessel_id'), ...budgetFilters], { select_cols: 'vessel_id, department, budget_amount' });
+        crewP    = fetchFiltered('crew_members', companyId, [...vf('vessel_id'), ...crewFilters], { select_cols: 'vessel_id, monthly_salary' });
+      } else {
+        vesselsP = fetchByCompany('vessels', companyId, 'name', true);
+        tasksP   = fetchByCompany('maintenance_tasks', companyId);
+        invP     = fetchByCompany('inventory_items', companyId);
+        histP    = fetchByCompany('maintenance_history', companyId, 'completion_date', false);
+        expP     = fetchFiltered('operational_expenses', companyId, expenseFilters);
+        compP    = fetchByCompany('compliance_items', companyId);
+        budgetP  = fetchFiltered('vessel_budgets', companyId, budgetFilters, { select_cols: 'vessel_id, department, budget_amount' });
+        crewP    = fetchFiltered('crew_members', companyId, crewFilters, { select_cols: 'vessel_id, monthly_salary' });
       }
 
-      const [vR, tR, iR, hR, eR, cR, bR, crR] = await Promise.all([vesselsQ, tasksQ, invQ, histQ, expQ, compQ, budgetQ, crewQ]);
-      const compliance = (cR.data || []) as ComplianceItem[];
+      const [vessels, tasks, inv, hist, exp, comp, budgets, crew] = await Promise.all([vesselsP, tasksP, invP, histP, expP, compP, budgetP, crewP]);
+      const compliance = (comp || []) as ComplianceItem[];
       setAllCompliance(compliance);
-      const crewSalaries = (crR.data || []) as { vessel_id: string; monthly_salary: number }[];
+      const crewSalaries = (crew || []) as { vessel_id: string; monthly_salary: number }[];
       setVesselStats(computeVesselStats(
-        (vR.data || []) as Vessel[], recalculateTaskStatuses((tR.data || []) as MaintenanceTask[]),
-        (iR.data || []) as InventoryItem[], (hR.data || []) as MaintenanceHistory[],
-        (eR.data || []) as OperationalExpense[], compliance,
-        (bR.data || []) as BudgetItem[], crewSalaries
+        (vessels || []) as Vessel[], recalculateTaskStatuses((tasks || []) as MaintenanceTask[]),
+        (inv || []) as InventoryItem[], (hist || []) as MaintenanceHistory[],
+        (exp || []) as OperationalExpense[], compliance,
+        (budgets || []) as BudgetItem[], crewSalaries
       ));
     } catch (err) { console.error('Fleet overview error:', err); }
     finally { setLoading(false); }
@@ -507,18 +511,18 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
     try {
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const [fuelRes, compRes, prRes, expRes, histRes] = await Promise.all([
-        supabase.from('fuel_resources').select('name, current_level, capacity, unit').eq('vessel_id', vesselId),
-        supabase.from('compliance_items').select('title, expiry_date, status').eq('vessel_id', vesselId),
-        supabase.from('purchase_requests').select('status, total_estimated_cost').eq('vessel_id', vesselId),
-        supabase.from('operational_expenses').select('amount, department, expense_date, category').eq('vessel_id', vesselId).gte('expense_date', threeMonthsAgo.toISOString().slice(0, 10)),
-        supabase.from('maintenance_history').select('task_name, completion_date, completed_by_name').eq('vessel_id', vesselId).order('completion_date', { ascending: false }).limit(10),
+      const [fuelData, compData, prData, expData, histData] = await Promise.all([
+        fetchByVessel('fuel_resources', vesselId, { select_cols: 'name, current_level, capacity, unit' }),
+        fetchByVessel('compliance_items', vesselId, { select_cols: 'title, expiry_date, status' }),
+        fetchByVessel('purchase_requests', vesselId, { select_cols: 'status, total_estimated_cost' }),
+        fetchByVessel('operational_expenses', vesselId, { date_field: 'expense_date', date_from: threeMonthsAgo.toISOString().slice(0, 10), select_cols: 'amount, department, expense_date, category' }),
+        fetchByVessel('maintenance_history', vesselId, { order_by: 'completion_date', ascending: false, limit: 10, select_cols: 'task_name, completion_date, completed_by_name' }),
       ]);
-      fuelResources = fuelRes.data || [];
-      complianceItems = compRes.data || [];
-      history = histRes.data || [];
-      expenses = expRes.data || [];
-      const prs = prRes.data || [];
+      fuelResources = fuelData || [];
+      complianceItems = compData || [];
+      history = histData || [];
+      expenses = expData || [];
+      const prs = prData || [];
       prStats.pending = prs.filter((p: any) => p.status === 'pending_captain' || p.status === 'pending_fleet_manager').length;
       prStats.approved = prs.filter((p: any) => p.status === 'approved').length;
       prStats.totalValue = prs.filter((p: any) => p.status === 'approved').reduce((s: number, p: any) => s + (p.total_estimated_cost || 0), 0);
@@ -541,14 +545,12 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
 
     let maintenanceTasks: any[] = [];
     try {
-      const { data } = await supabase.from('maintenance_tasks').select('*').eq('vessel_id', vesselId);
-      maintenanceTasks = data || [];
+      maintenanceTasks = await fetchByVessel('maintenance_tasks', vesselId) || [];
     } catch { /* silent */ }
 
     let inventoryItems: any[] = [];
     try {
-      const { data } = await supabase.from('inventory_items').select('*').eq('vessel_id', vesselId);
-      inventoryItems = data || [];
+      inventoryItems = await fetchByVessel('inventory_items', vesselId) || [];
     } catch { /* silent */ }
 
     const reportData: OwnerReportData = {

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase } from '../lib/supabase';
+import { fetchByCompany, fetchByVessel, fetchFiltered, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { demoUsers, demoFuelResources, demoFuelLog, demoVessels } from '../data/demoData';
 import { FuelResource, FuelLogEntry, ResourceType } from '../types';
 
@@ -147,33 +147,39 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
 
     const effectiveCompanyId = companyId || (currentUser.role === 'customer_admin' ? currentUser.company_id : null);
 
-    let resQuery = supabase.from('fuel_resources').select('*').order('name');
-    let logQuery = supabase.from('fuel_log').select('*').order('log_date', { ascending: false });
-    let vesselQuery = supabase.from('vessels').select('id, name');
+    let resArr: any[] = [];
+    let logArr: any[] = [];
+    let vesselArr: any[] = [];
 
     if (currentUser.role === 'master_admin' && effectiveCompanyId) {
-      resQuery = resQuery.eq('company_id', effectiveCompanyId);
-      logQuery = logQuery.eq('company_id', effectiveCompanyId);
-      vesselQuery = vesselQuery.eq('company_id', effectiveCompanyId);
+      [resArr, logArr, vesselArr] = await Promise.all([
+        fetchByCompany('fuel_resources', effectiveCompanyId, 'name', true),
+        fetchByCompany('fuel_log', effectiveCompanyId, 'log_date', false),
+        fetchByCompany('vessels', effectiveCompanyId, 'name', true),
+      ]);
     } else if (currentUser.role === 'standard_user' && selectedVesselId && selectedVesselId !== 'all') {
-      resQuery = resQuery.eq('vessel_id', selectedVesselId);
-      logQuery = logQuery.eq('vessel_id', selectedVesselId);
-      vesselQuery = vesselQuery.in('id', currentUser.vessel_ids);
+      [resArr, logArr, vesselArr] = await Promise.all([
+        fetchByVessel('fuel_resources', selectedVesselId, { order_by: 'name', ascending: true }),
+        fetchByVessel('fuel_log', selectedVesselId, { order_by: 'log_date', ascending: false }),
+        fetchFiltered('vessels', currentUser.company_id, [{ field: 'id', op: 'in', value: currentUser.vessel_ids }], { select_cols: 'id, name' }),
+      ]);
     } else if (currentUser.role === 'standard_user' && currentUser.vessel_ids.length > 0) {
-      resQuery = resQuery.in('vessel_id', currentUser.vessel_ids);
-      logQuery = logQuery.in('vessel_id', currentUser.vessel_ids);
-      vesselQuery = vesselQuery.in('id', currentUser.vessel_ids);
+      [resArr, logArr, vesselArr] = await Promise.all([
+        fetchFiltered('fuel_resources', currentUser.company_id, [{ field: 'vessel_id', op: 'in', value: currentUser.vessel_ids }], { order_by: 'name', ascending: true }),
+        fetchFiltered('fuel_log', currentUser.company_id, [{ field: 'vessel_id', op: 'in', value: currentUser.vessel_ids }], { order_by: 'log_date', ascending: false }),
+        fetchFiltered('vessels', currentUser.company_id, [{ field: 'id', op: 'in', value: currentUser.vessel_ids }], { select_cols: 'id, name' }),
+      ]);
     } else if (effectiveCompanyId) {
-      resQuery = resQuery.eq('company_id', effectiveCompanyId);
-      logQuery = logQuery.eq('company_id', effectiveCompanyId);
-      vesselQuery = vesselQuery.eq('company_id', effectiveCompanyId);
+      [resArr, logArr, vesselArr] = await Promise.all([
+        fetchByCompany('fuel_resources', effectiveCompanyId, 'name', true),
+        fetchByCompany('fuel_log', effectiveCompanyId, 'log_date', false),
+        fetchByCompany('vessels', effectiveCompanyId, 'name', true),
+      ]);
     }
 
-    const [resData, logData, vesselData] = await Promise.all([resQuery, logQuery, vesselQuery]);
-
-    setResources(resData.data || []);
-    setLog(logData.data || []);
-    setVessels(vesselData.data || []);
+    setResources(resArr);
+    setLog(logArr);
+    setVessels(vesselArr);
     setLoading(false);
   };
 
@@ -217,7 +223,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       return;
     }
 
-    await supabase.from('fuel_log').insert({
+    await dbInsert('fuel_log', {
       resource_id: logResource.id,
       vessel_id: logResource.vessel_id,
       company_id: logResource.company_id,
@@ -225,10 +231,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       logged_by_name: currentUser.full_name,
       ...entry,
     });
-    await supabase
-      .from('fuel_resources')
-      .update({ current_level: newLevel, updated_at: new Date().toISOString() })
-      .eq('id', logResource.id);
+    await dbUpdate('fuel_resources', logResource.id, { current_level: newLevel, updated_at: new Date().toISOString() });
 
     showToast('Fuel entry logged', 'success');
     setLogResource(null);
@@ -255,19 +258,17 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
     }
 
     const effectiveCompanyId = companyId || currentUser.company_id;
-    const { error } = await supabase.from('fuel_resources').insert({
-      ...data,
-      company_id: effectiveCompanyId,
-    });
-
-    if (error) {
-      showToast('Failed to add resource: ' + error.message, 'error');
-      return;
+    try {
+      await dbInsert('fuel_resources', {
+        ...data,
+        company_id: effectiveCompanyId,
+      });
+      setShowAddResource(false);
+      showToast('Resource added', 'success');
+      loadData();
+    } catch (err: any) {
+      showToast('Failed to add resource: ' + (err.message || 'Unknown error'), 'error');
     }
-
-    setShowAddResource(false);
-    showToast('Resource added', 'success');
-    loadData();
   };
 
   const handleUpdateResource = async (updated: Partial<FuelResource>) => {
@@ -286,10 +287,7 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       return;
     }
 
-    await supabase
-      .from('fuel_resources')
-      .update({ ...updated, updated_at: new Date().toISOString() })
-      .eq('id', editResource.id);
+    await dbUpdate('fuel_resources', editResource.id, { ...updated, updated_at: new Date().toISOString() });
     showToast('Resource updated', 'success');
     setEditResource(null);
     loadData();
@@ -314,16 +312,16 @@ export const Fuel: React.FC<FuelProps> = ({ onNavigate, params }) => {
       return;
     }
 
-    const { error } = await supabase.from('fuel_resources').delete().eq('id', resource.id);
+    try {
+      await dbDelete('fuel_resources', resource.id);
+      showToast('Resource deleted', 'success');
+      loadData();
+    } catch {
+      showToast('Failed to delete resource', 'error');
+    }
     setIsDeletingResource(false);
     setConfirmDeleteResource(null);
     setEditResource(null);
-    if (error) {
-      showToast('Failed to delete resource', 'error');
-    } else {
-      showToast('Resource deleted', 'success');
-      loadData();
-    }
   };
 
   const filteredResources = resources.filter(r => {

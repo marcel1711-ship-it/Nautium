@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
+import { supabase, fetchByCompany, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { WaterToy, WaterToyType, WaterToyStatus, canCreate } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
@@ -394,7 +394,7 @@ const WaterToyModal: React.FC<{
       }
       let effectiveCompanyId = companyId;
       if (!effectiveCompanyId && form.vessel_id) {
-        const { data: v } = await supabase.from('vessels').select('company_id').eq('id', form.vessel_id).single();
+        const v = await fetchSingle('vessels', form.vessel_id);
         if (v) effectiveCompanyId = v.company_id;
       }
       const payload = {

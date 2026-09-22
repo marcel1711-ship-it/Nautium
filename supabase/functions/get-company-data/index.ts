@@ -28,6 +28,12 @@ const ALLOWED_TABLES = [
   'purchase_requests',
   'push_subscriptions',
   'vessel_telemetry',
+  'admin_notifications',
+  'vessel_budgets',
+  'contractors',
+  'purchase_request_items',
+  'roadmap_state',
+  'closed_deals',
 ];
 
 Deno.serve(async (req: Request) => {
@@ -130,6 +136,46 @@ Deno.serve(async (req: Request) => {
         }
       }
       if (order_by) query = query.order(order_by, { ascending: ascending ?? false });
+      if (lim) query = query.limit(lim);
+      const { data: rows, error } = await query;
+      if (error) throw error;
+      return new Response(JSON.stringify({ data: rows }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // SELECT single record by id
+    if (action === 'select_single') {
+      if (!id) throw new Error('id required for select_single');
+      const { data: row, error } = await supabase.from(table).select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (row && !isMasterAdmin && row.company_id && row.company_id !== userCompanyId) {
+        return new Response(JSON.stringify({ error: 'Access denied' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ data: row }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // SELECT with advanced filters (eq, in, gte, lte, not_null, is_null)
+    if (action === 'select_filtered') {
+      if (!company_id) throw new Error('company_id required for select_filtered');
+      const { advanced_filters, order_by, ascending, select_cols, limit: lim } = body;
+      let query = supabase.from(table).select(select_cols || '*').eq('company_id', company_id);
+      if (advanced_filters) {
+        for (const f of advanced_filters) {
+          if (f.op === 'eq') query = query.eq(f.field, f.value);
+          else if (f.op === 'neq') query = query.neq(f.field, f.value);
+          else if (f.op === 'in') query = query.in(f.field, f.value);
+          else if (f.op === 'gte') query = query.gte(f.field, f.value);
+          else if (f.op === 'lte') query = query.lte(f.field, f.value);
+          else if (f.op === 'not_null') query = query.not(f.field, 'is', null);
+          else if (f.op === 'is_null') query = query.is(f.field, null);
+        }
+      }
+      if (order_by) query = query.order(order_by, { ascending: ascending ?? true });
       if (lim) query = query.limit(lim);
       const { data: rows, error } = await query;
       if (error) throw error;

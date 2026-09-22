@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { supabase, fetchByCompany, dbDelete } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { demoMaintenanceManuals, demoEquipment, demoVessels } from '../data/demoData';
 import { formatFileSize, formatDateTime } from '../utils/helpers';
@@ -106,8 +106,10 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
 
   const handleDelete = async (manualId: string) => {
     if (!currentUser || isDemoUser(currentUser.email)) return;
-    const { error } = await supabase.from('maintenance_manuals').delete().eq('id', manualId);
-    if (!error) { showToast('Manual deleted', 'success'); setDeleteConfirm(null); loadData(); }
+    try {
+      await dbDelete('maintenance_manuals', manualId);
+      showToast('Manual deleted', 'success'); setDeleteConfirm(null); loadData();
+    } catch { showToast('Error deleting manual', 'error'); }
   };
 
   const getFilteredManuals = () => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, BarChart3, Receipt, TrendingUp, Calendar, Ship, FileDown, Anchor, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { fetchByCompany, fetchFiltered } from '../lib/supabase';
 import { Costs } from './Costs';
 import { Budget } from './Budget';
 import { downloadHTML } from '../utils/helpers';
@@ -84,11 +84,12 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       else setActiveVessels([overviewVessel]);
 
       const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().split('T')[0];
-      const { data: expenses } = await supabase
-        .from('operational_expenses')
-        .select('vessel_id, amount, expense_date')
-        .eq('company_id', companyId)
-        .gte('expense_date', twelveMonthsAgo);
+      const expenses = await fetchFiltered(
+        'operational_expenses',
+        companyId,
+        [{ field: 'expense_date', op: 'gte', value: twelveMonthsAgo }],
+        { select_cols: 'vessel_id, amount, expense_date' }
+      );
 
       const months: MonthlyVesselSpend[] = [];
       for (let i = 11; i >= 0; i--) {
@@ -98,7 +99,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
         vList.forEach((v: VesselOption) => { row[v.id] = 0; });
         months.push(row);
       }
-      (expenses || []).forEach((e: any) => {
+      expenses.forEach((e: any) => {
         const key = e.expense_date?.substring(0, 7);
         const row = months.find(m => m.month === key);
         if (row) row[e.vessel_id] = (Number(row[e.vessel_id]) || 0) + Number(e.amount || 0);
@@ -111,44 +112,54 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const loadPeriodTotals = async () => {
     if (!companyId) return;
     const { start, end } = getPeriodRange(filter);
-    const vesselClause = (q: any) => overviewVessel !== 'all' ? q.eq('vessel_id', overviewVessel) : q;
+    const vesselFilter = overviewVessel !== 'all' ? [{ field: 'vessel_id', op: 'eq' as const, value: overviewVessel }] : [];
 
     // 1) Operational expenses
-    let expQuery = supabase.from('operational_expenses').select('amount')
-      .eq('company_id', companyId).gte('expense_date', start).lte('expense_date', end);
-    expQuery = vesselClause(expQuery);
-    const { data: expenses } = await expQuery;
-    const operationalTotal = (expenses || []).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const expenses = await fetchFiltered(
+      'operational_expenses',
+      companyId,
+      [...vesselFilter, { field: 'expense_date', op: 'gte', value: start }, { field: 'expense_date', op: 'lte', value: end }],
+      { select_cols: 'amount' }
+    );
+    const operationalTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
     // 2) Fuel
-    let fuelQuery = supabase.from('fuel_log').select('total_cost, vessel_id, entry_type, log_date')
-      .eq('company_id', companyId).eq('entry_type', 'refill')
-      .gte('log_date', start).lte('log_date', end)
-      .not('total_cost', 'is', null);
-    fuelQuery = vesselClause(fuelQuery);
-    const { data: fuelEntries } = await fuelQuery;
-    const fuelTotal = (fuelEntries || []).reduce((s: number, r: any) => s + Number(r.total_cost || 0), 0);
+    const fuelEntries = await fetchFiltered(
+      'fuel_log',
+      companyId,
+      [
+        ...vesselFilter,
+        { field: 'entry_type', op: 'eq', value: 'refill' },
+        { field: 'log_date', op: 'gte', value: start },
+        { field: 'log_date', op: 'lte', value: end },
+        { field: 'total_cost', op: 'not_null' },
+      ],
+      { select_cols: 'total_cost, vessel_id, entry_type, log_date' }
+    );
+    const fuelTotal = fuelEntries.reduce((s: number, r: any) => s + Number(r.total_cost || 0), 0);
 
     // 3) Maintenance history — parts consumed + external service cost
-    let histQuery = supabase.from('maintenance_history').select('vessel_id, external_service_cost, parts_used, completion_date')
-      .eq('company_id', companyId)
-      .gte('completion_date', start).lte('completion_date', end);
-    histQuery = vesselClause(histQuery);
-    const { data: histEntries } = await histQuery;
+    const histEntries = await fetchFiltered(
+      'maintenance_history',
+      companyId,
+      [...vesselFilter, { field: 'completion_date', op: 'gte', value: start }, { field: 'completion_date', op: 'lte', value: end }],
+      { select_cols: 'vessel_id, external_service_cost, parts_used, completion_date' }
+    );
 
     let serviceTotal = 0;
     let partsTotal = 0;
     const allPartIds: string[] = [];
-    (histEntries || []).forEach((h: any) => {
+    histEntries.forEach((h: any) => {
       if (h.external_service_cost && h.external_service_cost > 0) serviceTotal += Number(h.external_service_cost);
       if (h.parts_used && h.parts_used.length > 0) h.parts_used.forEach((p: any) => allPartIds.push(p.inventory_id));
     });
 
     if (allPartIds.length > 0) {
-      const { data: invData } = await supabase.from('inventory_items').select('id, unit_cost').in('id', allPartIds);
+      const allInv = await fetchByCompany('inventory_items', companyId);
+      const invData = allInv.filter((i: any) => allPartIds.includes(i.id));
       const invMap: Record<string, number> = {};
-      (invData || []).forEach((inv: any) => { if (inv.unit_cost != null) invMap[inv.id] = inv.unit_cost; });
-      (histEntries || []).forEach((h: any) => {
+      invData.forEach((inv: any) => { if (inv.unit_cost != null) invMap[inv.id] = inv.unit_cost; });
+      histEntries.forEach((h: any) => {
         if (!h.parts_used) return;
         h.parts_used.forEach((p: any) => {
           const unitCost = invMap[p.inventory_id];
@@ -158,11 +169,13 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     }
 
     // 4) Crew salaries (fixed monthly cost)
-    let crewQuery = supabase.from('crew_members').select('monthly_salary')
-      .eq('company_id', companyId!).eq('status', 'active');
-    crewQuery = vesselClause(crewQuery);
-    const { data: crewData } = await crewQuery;
-    const crewSalaryTotal = (crewData || []).reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
+    const crewData = await fetchFiltered(
+      'crew_members',
+      companyId,
+      [...vesselFilter, { field: 'status', op: 'eq', value: 'active' }],
+      { select_cols: 'monthly_salary' }
+    );
+    const crewSalaryTotal = crewData.reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
     const monthsInPeriod = filter.isFullYear ? 12 : 1;
     const crewCostForPeriod = crewSalaryTotal * monthsInPeriod;
 
@@ -171,13 +184,14 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     setPeriodSpend(totalSpend);
 
     // Budget
-    let budgetQuery = supabase.from('vessel_budgets').select('budget_amount')
-      .eq('company_id', companyId).eq('department', 'Total');
-    if (filter.isFullYear) budgetQuery = budgetQuery.eq('year', filter.year);
-    else budgetQuery = budgetQuery.eq('year', filter.year).eq('month', filter.month);
-    budgetQuery = vesselClause(budgetQuery);
-    const { data: budgets } = await budgetQuery;
-    setPeriodBudget((budgets || []).reduce((s: number, b: any) => s + Number(b.budget_amount || 0), 0));
+    const budgetFilters = [
+      ...vesselFilter,
+      { field: 'department', op: 'eq' as const, value: 'Total' },
+      { field: 'year', op: 'eq' as const, value: filter.year },
+      ...(filter.isFullYear ? [] : [{ field: 'month', op: 'eq' as const, value: filter.month }]),
+    ];
+    const budgets = await fetchFiltered('vessel_budgets', companyId, budgetFilters, { select_cols: 'budget_amount' });
+    setPeriodBudget(budgets.reduce((s: number, b: any) => s + Number(b.budget_amount || 0), 0));
   };
 
   const toggleVessel = (id: string) => {
@@ -390,17 +404,25 @@ const VoyagePL: React.FC<{
     setLoading(true);
     try {
       const { start, end } = getPeriodRange(filter);
-      let q = supabase.from('voyages').select('*').eq('company_id', companyId).gte('departure_date', start).lte('departure_date', end).order('departure_date', { ascending: false });
-      if (vesselId !== 'all') q = q.eq('vessel_id', vesselId);
-      const { data: voyages } = await q;
+      const voyageFilters = [
+        { field: 'departure_date', op: 'gte' as const, value: start },
+        { field: 'departure_date', op: 'lte' as const, value: end },
+        ...(vesselId !== 'all' ? [{ field: 'vessel_id', op: 'eq' as const, value: vesselId }] : []),
+      ];
+      const voyages = await fetchFiltered('voyages', companyId, voyageFilters, { order_by: 'departure_date', ascending: false });
       if (!voyages || voyages.length === 0) { setRows([]); setLoading(false); return; }
 
       const voyageIds = voyages.map((v: any) => v.id);
       const vesselMap = Object.fromEntries(vessels.map(v => [v.id, v.name]));
 
-      const { data: expenses } = await supabase.from('operational_expenses').select('id, voyage_id, amount, category, description, expense_date, department').eq('company_id', companyId).in('voyage_id', voyageIds).order('expense_date', { ascending: true });
+      const expenses = await fetchFiltered(
+        'operational_expenses',
+        companyId,
+        [{ field: 'voyage_id', op: 'in', value: voyageIds }],
+        { select_cols: 'id, voyage_id, amount, category, description, expense_date, department', order_by: 'expense_date', ascending: true }
+      );
       const expenseByVoyage: Record<string, VoyageExpenseDetail[]> = {};
-      (expenses || []).forEach((e: any) => {
+      expenses.forEach((e: any) => {
         if (!e.voyage_id) return;
         if (!expenseByVoyage[e.voyage_id]) expenseByVoyage[e.voyage_id] = [];
         expenseByVoyage[e.voyage_id].push({ id: e.id, category: e.category, description: e.description, amount: Number(e.amount || 0), expense_date: e.expense_date, department: e.department });

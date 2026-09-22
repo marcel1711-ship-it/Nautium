@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   buildCacheKey, getCachedData, setCachedData,
   addToSyncQueue,
+  updateCachedRecord, insertCachedRecord, deleteCachedRecord,
 } from './offlineStore';
 
 export const SUPABASE_URL = 'https://fsxjbgopxxbtidlkkafc.supabase.co';
@@ -93,12 +94,105 @@ export async function fetchByCompany(
   }
 }
 
+export async function fetchByVessel(
+  table: string,
+  vessel_id: string,
+  options?: {
+    date_field?: string; date_from?: string; date_to?: string;
+    extra_filters?: Record<string, any>;
+    order_by?: string; ascending?: boolean;
+    limit?: number; select_cols?: string;
+  }
+): Promise<any[]> {
+  const cacheKey = buildCacheKey(table, vessel_id, { scope: 'vessel', ...(options || {}) });
+
+  if (!navigator.onLine) {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
+
+  try {
+    const json = await edgeFetch({
+      action: 'select_by_vessel', table, vessel_id,
+      ...(options || {}),
+    });
+    const data = json.data || [];
+    setCachedData(cacheKey, data);
+    return data;
+  } catch {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
+}
+
+export async function fetchSingle(
+  table: string,
+  id: string
+): Promise<any | null> {
+  const cacheKey = buildCacheKey(table, id, { scope: 'single' });
+
+  if (!navigator.onLine) {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? null;
+  }
+
+  try {
+    const json = await edgeFetch({ action: 'select_single', table, id });
+    const data = json.data ?? null;
+    setCachedData(cacheKey, data);
+    return data;
+  } catch {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? null;
+  }
+}
+
+interface AdvancedFilter {
+  field: string;
+  op: 'eq' | 'neq' | 'in' | 'gte' | 'lte' | 'not_null' | 'is_null';
+  value?: any;
+}
+
+export async function fetchFiltered(
+  table: string,
+  company_id: string,
+  advanced_filters?: AdvancedFilter[],
+  options?: { order_by?: string; ascending?: boolean; limit?: number; select_cols?: string }
+): Promise<any[]> {
+  const cacheKey = buildCacheKey(table, company_id, {
+    scope: 'filtered',
+    filters: JSON.stringify(advanced_filters || []),
+    ...(options || {}),
+  });
+
+  if (!navigator.onLine) {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
+
+  try {
+    const json = await edgeFetch({
+      action: 'select_filtered', table, company_id,
+      advanced_filters,
+      ...(options || {}),
+    });
+    const data = json.data || [];
+    setCachedData(cacheKey, data);
+    return data;
+  } catch {
+    const cached = await getCachedData(cacheKey);
+    return cached?.data ?? [];
+  }
+}
+
 // ── Writes with offline queue ────────────────────────────────────────────────
 
 export async function dbInsert(table: string, data: Record<string, any>): Promise<any> {
   if (!navigator.onLine) {
+    const offlineRecord = { ...data, id: `offline-${Date.now()}`, _offline: true };
     await addToSyncQueue({ action: 'insert', table, payload: { data } });
-    return { ...data, id: `offline-${Date.now()}`, _offline: true };
+    await insertCachedRecord(table, offlineRecord);
+    return offlineRecord;
   }
 
   try {
@@ -107,8 +201,10 @@ export async function dbInsert(table: string, data: Record<string, any>): Promis
     return json.data;
   } catch (err) {
     if (!navigator.onLine) {
+      const offlineRecord = { ...data, id: `offline-${Date.now()}`, _offline: true };
       await addToSyncQueue({ action: 'insert', table, payload: { data } });
-      return { ...data, id: `offline-${Date.now()}`, _offline: true };
+      await insertCachedRecord(table, offlineRecord);
+      return offlineRecord;
     }
     throw err;
   }
@@ -117,6 +213,7 @@ export async function dbInsert(table: string, data: Record<string, any>): Promis
 export async function dbUpdate(table: string, id: string, data: Record<string, any>): Promise<any> {
   if (!navigator.onLine) {
     await addToSyncQueue({ action: 'update', table, payload: { id, data } });
+    await updateCachedRecord(table, id, data);
     return { ...data, id, _offline: true };
   }
 
@@ -127,6 +224,7 @@ export async function dbUpdate(table: string, id: string, data: Record<string, a
   } catch (err) {
     if (!navigator.onLine) {
       await addToSyncQueue({ action: 'update', table, payload: { id, data } });
+      await updateCachedRecord(table, id, data);
       return { ...data, id, _offline: true };
     }
     throw err;
@@ -136,6 +234,7 @@ export async function dbUpdate(table: string, id: string, data: Record<string, a
 export async function dbDelete(table: string, id: string): Promise<void> {
   if (!navigator.onLine) {
     await addToSyncQueue({ action: 'delete', table, payload: { id } });
+    await deleteCachedRecord(table, id);
     return;
   }
 
@@ -145,6 +244,7 @@ export async function dbDelete(table: string, id: string): Promise<void> {
   } catch (err) {
     if (!navigator.onLine) {
       await addToSyncQueue({ action: 'delete', table, payload: { id } });
+      await deleteCachedRecord(table, id);
       return;
     }
     throw err;

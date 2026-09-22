@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase } from '../lib/supabase';
+import { supabase, dbInsert, dbUpdate } from '../lib/supabase';
 import { demoInventoryItems } from '../data/demoData';
 import { isLowStock } from '../utils/helpers';
 import { InventoryItem } from '../types';
@@ -76,18 +76,17 @@ export const LocationView: React.FC<LocationViewProps> = ({ onNavigate, location
         ? selectedItem.current_stock + adjustQty
         : Math.max(0, selectedItem.current_stock - adjustQty);
 
-    const { error: moveErr } = await supabase.from('stock_movements').insert({
-      inventory_id: selectedItem.id,
-      vessel_id: selectedItem.vessel_id,
-      movement_type: adjustType,
-      quantity: adjustQty,
-      reason: adjustReason,
-      performed_by_id: currentUser.id,
-      performed_by_name: currentUser.full_name,
-    });
-
-    if (!moveErr) {
-      await supabase.from('inventory_items').update({ current_stock: newStock }).eq('id', selectedItem.id);
+    try {
+      await dbInsert('stock_movements', {
+        inventory_id: selectedItem.id,
+        vessel_id: selectedItem.vessel_id,
+        movement_type: adjustType,
+        quantity: adjustQty,
+        reason: adjustReason,
+        performed_by_id: currentUser.id,
+        performed_by_name: currentUser.full_name,
+      });
+      await dbUpdate('inventory_items', selectedItem.id, { current_stock: newStock });
       showToast('Stock adjusted', 'success');
       setSuccessItem(selectedItem.id);
       setTimeout(() => setSuccessItem(null), 2500);
@@ -95,6 +94,8 @@ export const LocationView: React.FC<LocationViewProps> = ({ onNavigate, location
       setAdjustReason('');
       setAdjustQty(1);
       loadItems();
+    } catch {
+      showToast('Error adjusting stock', 'error');
     }
 
     setAdjusting(false);

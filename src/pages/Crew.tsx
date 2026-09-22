@@ -4,7 +4,7 @@ import {
   Ship, Filter, UserCheck, UserMinus, Clock, AlertTriangle, ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { fetchByCompany, fetchFiltered } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { CrewMember, UserRole, FULL_ACCESS_ROLES } from '../types';
 import { AddCrewModal } from '../components/Crew/AddCrewModal';
@@ -69,18 +69,12 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
       ]);
       setVessels(vesselsData.map((v: any) => ({ id: v.id, name: v.name })));
 
-      let query = supabase.from('crew_members').select('*').eq('company_id', companyId).order('full_name');
-      if (activeVessel !== 'all') {
-        query = query.eq('vessel_id', activeVessel);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      setCrew(data || []);
+      const crewData = activeVessel !== 'all'
+        ? await fetchFiltered('crew_members', companyId, [{ field: 'vessel_id', op: 'eq', value: activeVessel }], { order_by: 'full_name' })
+        : await fetchByCompany('crew_members', companyId, 'full_name', true);
+      setCrew(crewData || []);
 
-      const { data: compData } = await supabase.from('compliance_items')
-        .select('crew_member_id, expiry_date')
-        .eq('company_id', companyId)
-        .not('crew_member_id', 'is', null);
+      const compData = await fetchFiltered('compliance_items', companyId, [{ field: 'crew_member_id', op: 'not_null' }], { select_cols: 'crew_member_id, expiry_date' });
       if (compData) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const counts: Record<string, { total: number; issues: number }> = {};

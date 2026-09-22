@@ -6,8 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase } from '../lib/supabase';
-import { dbInsert, dbUpdate, dbDelete, fetchByCompany } from '../lib/supabase';
+import { fetchSingle, dbInsert, dbUpdate, dbDelete, fetchByCompany, fetchByVessel } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { PurchaseRequest, PurchaseRequestItem, PRStatus, POStatus } from '../types';
 
@@ -91,7 +90,7 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
       fetchByCompany('purchase_requests', cid, 'created_at', false),
       fetchByCompany('vessels', cid, 'name', true),
       selectedVesselId && selectedVesselId !== 'all'
-        ? supabase.from('inventory_items').select('id, name, part_number, unit_cost, unit_of_measure, supplier').eq('vessel_id', selectedVesselId).then(r => r.data || [])
+        ? fetchByVessel('inventory_items', selectedVesselId, { select_cols: 'id, name, part_number, unit_cost, unit_of_measure, supplier' })
         : fetchByCompany('inventory_items', cid, 'name', true),
     ]);
 
@@ -122,11 +121,7 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
     let updates: any = {};
 
     if (pr.status === 'pending_captain') {
-      const { data: vesselData } = await supabase
-        .from('vessels')
-        .select('approval_chain, has_management')
-        .eq('id', pr.vessel_id)
-        .single();
+      const vesselData = await fetchSingle('vessels', pr.vessel_id);
 
       const chain = vesselData?.approval_chain || 'captain_only';
       const needsFM = chain === 'captain_then_fleet_manager' && vesselData?.has_management;
@@ -168,7 +163,7 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
     try {
       await dbUpdate('purchase_requests', pr.id, updates);
 
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: currentUser.company_id,
         type: updates.status === 'approved' ? 'pr_approved' : 'pr_pending',
         title: updates.status === 'approved' ? 'Purchase Request Approved' : 'PR awaiting Fleet Manager',
@@ -198,7 +193,7 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
         updated_at: new Date().toISOString(),
       });
 
-      await supabase.from('admin_notifications').insert({
+      await dbInsert('admin_notifications', {
         company_id: currentUser.company_id,
         type: 'pr_rejected',
         title: 'Purchase Request Rejected',
@@ -237,16 +232,10 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
       if (items) {
         for (const item of items) {
           if (item.inventory_item_id) {
-            const { data: invItem } = await supabase
-              .from('inventory_items')
-              .select('current_stock')
-              .eq('id', item.inventory_item_id)
-              .single();
+            const invItem = await fetchSingle('inventory_items', item.inventory_item_id);
 
             if (invItem) {
-              await supabase.from('inventory_items')
-                .update({ current_stock: invItem.current_stock + item.quantity })
-                .eq('id', item.inventory_item_id);
+              await dbUpdate('inventory_items', item.inventory_item_id, { current_stock: invItem.current_stock + item.quantity });
 
               await dbInsert('stock_movements', {
                 inventory_id: item.inventory_item_id,
@@ -660,11 +649,7 @@ const CreatePRModal: React.FC<CreatePRModalProps> = ({
         const role = currentUser.role;
         if (role === 'captain' || role === 'customer_admin' || role === 'fleet_manager') {
           // These roles can self-submit; goes to next level or auto-approve
-          const { data: vesselData } = await supabase
-            .from('vessels')
-            .select('approval_chain, has_management')
-            .eq('id', form.vessel_id)
-            .single();
+          const vesselData = await fetchSingle('vessels', form.vessel_id);
 
           const chain = vesselData?.approval_chain || 'captain_only';
 
@@ -732,7 +717,7 @@ const CreatePRModal: React.FC<CreatePRModalProps> = ({
 
       // Notification if pending
       if (status.startsWith('pending_')) {
-        await supabase.from('admin_notifications').insert({
+        await dbInsert('admin_notifications', {
           company_id: companyId,
           type: 'pr_pending',
           title: 'New Purchase Request',

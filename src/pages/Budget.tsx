@@ -5,7 +5,7 @@ import {
   ChefHat, Shield, Package, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { fetchByCompany, fetchFiltered, dbUpdate, dbInsert } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
 
@@ -77,26 +77,24 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
     if (!currentUser || !companyId) return;
     setLoading(true);
     try {
-      const [vesselsData, budgetsRes, expensesRes, crewRes] = await Promise.all([
+      const [vesselsData, budgetsData, expensesData, crewData] = await Promise.all([
         fetchByCompany('vessels', companyId, 'name', true),
-        supabase.from('vessel_budgets').select('*')
-          .eq('company_id', companyId)
-          .eq('year', selectedYear)
-          .eq('month', selectedMonth),
-        supabase.from('operational_expenses').select('*')
-          .eq('company_id', companyId)
-          .gte('expense_date', `${selectedYear}-${String(selectedMonth).padStart(2,'0')}-01`)
-          .lt('expense_date', selectedMonth === 12
-            ? `${selectedYear + 1}-01-01`
-            : `${selectedYear}-${String(selectedMonth + 1).padStart(2,'0')}-01`),
-        supabase.from('crew_members').select('vessel_id, monthly_salary')
-          .eq('company_id', companyId)
-          .eq('status', 'active'),
+        fetchFiltered('vessel_budgets', companyId, [
+          { field: 'year', op: 'eq', value: selectedYear },
+          { field: 'month', op: 'eq', value: selectedMonth },
+        ]),
+        fetchFiltered('operational_expenses', companyId, [
+          { field: 'expense_date', op: 'gte', value: `${selectedYear}-${String(selectedMonth).padStart(2,'0')}-01` },
+          { field: 'expense_date', op: 'lte', value: new Date(selectedYear, selectedMonth, 0).toISOString().slice(0, 10) },
+        ]),
+        fetchFiltered('crew_members', companyId, [
+          { field: 'status', op: 'eq', value: 'active' },
+        ], { select_cols: 'vessel_id, monthly_salary' }),
       ]);
       setVessels(vesselsData.map((v: any) => ({ id: v.id, name: v.name, photo_url: v.photo_url || null })));
-      setBudgets(budgetsRes.data || []);
-      setExpenses(expensesRes.data || []);
-      setCrewMembers(crewRes.data || []);
+      setBudgets(budgetsData);
+      setExpenses(expensesData);
+      setCrewMembers(crewData);
     } catch { showToast('Error loading budget data', 'error'); }
     finally { setLoading(false); }
   };
@@ -120,9 +118,9 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
     const existing = budgets.find(b => b.vessel_id === vesselId && b.department === dept);
     try {
       if (existing) {
-        await supabase.from('vessel_budgets').update({ budget_amount: amount }).eq('id', existing.id);
+        await dbUpdate('vessel_budgets', existing.id, { budget_amount: amount });
       } else {
-        await supabase.from('vessel_budgets').insert({
+        await dbInsert('vessel_budgets', {
           company_id: companyId, vessel_id: vesselId,
           year: selectedYear, month: selectedMonth,
           department: dept, budget_amount: amount,

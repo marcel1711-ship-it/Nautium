@@ -5,7 +5,7 @@ import {
   ArrowLeft, Upload, ExternalLink, Pencil, Download,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, fetchByCompany, dbInsert, dbUpdate } from '../lib/supabase';
+import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
 import { validateDocumentFile } from '../lib/security';
@@ -514,7 +514,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
 
   const handleDelete = async (id: string) => {
     try {
-      await supabase.from('compliance_items').delete().eq('id', id);
+      await dbDelete('compliance_items', id);
       showToast('Certificate deleted', 'success');
       setSelectedItem(null);
       loadData();

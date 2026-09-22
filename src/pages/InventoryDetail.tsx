@@ -7,7 +7,7 @@ import {
 import { generateQRDataURL, generateLocationURL } from '../utils/qrcode';
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoEquipment, demoVessels, demoStockMovements } from '../data/demoData';
-import { supabase } from '../lib/supabase';
+import { fetchSingle, fetchByVessel, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { isLowStock, formatDate, formatDateTime } from '../utils/helpers';
 import { InventoryItem, StockMovement } from '../types';
 import { EditInventoryModal } from '../components/Inventory/EditInventoryModal';
@@ -70,17 +70,17 @@ export const InventoryDetail: React.FC<InventoryDetailProps> = ({ onNavigate, pa
       setLoading(false);
       return;
     }
-    const { data: itemData } = await supabase.from('inventory_items').select('*').eq('id', params.itemId).maybeSingle();
+    const itemData = await fetchSingle('inventory_items', params.itemId);
     setItem(itemData);
     if (itemData) {
       if (itemData.equipment_id) {
-        const { data: eqData } = await supabase.from('equipment').select('id, name, type').eq('id', itemData.equipment_id).maybeSingle();
+        const eqData = await fetchSingle('equipment', itemData.equipment_id);
         setEquipment(eqData);
       }
-      const { data: vesselData } = await supabase.from('vessels').select('id, name, type').eq('id', itemData.vessel_id).maybeSingle();
+      const vesselData = await fetchSingle('vessels', itemData.vessel_id);
       setVessel(vesselData);
-      const { data: movementsData } = await supabase.from('stock_movements').select('*').eq('inventory_id', itemData.id).order('created_at', { ascending: false });
-      setStockMovements(movementsData || []);
+      const movementsData = await fetchByVessel('stock_movements', itemData.vessel_id, { extra_filters: { inventory_id: itemData.id }, order_by: 'created_at', ascending: false });
+      setStockMovements(movementsData);
     }
     setLoading(false);
   };
@@ -103,17 +103,17 @@ export const InventoryDetail: React.FC<InventoryDetailProps> = ({ onNavigate, pa
       setShowAdjustModal(false); setAdjustReason(''); setAdjustQty(1); setAdjusting(false);
       return;
     }
-    const { error: moveErr } = await supabase.from('stock_movements').insert({
-      inventory_id: item.id, vessel_id: item.vessel_id, movement_type: adjustType,
-      quantity: adjustType === 'adjustment' ? newStock - item.current_stock : adjustQty,
-      reason: adjustReason, performed_by_id: currentUser.id, performed_by_name: currentUser.full_name,
-    });
-    if (!moveErr) {
-      await supabase.from('inventory_items').update({ current_stock: newStock }).eq('id', item.id);
+    try {
+      await dbInsert('stock_movements', {
+        inventory_id: item.id, vessel_id: item.vessel_id, movement_type: adjustType,
+        quantity: adjustType === 'adjustment' ? newStock - item.current_stock : adjustQty,
+        reason: adjustReason, performed_by_id: currentUser.id, performed_by_name: currentUser.full_name,
+      });
+      await dbUpdate('inventory_items', item.id, { current_stock: newStock });
       showToast('Stock adjusted', 'success');
       setShowAdjustModal(false); setAdjustReason(''); setAdjustQty(1);
       loadData();
-    } else {
+    } catch {
       showToast('Error adjusting stock', 'error');
     }
     setAdjusting(false);
@@ -122,7 +122,7 @@ export const InventoryDetail: React.FC<InventoryDetailProps> = ({ onNavigate, pa
   const handleDelete = async () => {
     if (!item) return;
     if (!isDemoUser(currentUser?.email || '')) {
-      await supabase.from('inventory_items').delete().eq('id', item.id);
+      await dbDelete('inventory_items', item.id);
     }
     showToast('Item deleted', 'info');
     onNavigate('inventory');

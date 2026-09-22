@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Ship, Search, Plus, MapPin, Building2, AlertCircle, Mail, Pencil, X, Check, Lock, ArrowLeft, Users, UserCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchSingle, dbUpdate } from '../lib/supabase';
 import { demoVessels } from '../data/demoData';
 import { AddVesselModal } from '../components/Vessels/AddVesselModal';
 import { EditVesselModal } from '../components/Vessels/EditVesselModal';
@@ -58,8 +58,7 @@ const NotificationEmailModal: React.FC<NotificationEmailModalProps> = ({ vessel,
   const handleSave = async () => {
     setSaving(true); setError(null);
     try {
-      const { error: updateError } = await supabase.from('vessels').update({ notification_email: email.trim() || null }).eq('id', vessel.id);
-      if (updateError) throw updateError;
+      await dbUpdate('vessels', vessel.id, { notification_email: email.trim() || null });
       onSaved(vessel.id, email.trim() || null);
       onClose();
     } catch (err: any) { setError(err.message || 'Failed to save'); }
@@ -130,6 +129,7 @@ export const Vessels: React.FC<VesselsProps> = ({ onNavigate, companyId: filterC
         setVessels(companyVessels as any);
         return;
       }
+      // Online-only: JOIN query (company:companies(name)) — cannot migrate joins to offline wrappers
       let query = supabase.from('vessels').select('*, company:companies(name)').order('name', { ascending: true });
       if (filterCompanyId) query = query.eq('company_id', filterCompanyId);
       else if (currentUser?.role === 'customer_admin' && currentUser.company_id) query = query.eq('company_id', currentUser.company_id);
@@ -138,7 +138,7 @@ export const Vessels: React.FC<VesselsProps> = ({ onNavigate, companyId: filterC
       setVessels(data || []);
       const companyIdForLimit = filterCompanyId || (currentUser?.role === 'customer_admin' ? currentUser.company_id : null);
       if (companyIdForLimit) {
-        const { data: company } = await supabase.from('companies').select('vessel_limit').eq('id', companyIdForLimit).maybeSingle();
+        const company = await fetchSingle('companies', companyIdForLimit);
         if (company) setVesselLimit(company.vessel_limit);
       }
     } catch (err: any) { setError(err.message || 'Failed to load vessels'); }

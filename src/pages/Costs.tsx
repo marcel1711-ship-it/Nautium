@@ -6,7 +6,7 @@ import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany, dbInsert, dbDelete } from '../lib/supabase';
+import { fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
@@ -213,9 +213,10 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       }
       if (!hist.parts_used || hist.parts_used.length === 0) continue;
       const partIds = hist.parts_used.map((p: any) => p.inventory_id);
-      const { data: invData } = await supabase.from('inventory_items').select('id, name, unit_cost').in('id', partIds);
+      const allInv = await fetchByCompany('inventory_items', effectiveCompanyId);
+      const invData = allInv.filter((i: any) => partIds.includes(i.id));
       const invMap: Record<string, { name: string; unit_cost: number | null }> = {};
-      for (const inv of (invData || [])) invMap[inv.id] = inv;
+      for (const inv of invData) invMap[inv.id] = inv;
       for (const part of hist.parts_used) {
         const inv = invMap[part.inventory_id];
         if (!inv || inv.unit_cost === null) continue;
@@ -841,8 +842,8 @@ const AddExpenseModal: React.FC<{
 
   useEffect(() => {
     if (!form.vessel_id || !companyId) { setVoyageOptions([]); return; }
-    supabase.from('voyages').select('id, name').eq('company_id', companyId).eq('vessel_id', form.vessel_id).order('departure_date', { ascending: false })
-      .then(({ data }) => setVoyageOptions((data || []).map((v: any) => ({ id: v.id, name: v.name }))));
+    fetchFiltered('voyages', companyId, [{ field: 'vessel_id', op: 'eq', value: form.vessel_id }], { select_cols: 'id, name', order_by: 'departure_date', ascending: false })
+      .then((data) => setVoyageOptions((data || []).map((v: any) => ({ id: v.id, name: v.name }))));
   }, [form.vessel_id, companyId]);
 
   // Categorías filtradas según el departamento seleccionado
@@ -885,11 +886,7 @@ const AddExpenseModal: React.FC<{
 
     try {
       // ── Verificar threshold — si supera, bloquear y pedir PR ─────────
-      const { data: vesselData } = await supabase
-        .from('vessels')
-        .select('requires_approval, approval_chain')
-        .eq('id', form.vessel_id)
-        .single();
+      const vesselData = await fetchSingle('vessels', form.vessel_id);
 
       const amount = parseFloat(form.amount);
 

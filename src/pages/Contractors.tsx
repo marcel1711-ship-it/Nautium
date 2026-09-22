@@ -6,7 +6,7 @@ import {
   X, Check, ChevronDown, Building2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { canCreate, UserRole } from '../types';
@@ -107,10 +107,10 @@ const ContractorModal: React.FC<{
         updated_at:   new Date().toISOString(),
       };
       if (contractor) {
-        await supabase.from('contractors').update(payload).eq('id', contractor.id);
+        await dbUpdate('contractors', contractor.id, payload);
         showToast('Contractor updated', 'success');
       } else {
-        await supabase.from('contractors').insert(payload);
+        await dbInsert('contractors', payload);
         showToast('Contractor added', 'success');
       }
       onSaved();
@@ -281,13 +281,7 @@ export const Contractors: React.FC<ContractorsProps> = ({ onNavigate }) => {
     if (!currentUser?.company_id) return;
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('contractors')
-        .select('*')
-        .eq('company_id', currentUser.company_id)
-        .order('is_preferred', { ascending: false })
-        .order('rating', { ascending: false })
-        .order('name', { ascending: true });
+      const data = await fetchByCompany('contractors', currentUser.company_id, 'is_preferred', false);
       setContractors(data || []);
     } catch { showToast('Error loading contractors', 'error'); }
     finally { setLoading(false); }
@@ -295,7 +289,7 @@ export const Contractors: React.FC<ContractorsProps> = ({ onNavigate }) => {
 
   const handleDelete = async (id: string) => {
     try {
-      await supabase.from('contractors').delete().eq('id', id);
+      await dbDelete('contractors', id);
       setContractors(prev => prev.filter(c => c.id !== id));
       showToast('Contractor removed', 'success');
     } catch { showToast('Error removing contractor', 'error'); }

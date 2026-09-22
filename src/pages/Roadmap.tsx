@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Rocket, Target, TrendingUp, Zap, Crown, Check, ChevronDown, Save, StickyNote, Plus, X, Anchor, User, DollarSign, Ruler, Trash2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchSingle, dbUpdate, dbInsert, dbDelete } from '../lib/supabase';
 
 interface RoadmapProps {
   onNavigate: (page: string, params?: any) => void;
@@ -206,7 +206,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
   useEffect(() => { loadState(); loadDeals(); }, []);
 
   const loadState = async () => {
-    const { data } = await supabase.from('roadmap_state').select('*').eq('id', 'master').single();
+    const data = await fetchSingle('roadmap_state', 'master');
     if (data) {
       setCurrentBoats(data.current_boats || 0);
       setCurrentARR(data.current_arr || 0);
@@ -218,13 +218,14 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
   };
 
   const loadDeals = async () => {
+    // Online-only: master admin query (no company_id scope — closed_deals is a global table)
     const { data } = await supabase.from('closed_deals').select('*').order('closed_date', { ascending: false });
     if (data) setDeals(data);
   };
 
   const saveState = useCallback(async (updates: Record<string, any>) => {
     setSaving(true);
-    await supabase.from('roadmap_state').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', 'master');
+    await dbUpdate('roadmap_state', 'master', { ...updates, updated_at: new Date().toISOString() });
     setSaving(false);
     setToast('Guardado');
     setTimeout(() => setToast(''), 1500);
@@ -265,7 +266,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
       closed_date: dealForm.closed_date,
       notes: dealForm.notes || null,
     };
-    await supabase.from('closed_deals').insert(payload);
+    await dbInsert('closed_deals', payload);
     setDealForm({ ...EMPTY_DEAL, closed_date: new Date().toISOString().slice(0, 10) });
     setShowDealForm(false);
     setDealSaving(false);
@@ -275,7 +276,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
   };
 
   const deleteDeal = async (id: string) => {
-    await supabase.from('closed_deals').delete().eq('id', id);
+    await dbDelete('closed_deals', id);
     loadDeals();
     setToast('Deal eliminado');
     setTimeout(() => setToast(''), 1500);

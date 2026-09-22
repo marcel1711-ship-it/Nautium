@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany, dbInsert, dbUpdate } from '../lib/supabase';
+import { fetchByCompany, fetchByVessel, dbInsert, dbUpdate } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { Pagination } from '../components/UI/Pagination';
 import { canCreate, UserRole } from '../types';
@@ -76,8 +76,8 @@ const ExtractTasksFromManualModal: React.FC<{
     setIsLoadingManuals(true);
     setSelectedManualIds([]);
     try {
-      const { data } = await supabase.from('maintenance_manuals').select('id, title, file_url, file_name').eq('vessel_id', selectedVesselId).not('file_url', 'is', null);
-      setManuals(data || []);
+      const allManuals = await fetchByVessel('maintenance_manuals', selectedVesselId, { select_cols: 'id, title, file_url, file_name' });
+      setManuals(allManuals.filter((m: any) => m.file_url != null));
       const tasks = await fetchByCompany('maintenance_tasks', companyId, 'title', true);
       setExistingTasks(tasks.filter((t: any) => t.vessel_id === selectedVesselId));
     } finally { setIsLoadingManuals(false); }

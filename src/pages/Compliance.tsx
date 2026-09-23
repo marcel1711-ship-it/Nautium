@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck, Plus, Search, AlertTriangle, CheckCircle,
   Clock, X, Calendar, FileText, User, Ship, ChevronDown, Trash2,
-  ArrowLeft, Upload, ExternalLink, Pencil, Download,
+  ArrowLeft, Upload, ExternalLink, Pencil, Download, Shield, Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -29,6 +29,16 @@ interface ComplianceItem {
 }
 interface VesselOption { id: string; name: string; }
 interface CrewOption { id: string; full_name: string; position: string; vessel_id: string; photo_url: string | null; }
+interface DrillRecord {
+  id: string;
+  task_title: string;
+  completion_date: string;
+  completed_by_name: string;
+  crew_attendance: { id: string; name: string }[] | null;
+  corrective_actions: string | null;
+  vessel_id: string;
+  comments: string | null;
+}
 
 const VESSEL_CERTIFICATES = [
   'Safety Management Certificate', 'Certificate of Registry', 'Radio License',
@@ -472,7 +482,8 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [crewMembers, setCrewMembers] = useState<CrewOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety'>('all');
+  const [drillHistory, setDrillHistory] = useState<DrillRecord[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'expired' | 'critical' | 'expiring' | 'valid'>('all');
   const [filterVessel, setFilterVessel] = useState('all');
   const [search, setSearch] = useState('');
@@ -496,14 +507,16 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     setLoading(true);
     const cid = currentUser.company_id;
     if (!cid) { setLoading(false); return; }
-    const [compliance, vessels, crew] = await Promise.all([
+    const [compliance, vessels, crew, drills] = await Promise.all([
       fetchByCompany('compliance_items', cid, 'expiry_date', true),
       fetchByCompany('vessels', cid, 'name', true),
       fetchByCompany('crew_members', cid, 'full_name', true),
+      supabase.from('maintenance_history').select('id, task_title, completion_date, completed_by_name, crew_attendance, corrective_actions, vessel_id, comments').eq('company_id', cid).eq('department', 'Safety').order('completion_date', { ascending: false }).then(r => r.data || []),
     ]);
     setItems(compliance);
     setVessels(vessels.map((v: any) => ({ id: v.id, name: v.name })));
     setCrewMembers((crew as any[]).filter(c => c.status === 'active').map(c => ({ id: c.id, full_name: c.full_name, position: c.position, vessel_id: c.vessel_id, photo_url: c.photo_url })));
+    setDrillHistory(drills as DrillRecord[]);
     // Refresh selected item if open
     if (selectedItem) {
       const refreshed = compliance.find((i: ComplianceItem) => i.id === selectedItem.id);
@@ -620,18 +633,80 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
       {/* Filters + List */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <div className="flex flex-wrap gap-3 mb-6">
-          {(['all', 'vessel', 'crew'] as const).map(t => (
+          {(['all', 'vessel', 'crew', 'safety'] as const).map(t => (
             <button key={t} onClick={() => setFilterType(t)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${filterType === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}>
-              {t === 'vessel' ? <Ship className="w-4 h-4" /> : t === 'crew' ? <User className="w-4 h-4" /> : null}
-              {t === 'all' ? 'All' : t === 'vessel' ? 'Vessel' : 'Crew'}
+              {t === 'vessel' ? <Ship className="w-4 h-4" /> : t === 'crew' ? <User className="w-4 h-4" /> : t === 'safety' ? <Shield className="w-4 h-4" /> : null}
+              {t === 'all' ? 'All' : t === 'vessel' ? 'Vessel' : t === 'crew' ? 'Crew' : 'Safety Drills'}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterType === t ? 'bg-white/20' : 'bg-gray-100'}`}>
-                {t === 'all' ? items.length : items.filter(i => i.type === t).length}
+                {t === 'all' ? items.length : t === 'safety' ? drillHistory.length : items.filter(i => i.type === t).length}
               </span>
             </button>
           ))}
         </div>
 
+        {filterType === 'safety' ? (
+          <>
+            {loading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />)}</div>
+            ) : drillHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">No safety drills recorded yet</p>
+                <p className="text-gray-400 text-sm mt-1">Complete a Safety task in Maintenance to see drill records here</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 mb-4">Showing <span className="font-semibold text-gray-900">{drillHistory.filter(d => filterVessel === 'all' || d.vessel_id === filterVessel).length}</span> drill records</p>
+                <div className="space-y-3">
+                  {drillHistory
+                    .filter(d => filterVessel === 'all' || d.vessel_id === filterVessel)
+                    .map(drill => {
+                    const vessel = vessels.find(v => v.id === drill.vessel_id);
+                    const attendance = drill.crew_attendance || [];
+                    return (
+                      <div key={drill.id} className="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:shadow-md transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <Shield className="w-5 h-5 text-red-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-sm">{drill.task_title}</h3>
+                              <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                                {vessel && <span className="flex items-center gap-1"><Ship className="w-3 h-3" />{vessel.name}</span>}
+                                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(drill.completion_date).toLocaleDateString()}</span>
+                                <span className="flex items-center gap-1"><User className="w-3 h-3" />Completed by {drill.completed_by_name}</span>
+                              </div>
+                              {attendance.length > 0 && (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <span className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                                    <Users className="w-3 h-3" />{attendance.length} crew attended
+                                  </span>
+                                  {attendance.slice(0, 5).map((a, i) => (
+                                    <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{a.name}</span>
+                                  ))}
+                                  {attendance.length > 5 && <span className="text-xs text-gray-400">+{attendance.length - 5} more</span>}
+                                </div>
+                              )}
+                              {drill.corrective_actions && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <span className="text-xs font-semibold text-amber-700">Corrective Actions: </span>
+                                  <span className="text-xs text-amber-600">{drill.corrective_actions}</span>
+                                </div>
+                              )}
+                              {drill.comments && <p className="text-xs text-gray-500 mt-1">{drill.comments}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -729,6 +804,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
               );
             })}
           </div>
+        )}
         )}
       </div>
 

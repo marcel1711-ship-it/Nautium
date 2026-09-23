@@ -23,7 +23,7 @@ export interface NewTaskData {
 interface VesselOption { id: string; name: string; }
 interface UserOption { id: string; full_name: string; role: string; vessel_ids: string[]; }
 
-const MAINTENANCE_CATEGORIES = ['Engine','Electrical','Hull','Hydraulic','Fuel System','Cooling System','Navigation','Safety','Plumbing','Deck Equipment','HVAC','Rigging','Generator Maintenance','Water Systems','Sanitation','Other'];
+const MAINTENANCE_CATEGORIES = ['Engine','Electrical','Hull','Hydraulic','Fuel System','Cooling System','Navigation','Safety','Plumbing','Deck Equipment','HVAC','Rigging','Generator Maintenance','Water Systems','Sanitation','Non-Conformity','Other'];
 const DEPARTMENTS = [
   { value: 'Engineering', label: 'Engineering', icon: Settings, color: 'text-orange-600', bg: 'bg-orange-50 border-orange-300' },
   { value: 'Deck',        label: 'Deck',        icon: Anchor,   color: 'text-blue-600',   bg: 'bg-blue-50 border-blue-300' },

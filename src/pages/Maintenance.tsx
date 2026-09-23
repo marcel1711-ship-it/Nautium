@@ -356,6 +356,9 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       parts_used:           completionData.parts_used,
       issues_detected:      completionData.issues_detected,
       external_service_cost: completionData.external_service_cost ?? null,
+      crew_attendance:      completionData.crew_attendance ?? null,
+      corrective_actions:   completionData.corrective_actions ?? null,
+      department:           completionData.department ?? (selectedTaskObj as any).department ?? null,
     });
 
     // 2. Actualizar tarea — reschedule si es recurrente

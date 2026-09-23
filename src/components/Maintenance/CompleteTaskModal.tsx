@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin, Clock } from 'lucide-react';
+import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin, Clock, Users, Shield } from 'lucide-react';
 import { MaintenanceTask, InventoryItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, fetchByCompany } from '../../lib/supabase';
 import { demoInventoryItems } from '../../data/demoData';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { validateImageFile } from '../../lib/security';
@@ -22,6 +22,9 @@ export interface CompletionData {
   issues_detected: string;
   external_service_cost: number | null;
   equipment_hours_reading: number | null;
+  crew_attendance: { id: string; name: string }[] | null;
+  corrective_actions: string | null;
+  department: string | null;
 }
 interface PartRow {
   inventory_id: string;
@@ -60,9 +63,13 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [showDraftRestored, setShowDraftRestored] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [crewMembers, setCrewMembers] = useState<{ id: string; full_name: string; position: string }[]>([]);
+  const [selectedCrew, setSelectedCrew] = useState<Set<string>>(new Set());
+  const [correctiveActions, setCorrectiveActions] = useState('');
 
   const hasEquipment = !!(task.equipment_id || (task as any).equipment_id);
   const isRecurring = (task as any).is_recurring !== false;
+  const isSafetyTask = (task as any).department === 'Safety';
 
   useEffect(() => {
     const draftKey = getDraftKey(task.id);
@@ -98,7 +105,18 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
 
   const clearDraft = () => { try { localStorage.removeItem(getDraftKey(task.id)); } catch { /* ignore */ } };
 
-  useEffect(() => { loadInventory(); }, []);
+  useEffect(() => { loadInventory(); if (isSafetyTask) loadCrew(); }, []);
+
+  const loadCrew = async () => {
+    if (!currentUser?.company_id) return;
+    try {
+      const data = await fetchByCompany('crew_members', currentUser.company_id, 'full_name', true);
+      const active = (data || [])
+        .filter((c: any) => c.status === 'active' && (!task.vessel_id || c.vessel_id === task.vessel_id))
+        .map((c: any) => ({ id: c.id, full_name: c.full_name, position: c.position || '' }));
+      setCrewMembers(active);
+    } catch { /* ignore */ }
+  };
 
   const loadInventory = async () => {
     if (!currentUser) return;
@@ -141,6 +159,9 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
     e.preventDefault();
     if (!confirmed) return;
     const photoUrls = await uploadPhotos();
+    const attendanceList = isSafetyTask && selectedCrew.size > 0
+      ? crewMembers.filter(c => selectedCrew.has(c.id)).map(c => ({ id: c.id, name: c.full_name }))
+      : null;
     const completionData: CompletionData = {
       completed_by_name: currentUser?.full_name || '',
       completed_by_email: currentUser?.email || '',
@@ -150,6 +171,9 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
       issues_detected: issuesDetected,
       external_service_cost: externalServiceCost,
       equipment_hours_reading: equipmentHoursReading,
+      crew_attendance: attendanceList,
+      corrective_actions: correctiveActions.trim() || null,
+      department: (task as any).department || null,
     };
     clearDraft();
     onComplete(completionData);
@@ -269,6 +293,61 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder={t('maintenance.commentsPlaceholder')} />
           </div>
+
+          {/* Safety Drill Fields — only for Safety department */}
+          {isSafetyTask && (
+            <>
+              {/* Crew Attendance */}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <label className="flex items-center gap-2 text-sm font-bold text-red-900 mb-3">
+                  <Users className="w-4 h-4" />
+                  Crew Present at Drill
+                </label>
+                {crewMembers.length > 0 ? (
+                  <>
+                    <div className="flex gap-2 mb-3">
+                      <button type="button" onClick={() => setSelectedCrew(new Set(crewMembers.map(c => c.id)))}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium">Select All</button>
+                      <span className="text-xs text-gray-400">|</span>
+                      <button type="button" onClick={() => setSelectedCrew(new Set())}
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium">Clear</button>
+                      <span className="text-xs text-gray-400 ml-auto">{selectedCrew.size}/{crewMembers.length} selected</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {crewMembers.map(c => (
+                        <label key={c.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${selectedCrew.has(c.id) ? 'bg-white border border-red-300 shadow-sm' : 'bg-red-50/50 border border-transparent hover:bg-white'}`}>
+                          <input type="checkbox" checked={selectedCrew.has(c.id)}
+                            onChange={e => {
+                              const next = new Set(selectedCrew);
+                              e.target.checked ? next.add(c.id) : next.delete(c.id);
+                              setSelectedCrew(next);
+                            }}
+                            className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{c.full_name}</p>
+                            {c.position && <p className="text-xs text-gray-500">{c.position}</p>}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-red-700">No active crew found for this vessel. Add crew members in the Crew section.</p>
+                )}
+              </div>
+
+              {/* Corrective Actions */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                  <Shield className="w-4 h-4 text-orange-500" />
+                  Corrective Actions
+                </label>
+                <textarea value={correctiveActions} onChange={e => setCorrectiveActions(e.target.value)} rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Any corrective actions needed? E.g. 'Crew member X needs retraining on fire extinguisher location on bridge deck'" />
+              </div>
+            </>
+          )}
 
           {/* Issues */}
           <div>

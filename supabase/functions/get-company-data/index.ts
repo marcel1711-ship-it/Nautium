@@ -34,6 +34,7 @@ const ALLOWED_TABLES = [
   'purchase_request_items',
   'roadmap_state',
   'closed_deals',
+  'non_conformity_reports',
 ];
 
 Deno.serve(async (req: Request) => {

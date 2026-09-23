@@ -214,7 +214,80 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const periodLabel = filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
   const vesselLabel = overviewVessel === 'all' ? 'All Vessels' : vessels.find(v => v.id === overviewVessel)?.name || '';
 
-  const handleExportOverview = () => {
+  const handleExportOverview = async () => {
+    if (!companyId) return;
+    const { start, end } = getPeriodRange(filter);
+    const vesselFilter = overviewVessel !== 'all' ? [{ field: 'vessel_id', op: 'eq' as const, value: overviewVessel }] : [];
+    const getVesselName = (vid: string) => vessels.find(v => v.id === vid)?.name || 'Unknown';
+
+    const opExpenses = await fetchFiltered(
+      'operational_expenses', companyId,
+      [...vesselFilter, { field: 'expense_date', op: 'gte', value: start }, { field: 'expense_date', op: 'lte', value: end }],
+      { select_cols: 'description, category, amount, expense_date, vessel_id, department' }
+    );
+
+    const fuelEntries = await fetchFiltered(
+      'fuel_log', companyId,
+      [...vesselFilter, { field: 'entry_type', op: 'eq', value: 'refill' }, { field: 'log_date', op: 'gte', value: start }, { field: 'log_date', op: 'lte', value: end }, { field: 'total_cost', op: 'not_null' }],
+      { select_cols: 'total_cost, vessel_id, log_date' }
+    );
+
+    const histEntries = await fetchFiltered(
+      'maintenance_history', companyId,
+      [...vesselFilter, { field: 'completion_date', op: 'gte', value: start }, { field: 'completion_date', op: 'lte', value: end }],
+      { select_cols: 'vessel_id, external_service_cost, parts_used, completion_date, task_title' }
+    );
+
+    let partsDetail: { description: string; amount: number; date: string; vessel: string }[] = [];
+    const allPartIds: string[] = [];
+    histEntries.forEach((h: any) => {
+      if (h.parts_used && h.parts_used.length > 0) h.parts_used.forEach((p: any) => allPartIds.push(p.inventory_id));
+    });
+    if (allPartIds.length > 0) {
+      const allInv = await fetchByCompany('inventory_items', companyId);
+      const invMap: Record<string, { name: string; cost: number }> = {};
+      allInv.filter((i: any) => allPartIds.includes(i.id)).forEach((inv: any) => {
+        invMap[inv.id] = { name: inv.name || 'Part', cost: inv.unit_cost || 0 };
+      });
+      histEntries.forEach((h: any) => {
+        if (!h.parts_used) return;
+        h.parts_used.forEach((p: any) => {
+          const inv = invMap[p.inventory_id];
+          if (inv && inv.cost > 0) {
+            partsDetail.push({ description: `${inv.name} x${p.quantity || 1} (${h.task_title || 'Maintenance'})`, amount: inv.cost * (p.quantity || 1), date: h.completion_date, vessel: getVesselName(h.vessel_id) });
+          }
+        });
+      });
+    }
+
+    const crewData = await fetchFiltered(
+      'crew_members', companyId,
+      [...vesselFilter, { field: 'status', op: 'eq', value: 'active' }],
+      { select_cols: 'first_name, last_name, role, monthly_salary, vessel_id' }
+    );
+
+    const buildCategoryBlock = (title: string, total: number, items: { description: string; amount: number; date?: string; vessel?: string }[]) => {
+      if (total === 0 && items.length === 0) return '';
+      const itemRows = items.map(i =>
+        `<tr style="color:#4b5563"><td style="padding-left:28px">${i.description}${i.vessel ? ` <span style="color:#9ca3af;font-size:11px">(${i.vessel})</span>` : ''}${i.date ? ` <span style="color:#9ca3af;font-size:11px">· ${i.date}</span>` : ''}</td><td class="right">${fmtCurrency(i.amount)}</td></tr>`
+      ).join('');
+      return `<tr style="font-weight:600;background:#f9fafb"><td>${title}</td><td class="right">${fmtCurrency(total)}</td></tr>${itemRows}`;
+    };
+
+    const opItems = opExpenses.map((e: any) => ({ description: e.description || e.category || 'Expense', amount: Number(e.amount || 0), date: e.expense_date, vessel: getVesselName(e.vessel_id) }));
+    const fuelItems = fuelEntries.map((e: any) => ({ description: 'Fuel refill', amount: Number(e.total_cost || 0), date: e.log_date, vessel: getVesselName(e.vessel_id) }));
+    const serviceItems = histEntries.filter((h: any) => h.external_service_cost > 0).map((h: any) => ({ description: h.task_title || 'Service', amount: Number(h.external_service_cost), date: h.completion_date, vessel: getVesselName(h.vessel_id) }));
+    const monthsInPeriod = filter.isFullYear ? 12 : 1;
+    const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.first_name || ''} ${c.last_name || ''} — ${c.role || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod, vessel: getVesselName(c.vessel_id) }));
+
+    const breakdownRows = [
+      buildCategoryBlock('Operational', spendBreakdown.operational, opItems),
+      buildCategoryBlock('Fuel', spendBreakdown.fuel, fuelItems),
+      buildCategoryBlock('Parts Used', spendBreakdown.parts, partsDetail),
+      buildCategoryBlock('External Service', spendBreakdown.service, serviceItems),
+      buildCategoryBlock('Crew Salaries', spendBreakdown.crew, crewItems),
+    ].join('');
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Financial Report — ${vesselLabel} — ${periodLabel}</title>
     <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111}
     h1{font-size:22px;margin-bottom:4px}h2{font-size:16px;margin:24px 0 8px;color:#374151}
@@ -235,12 +308,8 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     <div class="kpi-row"><div class="kpi"><div class="label">Period Spend</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
     <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : 'No budget'}</div></div>
     <div class="kpi"><div class="label">Remaining</div><div class="value">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) : '—'}</div></div></div>
-    <h2>Spend Breakdown</h2><table><thead><tr><th>Category</th><th class="right">Amount</th></tr></thead><tbody>
-    <tr><td>Operational</td><td class="right">${fmtCurrency(spendBreakdown.operational)}</td></tr>
-    <tr><td>Fuel</td><td class="right">${fmtCurrency(spendBreakdown.fuel)}</td></tr>
-    <tr><td>Parts Used</td><td class="right">${fmtCurrency(spendBreakdown.parts)}</td></tr>
-    <tr><td>External Service</td><td class="right">${fmtCurrency(spendBreakdown.service)}</td></tr>
-    ${spendBreakdown.crew > 0 ? `<tr><td>Crew Salaries</td><td class="right">${fmtCurrency(spendBreakdown.crew)}</td></tr>` : ''}
+    <h2>Spend Breakdown</h2><table><thead><tr><th>Category / Item</th><th class="right">Amount</th></tr></thead><tbody>
+    ${breakdownRows}
     <tr style="font-weight:700;border-top:2px solid #374151"><td>Total</td><td class="right">${fmtCurrency(periodSpend)}</td></tr>
     </tbody></table><div class="footer">Nautium — www.nautium.app</div></body></html>`;
     downloadHTML(html, `financial-overview-${vesselLabel.replace(/\s+/g,'-').toLowerCase()}-${periodLabel.replace(/\s+/g,'-').toLowerCase()}`);

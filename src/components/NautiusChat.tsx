@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Anchor, Loader2, ChevronDown, BookOpen } from 'lucide-react';
+import { X, Send, Anchor, Loader2, ChevronDown, BookOpen, Cpu } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, fetchByVessel } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { demoMaintenanceManuals, demoVessels, demoUsers } from '../data/demoData';
@@ -9,17 +9,17 @@ import { demoMaintenanceManuals, demoVessels, demoUsers } from '../data/demoData
 const isDemoUser = (email: string) => demoUsers.some((u: any) => u.email === email);
 
 const CHAT_EDGE_URL = `${SUPABASE_URL}/functions/v1/nautius-chat`;
-const EDGE_HEADERS = {
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-};
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
-  content: string;
+  content: string | MessageContent[];
   loading?: boolean;
 }
+
+type MessageContent =
+  | { type: 'text'; text: string }
+  | { type: 'document'; source: { type: 'base64'; media_type: string; data: string }; title?: string };
 
 interface Manual {
   id: string;
@@ -27,6 +27,15 @@ interface Manual {
   file_url: string;
   vessel_id: string;
   equipment_id: string | null;
+}
+
+interface EquipmentInfo {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  model: string | null;
+  department: string | null;
+  equipment_type: string | null;
 }
 
 const C = {
@@ -65,14 +74,12 @@ export const NautiusChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [manuals, setManuals] = useState<Manual[]>([]);
+  const [equipment, setEquipment] = useState<EquipmentInfo[]>([]);
   const [vesselName, setVesselName] = useState('');
   const [minimized, setMinimized] = useState(false);
+  const [manualCache, setManualCache] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (currentUser && sessionReady) loadManuals();
-  }, [currentUser, selectedVesselId, sessionReady]);
 
   const buildGreeting = () => {
     const firstName = currentUser?.full_name
@@ -133,25 +140,80 @@ export const NautiusChat: React.FC = () => {
     setManuals(data || []);
   };
 
+  const loadEquipment = async () => {
+    if (!currentUser) return;
+    const vesselId = selectedVesselId || currentUser.vessel_ids?.[0];
+    if (!vesselId || !currentUser.company_id) return;
+
+    try {
+      const data = await fetchByVessel('equipment', currentUser.company_id, vesselId, {
+        select_cols: 'id, name, manufacturer, model, department, equipment_type',
+      });
+      setEquipment((data || []).map((e: any) => ({
+        id: e.id, name: e.name, manufacturer: e.manufacturer || null,
+        model: e.model || null, department: e.department || null,
+        equipment_type: e.equipment_type || null,
+      })));
+    } catch (err) {
+      console.error('[NautiusChat] equipment fetch error:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser && sessionReady) {
+      loadManuals();
+      loadEquipment();
+    }
+  }, [currentUser, selectedVesselId, sessionReady]);
+
   const fetchManualContent = async (manual: Manual): Promise<string | null> => {
     if (!manual.file_url || manual.file_url.startsWith('/')) return null;
+    if (manualCache[manual.id]) return manualCache[manual.id];
     try {
       const response = await fetch(manual.file_url);
       if (!response.ok) return null;
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('pdf')) return null;
       const blob = await response.blob();
+      if (blob.size > 15 * 1024 * 1024) return null;
       return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
+          if (base64) setManualCache(prev => ({ ...prev, [manual.id]: base64 }));
+          resolve(base64 || null);
         };
         reader.readAsDataURL(blob);
       });
     } catch {
       return null;
     }
+  };
+
+  const findRelevantManuals = (userMessage: string): Manual[] => {
+    const msg = userMessage.toLowerCase();
+    const matched: Manual[] = [];
+
+    for (const eq of equipment) {
+      const keywords = [eq.name, eq.manufacturer, eq.model, eq.equipment_type]
+        .filter(Boolean)
+        .map(k => k!.toLowerCase());
+      const isMatch = keywords.some(kw => kw.split(/\s+/).some(word => word.length > 2 && msg.includes(word)));
+      if (isMatch) {
+        const eqManuals = manuals.filter(m => m.equipment_id === eq.id);
+        matched.push(...eqManuals);
+      }
+    }
+
+    const generalKeywords = ['engine', 'motor', 'generator', 'genset', 'battery', 'hvac', 'air conditioning',
+      'watermaker', 'desalinator', 'pump', 'thruster', 'stabilizer', 'winch', 'anchor', 'hydraulic',
+      'temperatura', 'presion', 'aceite', 'oil', 'coolant', 'refrigerante', 'filtro', 'filter'];
+    const hasGeneralMatch = generalKeywords.some(kw => msg.includes(kw));
+
+    if (matched.length === 0 && hasGeneralMatch) {
+      return manuals.slice(0, 3);
+    }
+
+    const unique = Array.from(new Map(matched.map(m => [m.id, m])).values());
+    return unique.slice(0, 3);
   };
 
   const sendMessage = async () => {
@@ -162,8 +224,8 @@ export const NautiusChat: React.FC = () => {
     // ✅ FIX 1: Capturamos el historial ANTES de modificar el estado,
     // filtrando correctamente el saludo y mensajes vacíos/loading
     const conversationHistory = messages
-      .filter(m => !m.loading && m.id !== 'greeting' && m.content.trim() !== '')
-      .map(m => ({ role: m.role, content: m.content }));
+      .filter(m => !m.loading && m.id !== 'greeting' && getMessageText(m.content).trim() !== '')
+      .map(m => ({ role: m.role, content: getMessageText(m.content) }));
 
     const newMessages: Message[] = [
       ...messages,
@@ -174,8 +236,14 @@ export const NautiusChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const manualContext = manuals.length > 0
-        ? `Available manuals for this vessel: ${manuals.map(m => m.title).join(', ')}.`
+      const equipmentList = equipment.length > 0
+        ? `Equipment on board:\n${equipment.map(e => `- ${e.name}${e.manufacturer ? ` (${e.manufacturer}${e.model ? ' ' + e.model : ''})` : ''}${e.department ? ' [' + e.department + ']' : ''}`).join('\n')}`
+        : 'No equipment registered for this vessel.';
+      const manualList = manuals.length > 0
+        ? `Available manuals: ${manuals.map(m => {
+            const eq = equipment.find(e => e.id === m.equipment_id);
+            return `"${m.title}"${eq ? ` (for ${eq.name})` : ''}`;
+          }).join(', ')}.`
         : 'No manuals uploaded for this vessel yet.';
       const vesselContext = vesselName ? `Current vessel: ${vesselName}.` : '';
       const roleContext = currentUser?.role === 'owner'
@@ -184,11 +252,30 @@ export const NautiusChat: React.FC = () => {
       const langContext = language === 'es'
         ? 'IMPORTANT: Always respond in Spanish (Español). The user interface is in Spanish.'
         : 'IMPORTANT: Always respond in English. The user interface is in English.';
-      const systemWithContext = `${SYSTEM_PROMPT}\n\n${vesselContext} ${manualContext} ${roleContext} ${langContext}`;
+      const systemWithContext = `${SYSTEM_PROMPT}\n\n${vesselContext}\n${equipmentList}\n${manualList}\n${roleContext}\n${langContext}\n\nWhen you reference information from a manual, cite it specifically (e.g. "According to the [Manual Name]..."). If the user's question is ambiguous about which equipment (e.g. "main engine" but there are Port and Starboard), ask which one before giving detailed advice. If a relevant manual PDF is attached, use it as your primary source of truth.`;
+
+      const relevantManuals = findRelevantManuals(userMessage);
+      const manualDocuments: MessageContent[] = [];
+
+      for (const manual of relevantManuals) {
+        const base64 = await fetchManualContent(manual);
+        if (base64) {
+          manualDocuments.push({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+            title: manual.title,
+          });
+        }
+      }
+
+      const userContent: MessageContent[] = [
+        ...manualDocuments,
+        { type: 'text', text: userMessage },
+      ];
 
       const messagesPayload = [
         ...conversationHistory,
-        { role: 'user', content: userMessage },
+        { role: 'user', content: manualDocuments.length > 0 ? userContent : userMessage },
       ];
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -238,6 +325,12 @@ export const NautiusChat: React.FC = () => {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const getMessageText = (content: string | MessageContent[]): string => {
+    if (typeof content === 'string') return content;
+    const textBlock = content.find(c => c.type === 'text');
+    return textBlock && 'text' in textBlock ? textBlock.text : '';
   };
 
   const renderContent = (text: string) => {
@@ -330,6 +423,16 @@ export const NautiusChat: React.FC = () => {
                 {t('chat.subtitle')}
               </div>
             </div>
+            {equipment.length > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                background: C.tealDim, border: '1px solid rgba(92,196,176,.2)',
+                borderRadius: 100, padding: '3px 8px',
+              }}>
+                <Cpu size={10} color={C.teal} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: C.teal }}>{equipment.length}</span>
+              </div>
+            )}
             {manuals.length > 0 && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 4,
@@ -416,7 +519,7 @@ export const NautiusChat: React.FC = () => {
                           fontSize: 13, color: C.textMid, lineHeight: 1.6,
                           margin: 0, whiteSpace: 'pre-wrap',
                         }}>
-                          {renderContent(msg.content)}
+                          {renderContent(getMessageText(msg.content))}
                         </p>
                       )}
                     </div>

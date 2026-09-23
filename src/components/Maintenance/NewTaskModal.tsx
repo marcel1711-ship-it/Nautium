@@ -25,6 +25,20 @@ interface VesselOption { id: string; name: string; }
 interface UserOption { id: string; full_name: string; role: string; vessel_ids: string[]; }
 
 const MAINTENANCE_CATEGORIES = ['Engine','Electrical','Hull','Hydraulic','Fuel System','Cooling System','Navigation','Safety','Plumbing','Deck Equipment','HVAC','Rigging','Generator Maintenance','Water Systems','Sanitation','Non-Conformity','Other'];
+const SAFETY_DRILL_TYPES = [
+  { name: 'Man Overboard (MOB) Drill', interval: 30 },
+  { name: 'Fire Drill', interval: 30 },
+  { name: 'Abandon Ship Drill', interval: 30 },
+  { name: 'Emergency Steering Drill', interval: 90 },
+  { name: 'Damage Control / Flooding Drill', interval: 90 },
+  { name: 'Life Raft Deployment Drill', interval: 90 },
+  { name: 'Oil Spill Response Drill', interval: 90 },
+  { name: 'Medical Emergency Drill', interval: 90 },
+  { name: 'Search and Rescue (SAR) Drill', interval: 180 },
+  { name: 'Security / Piracy Drill (ISPS)', interval: 180 },
+  { name: 'Fire Extinguisher Inspection', interval: 30 },
+  { name: 'Other Safety Drill', interval: 30 },
+];
 const DEPARTMENTS = [
   { value: 'Engineering', label: 'Engineering', icon: Settings, color: 'text-orange-600', bg: 'bg-orange-50 border-orange-300' },
   { value: 'Deck',        label: 'Deck',        icon: Anchor,   color: 'text-blue-600',   bg: 'bg-blue-50 border-blue-300' },
@@ -38,6 +52,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
   const { currentUser } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const isSafetyMode = defaultDepartment === 'Safety';
   const [formData, setFormData] = useState<NewTaskData>({
     title: '', description: '', category: '', priority: 'medium',
     vessel_id: '', equipment_id: '', assigned_user_id: currentUser?.id || '',
@@ -146,7 +161,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.vessel_id || !formData.equipment_id || !formData.next_due_date) { showToast('Please fill in all required fields', 'warning'); return; }
+    if (!formData.title || !formData.vessel_id || !formData.next_due_date || (!isSafetyMode && !formData.equipment_id)) { showToast('Please fill in all required fields', 'warning'); return; }
     onSave(formData);
   };
 
@@ -154,18 +169,20 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">{t('maintenance.createTask')}</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{isSafetyMode ? 'Schedule Safety Drill' : t('maintenance.createTask')}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-600" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
-          {/* TITLE */}
+          {/* TITLE — hidden in safety mode since drill type sets it */}
+          {!isSafetyMode && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{t('maintenance.taskTitle')} *</label>
             <input type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder={t('maintenance.taskTitlePlaceholder')} required />
           </div>
+          )}
 
           {/* TASK TYPE — Recurring vs One-time */}
           <div>
@@ -196,7 +213,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
             </div>
           </div>
 
-          {/* DEPARTMENT */}
+          {/* DEPARTMENT — hidden in safety mode */}
+          {!isSafetyMode && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
             <div className="grid grid-cols-5 gap-2">
@@ -214,6 +232,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
               })}
             </div>
           </div>
+          )}
 
           {/* DESCRIPTION */}
           <div>
@@ -223,8 +242,29 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
               placeholder={t('maintenance.descriptionPlaceholder')} />
           </div>
 
-          {/* CATEGORY + PRIORITY */}
+          {/* CATEGORY / DRILL TYPE + PRIORITY */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {isSafetyMode ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Drill Type *</label>
+                <select value={formData.title} onChange={e => {
+                  const drill = SAFETY_DRILL_TYPES.find(d => d.name === e.target.value);
+                  setFormData({ ...formData, title: e.target.value, category: 'Safety', interval_value: drill?.interval || 30, interval_type: 'days' });
+                }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                  <option value="">Select drill type...</option>
+                  <optgroup label="Monthly">
+                    {SAFETY_DRILL_TYPES.filter(d => d.interval === 30).map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </optgroup>
+                  <optgroup label="Quarterly">
+                    {SAFETY_DRILL_TYPES.filter(d => d.interval === 90).map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </optgroup>
+                  <optgroup label="Semi-Annual">
+                    {SAFETY_DRILL_TYPES.filter(d => d.interval === 180).map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </optgroup>
+                </select>
+              </div>
+            ) : (
             <div ref={categoryRef} className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-2">{t('maintenance.category')} *</label>
               <div className="w-full px-4 py-3 border border-gray-300 rounded-xl focus-within:ring-2 focus-within:ring-blue-500 flex items-center gap-2 cursor-text" onClick={() => setCategoryOpen(true)}>
@@ -253,6 +293,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
                 </div>
               )}
             </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t('maintenance.priority')} *</label>
               <select value={formData.priority} onChange={e => setFormData({ ...formData, priority: e.target.value as any })}
@@ -266,7 +307,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
           </div>
 
           {/* VESSEL + EQUIPMENT */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 ${isSafetyMode ? '' : 'md:grid-cols-2'} gap-6`}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t('common.vessel')} *</label>
               <select value={formData.vessel_id} onChange={e => setFormData({ ...formData, vessel_id: e.target.value, equipment_id: '', assigned_user_id: '' })}
@@ -275,6 +316,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
                 {vessels.map(vessel => <option key={vessel.id} value={vessel.id}>{vessel.name}</option>)}
               </select>
             </div>
+            {!isSafetyMode && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t('common.equipment')} *</label>
               <select value={formData.equipment_id} onChange={e => setFormData({ ...formData, equipment_id: e.target.value })}
@@ -284,6 +326,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
                 {availableEquipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}</option>)}
               </select>
             </div>
+            )}
           </div>
 
           {/* ASSIGNED TO */}

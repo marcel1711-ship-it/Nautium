@@ -21,6 +21,11 @@ type MessageContent =
   | { type: 'text'; text: string }
   | { type: 'document'; source: { type: 'base64'; media_type: string; data: string }; title?: string };
 
+interface PageText {
+  pageNum: number;
+  text: string;
+}
+
 interface Manual {
   id: string;
   title: string;
@@ -78,6 +83,7 @@ export const NautiusChat: React.FC = () => {
   const [vesselName, setVesselName] = useState('');
   const [minimized, setMinimized] = useState(false);
   const [manualCache, setManualCache] = useState<Record<string, string>>({});
+  const [textCache, setTextCache] = useState<Record<string, PageText[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -216,6 +222,44 @@ export const NautiusChat: React.FC = () => {
     return unique.slice(0, 3);
   };
 
+  const extractPdfText = async (url: string, manualId: string): Promise<PageText[]> => {
+    if (textCache[manualId]) return textCache[manualId];
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    const pages: PageText[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const text = content.items.map((item: any) => item.str).join(' ');
+      if (text.trim()) pages.push({ pageNum: i, text });
+    }
+    setTextCache(prev => ({ ...prev, [manualId]: pages }));
+    return pages;
+  };
+
+  const findRelevantPages = (pages: PageText[], query: string, maxPages = 15): PageText[] => {
+    const queryWords = query.toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !['the', 'and', 'for', 'que', 'del', 'los', 'las', 'una', 'con', 'por'].includes(w));
+
+    const scored = pages.map(page => {
+      const lower = page.text.toLowerCase();
+      let score = 0;
+      for (const word of queryWords) {
+        const matches = lower.split(word).length - 1;
+        score += matches;
+      }
+      return { ...page, score };
+    });
+
+    const relevant = scored.filter(p => p.score > 0).sort((a, b) => b.score - a.score);
+    if (relevant.length === 0) {
+      return pages.slice(0, 5);
+    }
+    return relevant.slice(0, maxPages);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMessage = input.trim();
@@ -252,7 +296,7 @@ export const NautiusChat: React.FC = () => {
       const langContext = language === 'es'
         ? 'IMPORTANT: Always respond in Spanish (Español). The user interface is in Spanish.'
         : 'IMPORTANT: Always respond in English. The user interface is in English.';
-      const systemWithContext = `${SYSTEM_PROMPT}\n\n${vesselContext}\n${equipmentList}\n${manualList}\n${roleContext}\n${langContext}\n\nWhen you reference information from a manual, cite it specifically (e.g. "According to the [Manual Name]..."). If the user's question is ambiguous about which equipment (e.g. "main engine" but there are Port and Starboard), ask which one before giving detailed advice. If a relevant manual PDF is attached, use it as your primary source of truth.`;
+      const systemWithContext = `${SYSTEM_PROMPT}\n\n${vesselContext}\n${equipmentList}\n${manualList}\n${roleContext}\n${langContext}\n\nWhen you reference information from a manual, cite it specifically with page numbers when available (e.g. "According to the [Manual Name], page 42..."). If the user's question is ambiguous about which equipment (e.g. "main engine" but there are Port and Starboard), ask which one before giving detailed advice. If a relevant manual PDF is attached or its text content is provided, use it as your primary source of truth. When manual text is provided as extracted pages, treat it the same as if you read the full manual — give specific, actionable answers based on that content.`;
 
       const relevantManuals = findRelevantManuals(userMessage);
       const manualDocuments: MessageContent[] = [];
@@ -265,6 +309,23 @@ export const NautiusChat: React.FC = () => {
             source: { type: 'base64', media_type: 'application/pdf', data: base64 },
             title: manual.title,
           });
+        } else if (manual.file_url && !manual.file_url.startsWith('/')) {
+          try {
+            const allPages = await extractPdfText(manual.file_url, manual.id);
+            const relevant = findRelevantPages(allPages, userMessage);
+            if (relevant.length > 0) {
+              const pagesText = relevant
+                .sort((a, b) => a.pageNum - b.pageNum)
+                .map(p => `[Page ${p.pageNum}]\n${p.text}`)
+                .join('\n\n');
+              manualDocuments.push({
+                type: 'text',
+                text: `--- Extracted from manual "${manual.title}" (${allPages.length} total pages, showing ${relevant.length} most relevant) ---\n\n${pagesText}\n\n--- End of "${manual.title}" ---`,
+              });
+            }
+          } catch (err) {
+            console.warn('[NautiusChat] PDF text extraction failed for', manual.title, err);
+          }
         }
       }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Rocket, Target, TrendingUp, Zap, Crown, Check, ChevronDown, Save, StickyNote, Plus, X, Anchor, User, DollarSign, Ruler, Trash2 } from 'lucide-react';
+import { Rocket, Target, TrendingUp, Zap, Crown, Check, ChevronDown, Save, StickyNote, Plus, X, Anchor, User, DollarSign, Ruler, Trash2, Pencil } from 'lucide-react';
 import { supabase, fetchSingle, dbUpdate, dbInsert, dbDelete } from '../lib/supabase';
 
 interface RoadmapProps {
@@ -165,10 +165,12 @@ const QUOTES = [
   "Every 'no' gets you closer to the next 'yes'.",
 ];
 
-const fmtCurrency = (v: number) =>
+const fmtCurrencyShort = (v: number) =>
   v >= 1000000 ? `$${(v / 1000000).toFixed(1)}M`
   : v >= 1000 ? `$${(v / 1000).toFixed(0)}K`
   : `$${v}`;
+
+const fmtCurrency = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const fmtNum = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
@@ -200,6 +202,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
   const [showDealForm, setShowDealForm] = useState(false);
   const [dealForm, setDealForm] = useState(EMPTY_DEAL);
   const [dealSaving, setDealSaving] = useState(false);
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
 
   const quote = QUOTES[Math.floor(new Date().getDate() % QUOTES.length)];
 
@@ -266,13 +269,34 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
       closed_date: dealForm.closed_date,
       notes: dealForm.notes || null,
     };
-    await dbInsert('closed_deals', payload);
+    if (editingDealId) {
+      await dbUpdate('closed_deals', editingDealId, payload);
+      setEditingDealId(null);
+      setToast('Deal actualizado');
+    } else {
+      await dbInsert('closed_deals', payload);
+      setToast('Deal registrado');
+    }
     setDealForm({ ...EMPTY_DEAL, closed_date: new Date().toISOString().slice(0, 10) });
     setShowDealForm(false);
     setDealSaving(false);
     loadDeals();
-    setToast('Deal registrado');
     setTimeout(() => setToast(''), 1500);
+  };
+
+  const startEditDeal = (d: ClosedDeal) => {
+    setDealForm({
+      boat_name: d.boat_name,
+      length_meters: String(d.length_meters),
+      monthly_fee: String(d.monthly_fee),
+      setup_fee: String(d.setup_fee),
+      currency: d.currency,
+      closed_by: d.closed_by,
+      closed_date: d.closed_date,
+      notes: d.notes || '',
+    });
+    setEditingDealId(d.id);
+    setShowDealForm(true);
   };
 
   const deleteDeal = async (id: string) => {
@@ -324,7 +348,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
             <div className="flex items-center gap-4 mt-3 flex-wrap">
               <div>
                 <span className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-                  {fmtCurrency(400000)} – {fmtCurrency(700000)}
+                  {fmtCurrencyShort(400000)} – {fmtCurrencyShort(700000)}
                 </span>
                 <span className="text-sm text-slate-400 ml-3">ARR Target 2030</span>
               </div>
@@ -377,7 +401,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
                 <p className="text-xs text-gray-500">{deals.length} barco{deals.length !== 1 ? 's' : ''} cerrado{deals.length !== 1 ? 's' : ''} — ${fmtNum(totalMRR)}/mo MRR</p>
               </div>
             </div>
-            <button onClick={() => setShowDealForm(!showDealForm)}
+            <button onClick={() => { setShowDealForm(!showDealForm); if (showDealForm) { setEditingDealId(null); setDealForm({ ...EMPTY_DEAL, closed_date: new Date().toISOString().slice(0, 10) }); } }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${showDealForm ? 'bg-gray-100 text-gray-600' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}>
               {showDealForm ? <><X className="w-4 h-4" /> Cancelar</> : <><Plus className="w-4 h-4" /> Nuevo Deal</>}
             </button>
@@ -426,7 +450,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
               <div className="mt-4 flex justify-end">
                 <button onClick={saveDeal} disabled={dealSaving || !dealForm.boat_name || !dealForm.monthly_fee}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold transition-colors disabled:opacity-50">
-                  <Save className="w-4 h-4" /> Guardar Deal
+                  <Save className="w-4 h-4" /> {editingDealId ? 'Actualizar Deal' : 'Guardar Deal'}
                 </button>
               </div>
             </div>
@@ -468,9 +492,14 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
                       </td>
                       <td className="px-3 py-3 text-gray-500 tabular-nums">{d.closed_date}</td>
                       <td className="px-3 py-3">
-                        <button onClick={() => deleteDeal(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => startEditDeal(d)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => deleteDeal(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -546,7 +575,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-right hidden sm:block">
                     <p className="text-xs text-gray-400">Boats: {phase.boatsMin}–{phase.boatsMax}</p>
-                    <p className="text-xs font-semibold" style={{ color: phase.color }}>ARR: {fmtCurrency(phase.arrMin)}–{fmtCurrency(phase.arrMax)}</p>
+                    <p className="text-xs font-semibold" style={{ color: phase.color }}>ARR: {fmtCurrencyShort(phase.arrMin)}–{fmtCurrencyShort(phase.arrMax)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold tabular-nums ${phasePct === 100 ? 'text-emerald-500' : 'text-gray-500'}`}>{checkedCount}/{phase.tasks.length}</span>
@@ -569,8 +598,8 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
                     <div className="bg-gray-50 rounded-xl p-4">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">ARR Target</p>
                       <div className="space-y-1">
-                        <div className="flex justify-between text-sm"><span className="text-gray-500">Conservador</span><span className="font-bold">{fmtCurrency(phase.arrMin)}</span></div>
-                        <div className="flex justify-between text-sm"><span className="text-gray-500">Optimista</span><span className="font-bold">{fmtCurrency(phase.arrMax)}</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-gray-500">Conservador</span><span className="font-bold">{fmtCurrencyShort(phase.arrMin)}</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-gray-500">Optimista</span><span className="font-bold">{fmtCurrencyShort(phase.arrMax)}</span></div>
                         <div className="flex justify-between text-sm"><span className="text-gray-500">Actual</span><span className="font-bold text-emerald-600">{fmtCurrency(computedARR || currentARR)}</span></div>
                       </div>
                     </div>
@@ -627,7 +656,7 @@ export const Roadmap: React.FC<RoadmapProps> = ({ onNavigate }) => {
         {/* Bottom */}
         <div className="bg-gradient-to-r from-gray-900 via-slate-900 to-gray-900 rounded-2xl p-6 sm:p-8 text-center">
           <p className="text-3xl sm:text-4xl font-black text-white mb-2">
-            {fmtCurrency(400000)} – {fmtCurrency(700000)}
+            {fmtCurrencyShort(400000)} – {fmtCurrencyShort(700000)}
           </p>
           <p className="text-sm text-slate-400 mb-4">ARR Target 2030 — 200 a 350 boats</p>
           <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-violet-400 to-pink-400">

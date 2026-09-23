@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck, Plus, Search, AlertTriangle, CheckCircle,
   Clock, X, Calendar, FileText, User, Ship, ChevronDown, Trash2,
-  ArrowLeft, Upload, ExternalLink, Pencil, Download, Shield, Users,
+  ArrowLeft, Upload, ExternalLink, Pencil, Download, Shield, Users, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -40,6 +40,57 @@ interface DrillRecord {
   vessel_id: string;
   comments: string | null;
 }
+
+interface NCReport {
+  id: string;
+  company_id: string;
+  vessel_id: string;
+  title: string;
+  description: string | null;
+  severity: 'observation' | 'minor' | 'major' | 'critical';
+  status: 'open' | 'investigation' | 'corrective_action' | 'verified' | 'closed';
+  detected_by: string | null;
+  detected_date: string;
+  source: string | null;
+  root_cause: string | null;
+  corrective_action: string | null;
+  verified_by: string | null;
+  closed_date: string | null;
+  due_date: string | null;
+  notes: string | null;
+}
+
+const NCR_SOURCES = [
+  { value: 'internal_audit', label: 'Internal Audit' },
+  { value: 'external_audit', label: 'External Audit' },
+  { value: 'drill', label: 'Drill Finding' },
+  { value: 'inspection', label: 'Inspection' },
+  { value: 'incident', label: 'Incident' },
+  { value: 'crew_report', label: 'Crew Report' },
+  { value: 'other', label: 'Other' },
+];
+
+const NCR_SEVERITY_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  observation: { label: 'Observation', color: 'text-blue-700', bg: 'bg-blue-50 text-blue-700' },
+  minor:       { label: 'Minor', color: 'text-yellow-700', bg: 'bg-yellow-50 text-yellow-700' },
+  major:       { label: 'Major', color: 'text-orange-700', bg: 'bg-orange-50 text-orange-700' },
+  critical:    { label: 'Critical', color: 'text-red-700', bg: 'bg-red-50 text-red-700' },
+};
+
+const NCR_STATUS_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  open:              { label: 'Open', color: 'text-red-700', bg: 'bg-red-50 text-red-700' },
+  investigation:     { label: 'Investigation', color: 'text-orange-700', bg: 'bg-orange-50 text-orange-700' },
+  corrective_action: { label: 'Corrective Action', color: 'text-yellow-700', bg: 'bg-yellow-50 text-yellow-700' },
+  verified:          { label: 'Verified', color: 'text-blue-700', bg: 'bg-blue-50 text-blue-700' },
+  closed:            { label: 'Closed', color: 'text-green-700', bg: 'bg-green-50 text-green-700' },
+};
+
+const NCR_STATUS_FLOW: Record<string, string> = {
+  open: 'investigation',
+  investigation: 'corrective_action',
+  corrective_action: 'verified',
+  verified: 'closed',
+};
 
 const VESSEL_CERTIFICATES = [
   'Safety Management Certificate', 'Certificate of Registry', 'Radio License',
@@ -475,6 +526,163 @@ const CertificateDetail: React.FC<{
   );
 };
 
+// ── NCR MODAL ───────────────────────────────────────────────────────────────
+const NcrModal: React.FC<{
+  ncr: NCReport | null;
+  vessels: VesselOption[];
+  onClose: () => void;
+  onSave: (data: Partial<NCReport>) => void;
+}> = ({ ncr, vessels, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    title: ncr?.title || '',
+    description: ncr?.description || '',
+    vessel_id: ncr?.vessel_id || '',
+    severity: ncr?.severity || 'minor',
+    status: ncr?.status || 'open',
+    detected_by: ncr?.detected_by || '',
+    detected_date: ncr?.detected_date || new Date().toISOString().split('T')[0],
+    source: ncr?.source || '',
+    root_cause: ncr?.root_cause || '',
+    corrective_action: ncr?.corrective_action || '',
+    due_date: ncr?.due_date || '',
+    verified_by: ncr?.verified_by || '',
+    notes: ncr?.notes || '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title || !form.vessel_id) return;
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">{ncr ? 'Edit NCR' : 'Report Non-Conformity'}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-600" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Finding Title *</label>
+            <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="e.g. Fire extinguisher expired in engine room" required />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Vessel *</label>
+              <select value={form.vessel_id} onChange={e => setForm({ ...form, vessel_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                <option value="">Select vessel...</option>
+                {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Severity *</label>
+              <select value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="observation">Observation</option>
+                <option value="minor">Minor</option>
+                <option value="major">Major</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Source</label>
+              <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">Select source...</option>
+                {NCR_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Detected By</label>
+              <input type="text" value={form.detected_by} onChange={e => setForm({ ...form, detected_by: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Name of person who found it" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date Detected</label>
+              <input type="date" value={form.detected_date} onChange={e => setForm({ ...form, detected_date: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Due Date for Resolution</label>
+              <input type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Describe what was found..." />
+          </div>
+
+          {ncr && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="open">Open</option>
+                  <option value="investigation">Investigation</option>
+                  <option value="corrective_action">Corrective Action</option>
+                  <option value="verified">Verified</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Root Cause</label>
+                <textarea value={form.root_cause} onChange={e => setForm({ ...form, root_cause: e.target.value })} rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="What caused this non-conformity?" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Corrective Action</label>
+                <textarea value={form.corrective_action} onChange={e => setForm({ ...form, corrective_action: e.target.value })} rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="What was done to fix it?" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Verified By</label>
+                <input type="text" value={form.verified_by} onChange={e => setForm({ ...form, verified_by: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Name of person who verified the fix" />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Additional notes..." />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+            <button type="submit"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all shadow-lg">
+              {ncr ? 'Update NCR' : 'Report NCR'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ── MAIN PAGE ────────────────────────────────────────────────────────────────
 export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const { currentUser, selectedVesselId } = useAuth();
@@ -483,9 +691,12 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [crewMembers, setCrewMembers] = useState<CrewOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety' | 'ncr'>('all');
   const [drillHistory, setDrillHistory] = useState<DrillRecord[]>([]);
   const [showDrillModal, setShowDrillModal] = useState(false);
+  const [ncrs, setNcrs] = useState<NCReport[]>([]);
+  const [showNcrModal, setShowNcrModal] = useState(false);
+  const [editingNcr, setEditingNcr] = useState<NCReport | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'expired' | 'critical' | 'expiring' | 'valid'>('all');
   const [filterVessel, setFilterVessel] = useState('all');
   const [search, setSearch] = useState('');
@@ -509,16 +720,18 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     setLoading(true);
     const cid = currentUser.company_id;
     if (!cid) { setLoading(false); return; }
-    const [compliance, vessels, crew, drills] = await Promise.all([
+    const [compliance, vessels, crew, drills, ncrData] = await Promise.all([
       fetchByCompany('compliance_items', cid, 'expiry_date', true),
       fetchByCompany('vessels', cid, 'name', true),
       fetchByCompany('crew_members', cid, 'full_name', true),
       supabase.from('maintenance_history').select('id, task_title, completion_date, completed_by_name, crew_attendance, corrective_actions, vessel_id, comments').eq('company_id', cid).eq('department', 'Safety').order('completion_date', { ascending: false }).then(r => r.data || []),
+      supabase.from('non_conformity_reports').select('*').eq('company_id', cid).order('detected_date', { ascending: false }).then(r => r.data || []),
     ]);
     setItems(compliance);
     setVessels(vessels.map((v: any) => ({ id: v.id, name: v.name })));
     setCrewMembers((crew as any[]).filter(c => c.status === 'active').map(c => ({ id: c.id, full_name: c.full_name, position: c.position, vessel_id: c.vessel_id, photo_url: c.photo_url })));
     setDrillHistory(drills as DrillRecord[]);
+    setNcrs(ncrData as NCReport[]);
     // Refresh selected item if open
     if (selectedItem) {
       const refreshed = compliance.find((i: ComplianceItem) => i.id === selectedItem.id);
@@ -549,6 +762,47 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
       showToast('Safety drill created', 'success');
       loadData();
     } catch { showToast('Error creating drill', 'error'); }
+  };
+
+  const handleSaveNcr = async (data: Partial<NCReport>) => {
+    try {
+      if (editingNcr) {
+        await dbUpdate('non_conformity_reports', editingNcr.id, {
+          ...data,
+          updated_at: new Date().toISOString(),
+          closed_date: data.status === 'closed' ? new Date().toISOString().split('T')[0] : data.closed_date || null,
+        });
+        showToast('NCR updated', 'success');
+      } else {
+        await dbInsert('non_conformity_reports', { ...data, company_id: companyId });
+        showToast('NCR reported', 'success');
+      }
+      setShowNcrModal(false);
+      setEditingNcr(null);
+      loadData();
+    } catch { showToast('Error saving NCR', 'error'); }
+  };
+
+  const handleAdvanceNcr = async (ncr: NCReport) => {
+    const nextStatus = NCR_STATUS_FLOW[ncr.status];
+    if (!nextStatus) return;
+    try {
+      await dbUpdate('non_conformity_reports', ncr.id, {
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+        closed_date: nextStatus === 'closed' ? new Date().toISOString().split('T')[0] : null,
+      });
+      showToast(`NCR moved to ${NCR_STATUS_STYLES[nextStatus].label}`, 'success');
+      loadData();
+    } catch { showToast('Error updating NCR', 'error'); }
+  };
+
+  const handleDeleteNcr = async (id: string) => {
+    try {
+      await dbDelete('non_conformity_reports', id);
+      showToast('NCR deleted', 'success');
+      loadData();
+    } catch { showToast('Error deleting NCR', 'error'); }
   };
 
   const handleDelete = async (id: string) => {
@@ -659,13 +913,13 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
       {/* Filters + List */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <div className="flex flex-wrap gap-3 mb-6">
-          {(['all', 'vessel', 'crew', 'safety'] as const).map(t => (
+          {(['all', 'vessel', 'crew', 'safety', 'ncr'] as const).map(t => (
             <button key={t} onClick={() => setFilterType(t)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${filterType === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}>
-              {t === 'vessel' ? <Ship className="w-4 h-4" /> : t === 'crew' ? <User className="w-4 h-4" /> : t === 'safety' ? <Shield className="w-4 h-4" /> : null}
-              {t === 'all' ? 'All' : t === 'vessel' ? 'Vessel' : t === 'crew' ? 'Crew' : 'Safety Drills'}
+              {t === 'vessel' ? <Ship className="w-4 h-4" /> : t === 'crew' ? <User className="w-4 h-4" /> : t === 'safety' ? <Shield className="w-4 h-4" /> : t === 'ncr' ? <ClipboardList className="w-4 h-4" /> : null}
+              {t === 'all' ? 'All' : t === 'vessel' ? 'Vessel' : t === 'crew' ? 'Crew' : t === 'safety' ? 'Safety Drills' : 'NCRs'}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterType === t ? 'bg-white/20' : 'bg-gray-100'}`}>
-                {t === 'all' ? items.length : t === 'safety' ? drillHistory.length : items.filter(i => i.type === t).length}
+                {t === 'all' ? items.length : t === 'safety' ? drillHistory.length : t === 'ncr' ? ncrs.length : items.filter(i => i.type === t).length}
               </span>
             </button>
           ))}
@@ -731,6 +985,105 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
                               )}
                               {drill.comments && <p className="text-xs text-gray-500 mt-1">{drill.comments}</p>}
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        ) : filterType === 'ncr' ? (
+          <>
+            {userCanCreate && (
+              <div className="flex justify-end mb-4">
+                <button onClick={() => { setEditingNcr(null); setShowNcrModal(true); }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all shadow-lg text-sm">
+                  <Plus className="w-4 h-4" />Report NCR
+                </button>
+              </div>
+            )}
+            {loading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />)}</div>
+            ) : ncrs.length === 0 ? (
+              <div className="text-center py-12">
+                <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">No non-conformities reported</p>
+                <p className="text-gray-400 text-sm mt-1">Report a finding to start tracking non-conformities</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  Showing <span className="font-semibold text-gray-900">{ncrs.filter(n => filterVessel === 'all' || n.vessel_id === filterVessel).length}</span> NCRs
+                  {ncrs.filter(n => n.status !== 'closed').length > 0 && (
+                    <span className="ml-2 text-orange-600 font-semibold">({ncrs.filter(n => n.status !== 'closed').length} open)</span>
+                  )}
+                </p>
+                <div className="space-y-3">
+                  {ncrs
+                    .filter(n => filterVessel === 'all' || n.vessel_id === filterVessel)
+                    .map(ncr => {
+                    const vessel = vessels.find(v => v.id === ncr.vessel_id);
+                    const sev = NCR_SEVERITY_STYLES[ncr.severity];
+                    const st = NCR_STATUS_STYLES[ncr.status];
+                    const nextStatus = NCR_STATUS_FLOW[ncr.status];
+                    return (
+                      <div key={ncr.id} className="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:shadow-md transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${ncr.status === 'closed' ? 'bg-green-100' : 'bg-orange-100'}`}>
+                              <ClipboardList className={`w-5 h-5 ${ncr.status === 'closed' ? 'text-green-600' : 'text-orange-600'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-gray-900 text-sm">{ncr.title}</h3>
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${sev.bg}`}>{sev.label}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${st.bg}`}>{st.label}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                                {vessel && <span className="flex items-center gap-1"><Ship className="w-3 h-3" />{vessel.name}</span>}
+                                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(ncr.detected_date).toLocaleDateString()}</span>
+                                {ncr.detected_by && <span className="flex items-center gap-1"><User className="w-3 h-3" />{ncr.detected_by}</span>}
+                                {ncr.source && <span className="text-gray-400">{NCR_SOURCES.find(s => s.value === ncr.source)?.label}</span>}
+                              </div>
+                              {ncr.description && <p className="text-xs text-gray-500 mt-2">{ncr.description}</p>}
+                              {ncr.root_cause && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <span className="text-xs font-semibold text-blue-700">Root Cause: </span>
+                                  <span className="text-xs text-blue-600">{ncr.root_cause}</span>
+                                </div>
+                              )}
+                              {ncr.corrective_action && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <span className="text-xs font-semibold text-amber-700">Corrective Action: </span>
+                                  <span className="text-xs text-amber-600">{ncr.corrective_action}</span>
+                                </div>
+                              )}
+                              {ncr.due_date && ncr.status !== 'closed' && (
+                                <div className="mt-1 text-xs text-gray-400">Due: {new Date(ncr.due_date).toLocaleDateString()}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            {nextStatus && userCanCreate && (
+                              <button onClick={() => handleAdvanceNcr(ncr)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                → {NCR_STATUS_STYLES[nextStatus].label}
+                              </button>
+                            )}
+                            {userCanCreate && (
+                              <>
+                                <button onClick={() => { setEditingNcr(ncr); setShowNcrModal(true); }}
+                                  className="p-2 hover:bg-white rounded-lg transition-colors text-gray-400 hover:text-blue-600">
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => handleDeleteNcr(ncr.id)}
+                                  className="p-2 hover:bg-white rounded-lg transition-colors text-gray-400 hover:text-red-600">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -876,6 +1229,15 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
           onClose={() => setShowDrillModal(false)}
           onSave={handleNewDrill}
           defaultDepartment="Safety"
+        />
+      )}
+
+      {showNcrModal && (
+        <NcrModal
+          ncr={editingNcr}
+          vessels={vessels}
+          onClose={() => { setShowNcrModal(false); setEditingNcr(null); }}
+          onSave={handleSaveNcr}
         />
       )}
     </div>

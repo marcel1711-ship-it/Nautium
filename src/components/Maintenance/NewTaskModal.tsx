@@ -9,6 +9,7 @@ import { useToast } from '../UI/Toast';
 interface NewTaskModalProps {
   onClose: () => void;
   onSave: (task: NewTaskData) => void;
+  defaultDepartment?: string;
 }
 export interface NewTaskData {
   title: string; description: string; category: string;
@@ -33,7 +34,7 @@ const DEPARTMENTS = [
 ];
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
-export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave }) => {
+export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, defaultDepartment }) => {
   const { currentUser } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
@@ -41,7 +42,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave }) =
     title: '', description: '', category: '', priority: 'medium',
     vessel_id: '', equipment_id: '', assigned_user_id: currentUser?.id || '',
     next_due_date: '', interval_type: 'days', interval_value: 30, reminder_hours_before: 0,
-    checklist_items: [], required_parts: [], department: 'Engineering',
+    checklist_items: [], required_parts: [], department: defaultDepartment || 'Engineering',
     is_recurring: true,
   });
   const [vessels, setVessels] = useState<VesselOption[]>([]);

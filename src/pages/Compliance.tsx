@@ -9,6 +9,7 @@ import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/s
 import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
 import { validateDocumentFile } from '../lib/security';
+import { NewTaskModal, NewTaskData } from '../components/Maintenance/NewTaskModal';
 
 interface ComplianceProps {
   onNavigate: (page: string, params?: any) => void;
@@ -484,6 +485,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety'>('all');
   const [drillHistory, setDrillHistory] = useState<DrillRecord[]>([]);
+  const [showDrillModal, setShowDrillModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'expired' | 'critical' | 'expiring' | 'valid'>('all');
   const [filterVessel, setFilterVessel] = useState('all');
   const [search, setSearch] = useState('');
@@ -523,6 +525,30 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
       if (refreshed) setSelectedItem(refreshed);
     }
     setLoading(false);
+  };
+
+  const handleNewDrill = async (taskData: NewTaskData) => {
+    if (!currentUser) return;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(taskData.next_due_date + 'T00:00:00');
+    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const status = diffDays < 0 ? 'overdue' : diffDays <= 7 ? 'due_soon' : 'upcoming';
+    try {
+      await dbInsert('maintenance_tasks', {
+        title: taskData.title, description: taskData.description, category: taskData.category, priority: taskData.priority,
+        vessel_id: taskData.vessel_id, equipment_id: taskData.equipment_id || null, assigned_user_id: taskData.assigned_user_id || null,
+        next_due_date: taskData.next_due_date,
+        frequency: taskData.interval_type === 'months' ? 'monthly' : 'custom',
+        custom_interval_days: taskData.interval_type === 'days' ? taskData.interval_value : null,
+        status, company_id: companyId, reminder_days_before: [],
+        required_parts: taskData.required_parts || [], checklist_items: taskData.checklist_items || [],
+        is_recurring: taskData.is_recurring ?? true,
+        department: 'Safety',
+      });
+      setShowDrillModal(false);
+      showToast('Safety drill created', 'success');
+      loadData();
+    } catch { showToast('Error creating drill', 'error'); }
   };
 
   const handleDelete = async (id: string) => {
@@ -647,6 +673,14 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
 
         {filterType === 'safety' ? (
           <>
+            {userCanCreate && (
+              <div className="flex justify-end mb-4">
+                <button onClick={() => setShowDrillModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl font-semibold hover:from-red-700 hover:to-red-800 transition-all shadow-lg text-sm">
+                  <Plus className="w-4 h-4" />Schedule Drill
+                </button>
+              </div>
+            )}
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />)}</div>
             ) : drillHistory.length === 0 ? (
@@ -835,6 +869,14 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {showDrillModal && (
+        <NewTaskModal
+          onClose={() => setShowDrillModal(false)}
+          onSave={handleNewDrill}
+          defaultDepartment="Safety"
+        />
       )}
     </div>
   );

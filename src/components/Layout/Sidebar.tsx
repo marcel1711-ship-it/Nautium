@@ -48,8 +48,7 @@ const navItems: NavItem[] = [
   { id: 'history',                labelKey: 'nav.history',               icon: History,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'fuel',                   labelKey: 'nav.fuel',                  icon: Fuel,            roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'engineer'] },
   { id: 'procurement',             labelKey: 'nav.procurement',           icon: ShoppingCart,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
-  { id: 'costs',                  labelKey: 'nav.costs',                 icon: DollarSign,      roles: ['standard_user', 'captain', 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
-  { id: 'budget',                 labelKey: 'nav.budget',                icon: DollarSign,      roles: ['captain'] },
+  { id: 'costs',                  labelKey: 'nav.costs',                 icon: DollarSign,      roles: ['standard_user', 'chief_engineer', 'chief_stew', 'deck_officer', 'chef', 'safety_officer'] },
   { id: 'compliance',             labelKey: 'nav.compliance',            icon: ShieldCheck,     roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   // ── Contractors — fleet_manager / customer_admin primario, captain en More ──
   { id: 'contractors',            labelKey: 'nav.contractors',           icon: Building2,       roles: ['customer_admin', 'fleet_manager', 'captain'] },

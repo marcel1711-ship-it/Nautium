@@ -707,6 +707,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
             )}
           </>
         ) : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -805,6 +806,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
             })}
           </div>
         )}
+        </>
         )}
       </div>
 

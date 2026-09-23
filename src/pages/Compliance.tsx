@@ -765,16 +765,20 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   };
 
   const handleSaveNcr = async (data: Partial<NCReport>) => {
+    const clean: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      clean[k] = v === '' ? null : v;
+    }
     try {
       if (editingNcr) {
         await dbUpdate('non_conformity_reports', editingNcr.id, {
-          ...data,
+          ...clean,
           updated_at: new Date().toISOString(),
-          closed_date: data.status === 'closed' ? new Date().toISOString().split('T')[0] : data.closed_date || null,
+          closed_date: clean.status === 'closed' ? new Date().toISOString().split('T')[0] : clean.closed_date || null,
         });
         showToast('NCR updated', 'success');
       } else {
-        await dbInsert('non_conformity_reports', { ...data, company_id: companyId });
+        await dbInsert('non_conformity_reports', { ...clean, company_id: companyId });
         showToast('NCR reported', 'success');
       }
       setShowNcrModal(false);

@@ -303,8 +303,8 @@ export const NautiusChat: React.FC = () => {
           prev.map(m => m.loading ? { ...m, content: errMsg, loading: false } : m)
         );
       } else {
-        const assistantText =
-          data.content?.[0]?.text || t('chat.genericError');
+        const textBlock = data.content?.find((b: any) => b.type === 'text');
+        const assistantText = textBlock?.text || t('chat.genericError');
         setMessages(prev =>
           prev.map(m => m.loading ? { ...m, content: assistantText, loading: false } : m)
         );

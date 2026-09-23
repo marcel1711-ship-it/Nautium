@@ -424,11 +424,12 @@ const checkMlcViolations = (weekRecords: HorRecord[]) => {
       prev = eh;
     }
     if (prev < 24) restPeriods.push({ start: prev, end: 24 });
-    if (restPeriods.length > 2) {
-      violations.push(`${rec.date}: Rest split into ${restPeriods.length} periods (max 2 allowed)`);
+    const significantRest = restPeriods.filter(r => (r.end - r.start) >= 1);
+    if (significantRest.length > 2) {
+      violations.push(`${rec.date}: Rest split into ${significantRest.length} periods (max 2 allowed)`);
     }
-    const longestRest = restPeriods.reduce((max, r) => Math.max(max, r.end - r.start), 0);
-    if (restPeriods.length > 0 && longestRest < 6) {
+    const longestRest = significantRest.reduce((max, r) => Math.max(max, r.end - r.start), 0);
+    if (significantRest.length > 0 && longestRest < 6) {
       violations.push(`${rec.date}: Longest rest period is ${longestRest}h (min 6h required)`);
     }
     weeklyRest += rec.total_rest_hours;

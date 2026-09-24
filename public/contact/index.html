@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Marcel Hernandez — Nautium</title>
+<meta name="description" content="Founder of Nautium — Yacht Operations, Simplified">
+<meta property="og:title" content="Marcel Hernandez — Nautium">
+<meta property="og:description" content="Yacht Operations, Simplified">
+<meta property="og:image" content="https://www.nautium.app/og-image.jpg">
+<link rel="icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy-mid: #0f1d32;
+    --navy-light: #162544;
+    --accent: #2563eb;
+    --accent-glow: rgba(37,99,235,0.3);
+    --accent-hover: #1d4ed8;
+    --white: #ffffff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-700: #334155;
+    --gray-900: #0f172a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--navy);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow-x: hidden;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--white);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .header {
+    position: relative;
+    height: 180px;
+    overflow: hidden;
+  }
+
+  .header-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(10,22,40,0.6) 0%, rgba(10,22,40,0.85) 100%),
+      url('/yacht-header.jpg') center/cover no-repeat;
+    z-index: 0;
+  }
+
+  .header-wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+  }
+
+  .header-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    padding-top: 36px;
+  }
+
+  .logo {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--white);
+    letter-spacing: 0.14em;
+  }
+
+  .tagline {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--gray-400);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+    border: 4px solid var(--white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -44px auto 0;
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+
+  .avatar span {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--white);
+  }
+
+  .body {
+    padding: 12px 24px 24px;
+    text-align: center;
+  }
+
+  .name {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--gray-900);
+    margin-top: 10px;
+    letter-spacing: -0.02em;
+  }
+
+  .role {
+    font-size: 14px;
+    color: var(--gray-500);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  .company-tag {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 14px;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 24px 0;
+  }
+
+  .action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 4px;
+    border-radius: 16px;
+    border: none;
+    background: var(--gray-50);
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--accent);
+    transition: all 0.2s;
+  }
+
+  .action-btn:hover, .action-btn:active {
+    background: #dbeafe;
+    transform: translateY(-1px);
+  }
+
+  .action-btn svg { width: 22px; height: 22px; }
+
+  .action-btn span {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--gray-700);
+    letter-spacing: 0.02em;
+  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gray-200), transparent);
+    margin: 4px 0 8px;
+  }
+
+  .info-list { list-style: none; text-align: left; }
+
+  .info-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--gray-100);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+  }
+
+  .info-item:last-child { border-bottom: none; }
+  a.info-item:hover { opacity: 0.7; }
+
+  .info-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--gray-50);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .info-icon svg { width: 18px; height: 18px; color: var(--accent); }
+
+  .info-text strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+
+  .info-text small {
+    font-size: 11px;
+    color: var(--gray-400);
+    font-weight: 500;
+  }
+
+  .save-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px;
+    margin-top: 20px;
+    background: linear-gradient(135deg, var(--accent), #3b82f6);
+    color: var(--white);
+    border: none;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    box-shadow: 0 4px 16px var(--accent-glow);
+    letter-spacing: 0.02em;
+  }
+
+  .save-btn:hover {
+    background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px var(--accent-glow);
+  }
+
+  .save-btn:active { transform: translateY(0); }
+
+  .save-btn svg { width: 18px; height: 18px; }
+
+  .footer {
+    text-align: center;
+    padding: 14px 24px;
+    background: var(--gray-50);
+    border-top: 1px solid var(--gray-100);
+  }
+
+  .footer a {
+    font-size: 11px;
+    color: var(--gray-400);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .footer a:hover { color: var(--accent); }
+
+
+  /* Animated waves */
+  .wave-path { animation: waveMove 6s ease-in-out infinite; }
+  .wave-path-2 { animation: waveMove 8s ease-in-out infinite reverse; }
+
+  @keyframes waveMove {
+    0%, 100% { d: path("M0,40 C80,55 160,20 240,35 C320,50 400,25 400,40 L400,60 L0,60 Z"); }
+    50% { d: path("M0,35 C80,20 160,50 240,30 C320,15 400,45 400,35 L400,60 L0,60 Z"); }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <div class="header-bg"></div>
+    <svg class="header-wave" viewBox="0 0 400 60" preserveAspectRatio="none" style="height:40px">
+      <path class="wave-path-2" d="M0,40 C80,55 160,20 240,35 C320,50 400,25 400,40 L400,60 L0,60 Z" fill="rgba(255,255,255,0.05)"/>
+      <path class="wave-path" d="M0,45 C100,55 200,30 300,45 C350,52 380,40 400,45 L400,60 L0,60 Z" fill="white"/>
+    </svg>
+    <div class="header-content">
+      <div class="logo">NAUTIUM</div>
+      <div class="tagline">Yacht Operations, Simplified</div>
+    </div>
+  </div>
+
+  <div class="avatar"><span>N</span></div>
+
+  <div class="body">
+    <div class="name">Marcel Hernandez</div>
+    <div class="role">Founder</div>
+    <div class="company-tag">Nautium</div>
+
+    <div class="actions">
+      <a class="action-btn" href="#" onclick="downloadVCard(); return false;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        <span>Save</span>
+      </a>
+      <a class="action-btn" href="tel:+17063426587">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        <span>Call</span>
+      </a>
+      <a class="action-btn" href="mailto:hello@nautium.app">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="22,6 12,13 2,6"/></svg>
+        <span>Email</span>
+      </a>
+      <a class="action-btn" href="https://www.nautium.app" target="_blank">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+        <span>Website</span>
+      </a>
+    </div>
+
+    <div class="divider"></div>
+
+    <ul class="info-list">
+      <li>
+        <a class="info-item" href="tel:+17063426587">
+          <div class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+          </div>
+          <div class="info-text">
+            <strong>+1 (706) 342 6587</strong>
+            <small>Mobile</small>
+          </div>
+        </a>
+      </li>
+      <li>
+        <a class="info-item" href="mailto:hello@nautium.app">
+          <div class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="22,6 12,13 2,6"/></svg>
+          </div>
+          <div class="info-text">
+            <strong>hello@nautium.app</strong>
+            <small>Email</small>
+          </div>
+        </a>
+      </li>
+      <li>
+        <a class="info-item" href="https://www.nautium.app" target="_blank">
+          <div class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
+          <div class="info-text">
+            <strong>www.nautium.app</strong>
+            <small>Website</small>
+          </div>
+        </a>
+      </li>
+      <li>
+        <div class="info-item">
+          <div class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div class="info-text">
+            <strong>Miami, FL</strong>
+            <small>United States</small>
+          </div>
+        </div>
+      </li>
+    </ul>
+
+    <button class="save-btn" onclick="downloadVCard()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16"/></svg>
+      Save Contact
+    </button>
+
+  </div>
+
+  <div class="footer">
+    <a href="https://www.nautium.app">NAUTIUM.APP</a>
+  </div>
+</div>
+
+<script>
+function downloadVCard() {
+  var vcard = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'N:Hernandez;Marcel;;;',
+    'FN:Marcel Hernandez',
+    'ORG:Nautium',
+    'TITLE:Founder',
+    'TEL;TYPE=CELL:+17063426587',
+    'EMAIL;TYPE=INTERNET:hello@nautium.app',
+    'URL:https://www.nautium.app',
+    'ADR;TYPE=WORK:;;Miami;FL;;US',
+    'NOTE:Nautium \\u2014 Yacht Operations\\, Simplified',
+    'END:VCARD'
+  ].join('\r\n');
+
+  var blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'Marcel-Hernandez-Nautium.vcf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+</script>
+
+</body>
+</html>

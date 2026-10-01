@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
+import { addFileToQueue } from '../lib/offlineStore';
 import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
 import { validateDocumentFile } from '../lib/security';
@@ -127,13 +128,14 @@ const formatDate = (date: string | null) => date ? new Date(date).toLocaleDateSt
 const isPDF = (url: string) => url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('pdf');
 
 // ── DOCUMENT UPLOAD HELPER ───────────────────────────────────────────────────
-const uploadDocument = async (file: File, userId: string, itemId: string): Promise<string | null> => {
+const uploadDocument = async (file: File, userId: string, itemId: string): Promise<{ url: string | null; storagePath: string }> => {
   const ext = file.name.split('.').pop();
   const path = `compliance/${userId}/${itemId}_${Date.now()}.${ext}`;
+  if (!navigator.onLine) return { url: null, storagePath: path };
   const { error } = await supabase.storage.from('task-photos').upload(path, file, { upsert: true });
-  if (error) return null;
+  if (error) return { url: null, storagePath: path };
   const { data } = supabase.storage.from('task-photos').getPublicUrl(path);
-  return data.publicUrl;
+  return { url: data.publicUrl, storagePath: path };
 };
 
 // ── ADD / EDIT MODAL ─────────────────────────────────────────────────────────
@@ -189,13 +191,15 @@ const ComplianceModal: React.FC<{
     if (!form.name || !form.expiry_date || !form.vessel_id) { showToast('Please fill in required fields', 'warning'); return; }
     setSaving(true);
     try {
+      const isOnline = navigator.onLine;
       let document_url = form.document_url || null;
-      // Upload document if selected
+      let docStoragePath: string | null = null;
       if (docFile && currentUser) {
         setUploadingDoc(true);
         const tmpId = item?.id || `tmp_${Date.now()}`;
-        const url = await uploadDocument(docFile, currentUser.id, tmpId);
-        if (url) document_url = url;
+        const result = await uploadDocument(docFile, currentUser.id, tmpId);
+        if (result.url) document_url = result.url;
+        docStoragePath = result.storagePath;
         setUploadingDoc(false);
       }
       const selectedCrew = crewMembers.find(c => c.id === form.crew_member_id);
@@ -207,8 +211,17 @@ const ComplianceModal: React.FC<{
         assigned_to: selectedCrew ? selectedCrew.full_name : (form.assigned_to || null),
         notes: form.notes || null,
       };
-      if (item) { await dbUpdate('compliance_items', item.id, data); }
-      else { await dbInsert('compliance_items', data); }
+      if (item) {
+        await dbUpdate('compliance_items', item.id, data);
+        if (!isOnline && docFile && docStoragePath) {
+          await addFileToQueue({ blob: docFile, fileName: docFile.name, bucket: 'task-photos', storagePath: docStoragePath, recordTable: 'compliance_items', recordId: item.id, recordField: 'document_url' });
+        }
+      } else {
+        const record = await dbInsert('compliance_items', data);
+        if (!isOnline && docFile && docStoragePath) {
+          await addFileToQueue({ blob: docFile, fileName: docFile.name, bucket: 'task-photos', storagePath: docStoragePath, recordTable: 'compliance_items', recordId: record?.id || `offline-${Date.now()}`, recordField: 'document_url' });
+        }
+      }
       showToast(item ? 'Certificate updated' : 'Certificate added', 'success');
       onSaved(); onClose();
     } catch { showToast('Error saving certificate', 'error'); }

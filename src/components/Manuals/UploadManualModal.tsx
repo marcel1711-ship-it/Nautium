@@ -3,6 +3,7 @@ import { X, Upload, FileText, ClipboardList, Users, Ship } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, dbInsert } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { demoVessels, demoEquipment } from '../../data/demoData';
 import { useToast } from '../UI/Toast';
 import { validateDocumentFile } from '../../lib/security';
@@ -99,20 +100,22 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `manuals/${vesselId}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('manuals')
-        .upload(filePath, file);
+      const isOnline = navigator.onLine;
 
       let fileUrl = '';
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(filePath);
-        fileUrl = urlData.publicUrl;
-      } else {
-        fileUrl = '';
+
+      if (isOnline) {
+        const { error: uploadError } = await supabase.storage
+          .from('manuals')
+          .upload(filePath, file);
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(filePath);
+          fileUrl = urlData.publicUrl;
+        }
       }
 
-      await dbInsert('maintenance_manuals', {
+      const record = await dbInsert('maintenance_manuals', {
         vessel_id: vesselId,
         company_id: currentUser.company_id || null,
         equipment_id: equipmentId || null,
@@ -126,7 +129,22 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
         uploaded_by_name: currentUser.full_name,
       });
 
-      showToast('Manual uploaded', 'success');
+      if (!isOnline) {
+        const offlineId = record?.id || `offline-${Date.now()}`;
+        await addFileToQueue({
+          blob: file,
+          fileName: file.name,
+          bucket: 'manuals',
+          storagePath: filePath,
+          recordTable: 'maintenance_manuals',
+          recordId: offlineId,
+          recordField: 'file_url',
+        });
+        showToast('Manual saved offline — file will upload when connected', 'success');
+      } else {
+        showToast('Manual uploaded', 'success');
+      }
+
       onSaved?.();
       onClose();
     } catch {

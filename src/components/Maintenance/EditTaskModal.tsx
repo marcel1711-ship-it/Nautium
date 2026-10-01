@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, ChevronDown, Image, XCircle, Upload, Package, Plus, Trash2, CheckSquare, RefreshCw, Pin, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY, dbUpdate } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { demoEquipment, demoVessels, demoUsers } from '../../data/demoData';
 import { MaintenanceTask } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -151,8 +152,12 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onS
     for (const file of newPhotoFiles) {
       const ext = file.name.split('.').pop();
       const path = `${currentUser.id}/${task.id}_ref_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('task-photos').upload(path, file);
-      if (!error) { const { data } = supabase.storage.from('task-photos').getPublicUrl(path); urls.push(data.publicUrl); }
+      if (navigator.onLine) {
+        const { error } = await supabase.storage.from('task-photos').upload(path, file);
+        if (!error) { const { data } = supabase.storage.from('task-photos').getPublicUrl(path); urls.push(data.publicUrl); }
+      } else {
+        await addFileToQueue({ blob: file, fileName: file.name, bucket: 'task-photos', storagePath: path, recordTable: 'maintenance_tasks', recordId: task.id, recordField: 'photos' });
+      }
     }
     setUploadingPhotos(false);
     return urls;

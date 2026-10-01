@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Ship, AlertCircle, Lock, Camera, Upload, UserCircle, Mail, Check, Users, UserCheck, ClipboardCheck } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, dbInsert } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { useToast } from '../UI/Toast';
 
 interface AddVesselModalProps {
@@ -93,17 +94,21 @@ export const AddVesselModal: React.FC<AddVesselModalProps> = ({
     if (atLimit) return;
     setError(null); setIsLoading(true);
     try {
+      const isOnline = navigator.onLine;
       let photoUrl: string | null = null;
+      let photoStoragePath: string | null = null;
       if (photo) {
         const ext = photo.name.split('.').pop();
-        const fileName = `${companyId}-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(fileName, photo, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(fileName);
-          photoUrl = urlData.publicUrl;
+        photoStoragePath = `${companyId}-${Date.now()}.${ext}`;
+        if (isOnline) {
+          const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(photoStoragePath, photo, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(photoStoragePath);
+            photoUrl = urlData.publicUrl;
+          }
         }
       }
-      const { data: vesselData, error: insertError } = await supabase.from('vessels').insert([{
+      const vesselPayload = {
         company_id: companyId,
         name: form.name.trim(), type: form.type,
         manufacturer: form.manufacturer.trim(), model: form.model.trim(),
@@ -120,14 +125,13 @@ export const AddVesselModal: React.FC<AddVesselModalProps> = ({
         has_management: form.has_management,
         requires_approval: form.requires_approval,
         approval_chain: form.approval_chain,
-      }]).select().single();
-      if (insertError) {
-        if (insertError.message.includes('VESSEL_LIMIT_REACHED')) {
-          setError(`Fleet limit reached (${vesselLimit} vessels). Ask your administrator to increase the limit.`);
-        } else { throw insertError; }
-        return;
+      };
+      const vesselData = await dbInsert('vessels', vesselPayload);
+      if (!vesselData) throw new Error('Failed to create vessel');
+      if (!isOnline && photo && photoStoragePath) {
+        await addFileToQueue({ blob: photo, fileName: photo.name, bucket: 'vessel-photos', storagePath: photoStoragePath, recordTable: 'vessels', recordId: vesselData.id, recordField: 'photo_url' });
       }
-      if (vesselData && form.owner_email.trim()) await createOwnerUser(vesselData.id, form.name.trim());
+      if (isOnline && vesselData && form.owner_email.trim()) await createOwnerUser(vesselData.id, form.name.trim());
       showToast('Vessel created successfully', 'success');
       onSuccess(); onClose();
     } catch (err: any) { setError(err.message || 'Failed to create vessel'); }

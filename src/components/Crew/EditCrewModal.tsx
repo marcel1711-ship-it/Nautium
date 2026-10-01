@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Trash2, Camera, ShieldCheck, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, dbUpdate, dbDelete, fetchFiltered } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { useToast } from '../UI/Toast';
 import { validateImageFile } from '../../lib/security';
 import { POSITIONS, DEPARTMENTS } from '../../pages/Crew';
@@ -88,14 +89,20 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
 
     setSaving(true);
     try {
+      const isOnline = navigator.onLine;
       let photoUrl = member.photo_url || null;
+      let photoStoragePath: string | null = null;
+
       if (photo && currentUser) {
         const ext = photo.name.split('.').pop();
-        const fileName = `crew/${currentUser.company_id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(fileName, photo, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(fileName);
-          photoUrl = urlData.publicUrl;
+        photoStoragePath = `crew/${currentUser.company_id}/${Date.now()}.${ext}`;
+
+        if (isOnline) {
+          const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(photoStoragePath, photo, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(photoStoragePath);
+            photoUrl = urlData.publicUrl;
+          }
         }
       }
 
@@ -120,6 +127,19 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
         notes: form.notes || null,
         updated_at: new Date().toISOString(),
       });
+
+      if (!isOnline && photo && photoStoragePath) {
+        await addFileToQueue({
+          blob: photo,
+          fileName: photo.name,
+          bucket: 'vessel-photos',
+          storagePath: photoStoragePath,
+          recordTable: 'crew_members',
+          recordId: member.id,
+          recordField: 'photo_url',
+        });
+      }
+
       showToast('Crew member updated', 'success');
       onSaved();
     } catch {

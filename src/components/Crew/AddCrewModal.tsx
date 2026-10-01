@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, dbInsert } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { useToast } from '../UI/Toast';
 import { validateImageFile } from '../../lib/security';
 import { POSITIONS, DEPARTMENTS } from '../../pages/Crew';
@@ -69,18 +70,24 @@ export const AddCrewModal: React.FC<AddCrewModalProps> = ({ vessels, defaultVess
 
     setSaving(true);
     try {
+      const isOnline = navigator.onLine;
       let photoUrl: string | null = null;
+      let photoStoragePath: string | null = null;
+
       if (photo) {
         const ext = photo.name.split('.').pop();
-        const fileName = `crew/${currentUser.company_id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(fileName, photo, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(fileName);
-          photoUrl = urlData.publicUrl;
+        photoStoragePath = `crew/${currentUser.company_id}/${Date.now()}.${ext}`;
+
+        if (isOnline) {
+          const { error: uploadError } = await supabase.storage.from('vessel-photos').upload(photoStoragePath, photo, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('vessel-photos').getPublicUrl(photoStoragePath);
+            photoUrl = urlData.publicUrl;
+          }
         }
       }
 
-      await dbInsert('crew_members', {
+      const record = await dbInsert('crew_members', {
         vessel_id: form.vessel_id,
         company_id: currentUser.company_id,
         full_name: form.full_name,
@@ -100,6 +107,19 @@ export const AddCrewModal: React.FC<AddCrewModalProps> = ({ vessels, defaultVess
         notes: form.notes || null,
         status: 'active',
       });
+
+      if (!isOnline && photo && photoStoragePath) {
+        await addFileToQueue({
+          blob: photo,
+          fileName: photo.name,
+          bucket: 'vessel-photos',
+          storagePath: photoStoragePath,
+          recordTable: 'crew_members',
+          recordId: record?.id || `offline-${Date.now()}`,
+          recordField: 'photo_url',
+        });
+      }
+
       showToast(`${form.full_name} added to crew`, 'success');
       onSaved();
     } catch {

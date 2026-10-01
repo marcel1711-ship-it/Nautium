@@ -1,5 +1,6 @@
-import { getSyncQueue, removeSyncEntry, updateSyncEntry, updateCachedRecord, type SyncEntry } from './offlineStore';
+import { getSyncQueue, removeSyncEntry, updateSyncEntry, updateCachedRecord, getFileQueue, removeFileEntry, remapFileQueueRecordId, type SyncEntry } from './offlineStore';
 import { queryClient } from './queryClient';
+import { supabase } from './supabase';
 
 const SUPABASE_URL = 'https://fsxjbgopxxbtidlkkafc.supabase.co';
 const EDGE_URL = `${SUPABASE_URL}/functions/v1/get-company-data`;
@@ -67,6 +68,58 @@ async function remapOfflineId(
     }
   }
   await updateCachedRecord(table, offlineId, { id: realId, _offline: false });
+  await remapFileQueueRecordId(table, offlineId, realId);
+}
+
+async function processFileQueue(): Promise<void> {
+  const files = await getFileQueue();
+  if (files.length === 0) return;
+
+  const token = getToken();
+
+  for (const entry of files) {
+    if (!navigator.onLine) break;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(entry.bucket)
+        .upload(entry.storagePath, entry.blob, { upsert: true });
+
+      if (uploadError) continue;
+
+      const { data: urlData } = supabase.storage
+        .from(entry.bucket)
+        .getPublicUrl(entry.storagePath);
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token ?? SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      };
+
+      if (entry.recordField === 'photos') {
+        const getRes = await fetch(EDGE_URL, {
+          method: 'POST', headers,
+          body: JSON.stringify({ action: 'select_single', table: entry.recordTable, id: entry.recordId }),
+        });
+        const getJson = await getRes.json();
+        const currentPhotos: string[] = getJson.data?.photos || [];
+        await fetch(EDGE_URL, {
+          method: 'POST', headers,
+          body: JSON.stringify({ action: 'update', table: entry.recordTable, id: entry.recordId, data: { photos: [...currentPhotos, urlData.publicUrl] } }),
+        });
+      } else {
+        await fetch(EDGE_URL, {
+          method: 'POST', headers,
+          body: JSON.stringify({ action: 'update', table: entry.recordTable, id: entry.recordId, data: { [entry.recordField]: urlData.publicUrl } }),
+        });
+      }
+
+      await removeFileEntry(entry.id!);
+    } catch {
+      // retry next sync cycle
+    }
+  }
 }
 
 export async function processQueue(): Promise<void> {
@@ -75,7 +128,11 @@ export async function processQueue(): Promise<void> {
 
   try {
     const queue = await getSyncQueue();
-    if (queue.length === 0) { notify(0); return; }
+    if (queue.length === 0) {
+      notify(0);
+      await processFileQueue();
+      return;
+    }
 
     let remaining = queue.length;
     notify(remaining);
@@ -103,6 +160,8 @@ export async function processQueue(): Promise<void> {
         await updateSyncEntry(entry.id!, { retries: entry.retries + 1 });
       }
     }
+
+    await processFileQueue();
 
     if (remaining === 0) {
       queryClient.invalidateQueries();

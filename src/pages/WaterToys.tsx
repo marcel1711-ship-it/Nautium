@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
+import { addFileToQueue } from '../lib/offlineStore';
 import { WaterToy, WaterToyType, WaterToyStatus, canCreate } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
@@ -382,14 +383,18 @@ const WaterToyModal: React.FC<{
     if (!currentUser || !form.name || !form.vessel_id) return;
     setSaving(true);
     try {
+      const isOnline = navigator.onLine;
       let photo_url = item?.photo_url || null;
+      let photoStoragePath: string | null = null;
       if (photoFile) {
         const ext = photoFile.name.split('.').pop();
-        const path = `water-toys/${form.vessel_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('task-photos').upload(path, photoFile, { upsert: true });
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(path);
-          photo_url = urlData.publicUrl;
+        photoStoragePath = `water-toys/${form.vessel_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        if (isOnline) {
+          const { error: upErr } = await supabase.storage.from('task-photos').upload(photoStoragePath, photoFile, { upsert: true });
+          if (!upErr) {
+            const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(photoStoragePath);
+            photo_url = urlData.publicUrl;
+          }
         }
       }
       let effectiveCompanyId = companyId;
@@ -417,8 +422,14 @@ const WaterToyModal: React.FC<{
       };
       if (item) {
         await dbUpdate('water_toys', item.id, payload);
+        if (!isOnline && photoFile && photoStoragePath) {
+          await addFileToQueue({ blob: photoFile, fileName: photoFile.name, bucket: 'task-photos', storagePath: photoStoragePath, recordTable: 'water_toys', recordId: item.id, recordField: 'photo_url' });
+        }
       } else {
-        await dbInsert('water_toys', payload);
+        const record = await dbInsert('water_toys', payload);
+        if (!isOnline && photoFile && photoStoragePath) {
+          await addFileToQueue({ blob: photoFile, fileName: photoFile.name, bucket: 'task-photos', storagePath: photoStoragePath, recordTable: 'water_toys', recordId: record?.id || `offline-${Date.now()}`, recordField: 'photo_url' });
+        }
       }
       onSaved();
     } catch { showToast('Error saving water toy', 'error'); }

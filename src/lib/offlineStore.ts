@@ -1,7 +1,8 @@
 const DB_NAME = 'nautium-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const DATA_STORE = 'cached-data';
 const SYNC_STORE = 'sync-queue';
+const FILE_STORE = 'file-queue';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -16,6 +17,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(SYNC_STORE)) {
         db.createObjectStore(SYNC_STORE, { keyPath: 'id', autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains(FILE_STORE)) {
+        db.createObjectStore(FILE_STORE, { keyPath: 'id', autoIncrement: true });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -200,6 +204,76 @@ export async function updateSyncEntry(id: number, updates: Partial<SyncEntry>): 
 export async function getSyncQueueCount(): Promise<number> {
   try {
     const store = await tx(SYNC_STORE, 'readonly');
+    return new Promise((resolve) => {
+      const req = store.count();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(0);
+    });
+  } catch { return 0; }
+}
+
+// ── File queue (offline file uploads) ───────────────────────────────────────
+
+export interface FileQueueEntry {
+  id?: number;
+  blob: Blob;
+  fileName: string;
+  bucket: string;
+  storagePath: string;
+  recordTable: string;
+  recordId: string;
+  recordField: string;
+  createdAt: number;
+}
+
+export async function addFileToQueue(entry: Omit<FileQueueEntry, 'id' | 'createdAt'>): Promise<void> {
+  try {
+    const store = await tx(FILE_STORE, 'readwrite');
+    await new Promise<void>((resolve) => {
+      const req = store.add({ ...entry, createdAt: Date.now() });
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+    });
+  } catch { /* best-effort */ }
+}
+
+export async function getFileQueue(): Promise<FileQueueEntry[]> {
+  try {
+    const store = await tx(FILE_STORE, 'readonly');
+    return new Promise((resolve) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result ?? []);
+      req.onerror = () => resolve([]);
+    });
+  } catch { return []; }
+}
+
+export async function removeFileEntry(id: number): Promise<void> {
+  try {
+    const store = await tx(FILE_STORE, 'readwrite');
+    store.delete(id);
+  } catch { /* best-effort */ }
+}
+
+export async function remapFileQueueRecordId(table: string, oldId: string, newId: string): Promise<void> {
+  try {
+    const store = await tx(FILE_STORE, 'readwrite');
+    const entries: FileQueueEntry[] = await new Promise((resolve) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result ?? []);
+      req.onerror = () => resolve([]);
+    });
+    for (const entry of entries) {
+      if (entry.recordTable === table && entry.recordId === oldId) {
+        store.put({ ...entry, recordId: newId });
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
+export async function getFileQueueCount(): Promise<number> {
+  try {
+    const store = await tx(FILE_STORE, 'readonly');
     return new Promise((resolve) => {
       const req = store.count();
       req.onsuccess = () => resolve(req.result);

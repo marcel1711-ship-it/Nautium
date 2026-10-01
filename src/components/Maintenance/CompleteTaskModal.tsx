@@ -3,6 +3,7 @@ import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, Re
 import { MaintenanceTask, InventoryItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../../lib/supabase';
+import { addFileToQueue } from '../../lib/offlineStore';
 import { demoInventoryItems } from '../../data/demoData';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { validateImageFile } from '../../lib/security';
@@ -195,8 +196,12 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
     for (const file of photoFiles) {
       const ext = file.name.split('.').pop();
       const path = `${currentUser.id}/${task.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('task-photos').upload(path, file);
-      if (!error) { const { data } = supabase.storage.from('task-photos').getPublicUrl(path); urls.push(data.publicUrl); }
+      if (navigator.onLine) {
+        const { error } = await supabase.storage.from('task-photos').upload(path, file);
+        if (!error) { const { data } = supabase.storage.from('task-photos').getPublicUrl(path); urls.push(data.publicUrl); }
+      } else {
+        await addFileToQueue({ blob: file, fileName: file.name, bucket: 'task-photos', storagePath: path, recordTable: 'maintenance_tasks', recordId: task.id, recordField: 'photos' });
+      }
     }
     setUploadingPhotos(false);
     return urls;

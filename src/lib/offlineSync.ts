@@ -1,4 +1,4 @@
-import { getSyncQueue, removeSyncEntry, updateSyncEntry, type SyncEntry } from './offlineStore';
+import { getSyncQueue, removeSyncEntry, updateSyncEntry, updateCachedRecord, type SyncEntry } from './offlineStore';
 import { queryClient } from './queryClient';
 
 const SUPABASE_URL = 'https://fsxjbgopxxbtidlkkafc.supabase.co';
@@ -28,7 +28,7 @@ function getToken(): string | null {
   return null;
 }
 
-async function replayEntry(entry: SyncEntry): Promise<boolean> {
+async function replayEntry(entry: SyncEntry): Promise<{ ok: boolean; data?: any }> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -45,10 +45,28 @@ async function replayEntry(entry: SyncEntry): Promise<boolean> {
   try {
     const res = await fetch(EDGE_URL, { method: 'POST', headers, body: JSON.stringify(body) });
     const json = await res.json();
-    return !json.error;
+    return { ok: !json.error, data: json.data };
   } catch {
-    return false;
+    return { ok: false };
   }
+}
+
+async function remapOfflineId(
+  queue: SyncEntry[],
+  currentIndex: number,
+  table: string,
+  offlineId: string,
+  realId: string,
+): Promise<void> {
+  for (let i = currentIndex + 1; i < queue.length; i++) {
+    const later = queue[i];
+    if (later.table !== table) continue;
+    if (later.payload.id === offlineId) {
+      later.payload.id = realId;
+      await updateSyncEntry(later.id!, { payload: later.payload });
+    }
+  }
+  await updateCachedRecord(table, offlineId, { id: realId, _offline: false });
 }
 
 export async function processQueue(): Promise<void> {
@@ -62,11 +80,18 @@ export async function processQueue(): Promise<void> {
     let remaining = queue.length;
     notify(remaining);
 
-    for (const entry of queue) {
+    for (let i = 0; i < queue.length; i++) {
       if (!navigator.onLine) break;
+      const entry = queue[i];
 
-      const ok = await replayEntry(entry);
+      const { ok, data } = await replayEntry(entry);
       if (ok) {
+        if (entry.action === 'insert' && data?.id) {
+          const offlineId = entry.payload.data?.id;
+          if (offlineId && typeof offlineId === 'string' && offlineId.startsWith('offline-')) {
+            await remapOfflineId(queue, i, entry.table, offlineId, data.id);
+          }
+        }
         await removeSyncEntry(entry.id!);
         remaining--;
         notify(remaining);

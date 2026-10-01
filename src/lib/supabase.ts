@@ -189,8 +189,9 @@ export async function fetchFiltered(
 
 export async function dbInsert(table: string, data: Record<string, any>): Promise<any> {
   if (!navigator.onLine) {
-    const offlineRecord = { ...data, id: `offline-${Date.now()}`, _offline: true };
-    await addToSyncQueue({ action: 'insert', table, payload: { data } });
+    const offlineId = `offline-${Date.now()}`;
+    const offlineRecord = { ...data, id: offlineId, _offline: true };
+    await addToSyncQueue({ action: 'insert', table, payload: { data: { ...data, id: offlineId } } });
     await insertCachedRecord(table, offlineRecord);
     return offlineRecord;
   }
@@ -201,8 +202,9 @@ export async function dbInsert(table: string, data: Record<string, any>): Promis
     return json.data;
   } catch (err) {
     if (!navigator.onLine) {
-      const offlineRecord = { ...data, id: `offline-${Date.now()}`, _offline: true };
-      await addToSyncQueue({ action: 'insert', table, payload: { data } });
+      const offlineId = `offline-${Date.now()}`;
+      const offlineRecord = { ...data, id: offlineId, _offline: true };
+      await addToSyncQueue({ action: 'insert', table, payload: { data: { ...data, id: offlineId } } });
       await insertCachedRecord(table, offlineRecord);
       return offlineRecord;
     }

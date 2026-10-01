@@ -208,7 +208,12 @@ Deno.serve(async (req: Request) => {
           row.company_id = row.company_id || enforceCompany;
         }
       }
-      const { data: row, error } = await supabase.from(table).insert(data).select().single();
+      const cleanData = Array.isArray(data) ? data : [data];
+      for (const r of cleanData) {
+        if (typeof r.id === 'string' && r.id.startsWith('offline-')) delete r.id;
+        delete r._offline;
+      }
+      const { data: row, error } = await supabase.from(table).insert(cleanData.length === 1 ? cleanData[0] : cleanData).select().single();
       if (error) throw error;
       return new Response(JSON.stringify({ data: row }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

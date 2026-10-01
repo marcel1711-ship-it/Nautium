@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, dbInsert } from '../../lib/supabase';
 import { useToast } from '../UI/Toast';
 import { validateImageFile } from '../../lib/security';
 import { POSITIONS, DEPARTMENTS } from '../../pages/Crew';
@@ -80,7 +80,7 @@ export const AddCrewModal: React.FC<AddCrewModalProps> = ({ vessels, defaultVess
         }
       }
 
-      const { error } = await supabase.from('crew_members').insert({
+      await dbInsert('crew_members', {
         vessel_id: form.vessel_id,
         company_id: currentUser.company_id,
         full_name: form.full_name,
@@ -100,8 +100,6 @@ export const AddCrewModal: React.FC<AddCrewModalProps> = ({ vessels, defaultVess
         notes: form.notes || null,
         status: 'active',
       });
-
-      if (error) throw error;
       showToast(`${form.full_name} added to crew`, 'success');
       onSaved();
     } catch {

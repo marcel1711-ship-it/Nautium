@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Trash2, Camera, ShieldCheck, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, dbUpdate, dbDelete, fetchFiltered } from '../../lib/supabase';
 import { useToast } from '../UI/Toast';
 import { validateImageFile } from '../../lib/security';
 import { POSITIONS, DEPARTMENTS } from '../../pages/Crew';
@@ -42,21 +42,20 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
 
   const [certs, setCerts] = useState<{ id: string; name: string; expiry_date: string; status: string }[]>([]);
   useEffect(() => {
-    supabase.from('compliance_items')
-      .select('id, name, expiry_date')
-      .eq('crew_member_id', member.id)
-      .order('expiry_date', { ascending: true })
-      .then(({ data }) => {
-        if (data) {
-          const today = new Date(); today.setHours(0, 0, 0, 0);
-          setCerts(data.map(c => {
-            const days = Math.ceil((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000);
-            const status = days < 0 ? 'expired' : days <= 30 ? 'critical' : days <= 90 ? 'expiring' : 'valid';
-            return { ...c, status };
-          }));
-        }
-      });
-  }, [member.id]);
+    if (!currentUser?.company_id) return;
+    fetchFiltered('compliance_items', currentUser.company_id, [
+      { field: 'crew_member_id', op: 'eq', value: member.id },
+    ], { order_by: 'expiry_date', asc: true }).then((data: any[]) => {
+      if (data) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        setCerts(data.map(c => {
+          const days = Math.ceil((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000);
+          const status = days < 0 ? 'expired' : days <= 30 ? 'critical' : days <= 90 ? 'expiring' : 'valid';
+          return { ...c, status };
+        }));
+      }
+    });
+  }, [member.id, currentUser?.company_id]);
 
   const [form, setForm] = useState({
     full_name: member.full_name,
@@ -100,7 +99,7 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
         }
       }
 
-      const { error } = await supabase.from('crew_members').update({
+      await dbUpdate('crew_members', member.id, {
         full_name: form.full_name,
         position: form.position,
         department: form.department,
@@ -120,9 +119,7 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
         status: form.status,
         notes: form.notes || null,
         updated_at: new Date().toISOString(),
-      }).eq('id', member.id);
-
-      if (error) throw error;
+      });
       showToast('Crew member updated', 'success');
       onSaved();
     } catch {
@@ -135,8 +132,7 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
   const handleDelete = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from('crew_members').delete().eq('id', member.id);
-      if (error) throw error;
+      await dbDelete('crew_members', member.id);
       showToast(`${member.full_name} removed from crew`, 'info');
       onSaved();
     } catch {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, FileText, ClipboardList, Users, Ship } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, dbInsert } from '../../lib/supabase';
 import { demoVessels, demoEquipment } from '../../data/demoData';
 import { useToast } from '../UI/Toast';
 import { validateDocumentFile } from '../../lib/security';
@@ -112,7 +112,7 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
         fileUrl = '';
       }
 
-      const { error: dbError } = await supabase.from('maintenance_manuals').insert({
+      await dbInsert('maintenance_manuals', {
         vessel_id: vesselId,
         company_id: currentUser.company_id || null,
         equipment_id: equipmentId || null,
@@ -126,13 +126,11 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
         uploaded_by_name: currentUser.full_name,
       });
 
-      if (!dbError) {
-        showToast('Manual uploaded', 'success');
-        onSaved?.();
-        onClose();
-      } else {
-        showToast('Error saving manual. Please try again.', 'error');
-      }
+      showToast('Manual uploaded', 'success');
+      onSaved?.();
+      onClose();
+    } catch {
+      showToast('Error saving manual. Please try again.', 'error');
     } finally {
       setUploading(false);
     }

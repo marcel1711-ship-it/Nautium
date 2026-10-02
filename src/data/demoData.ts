@@ -11,7 +11,8 @@ import {
   FuelResource,
   FuelLogEntry,
   OperationalExpense,
-  OperationalExpenseCategory
+  OperationalExpenseCategory,
+  Voyage
 } from '../types';
 
 export const demoCompanies: Company[] = [
@@ -1268,6 +1269,202 @@ export const demoOperationalExpenses: OperationalExpense[] = [
     expense_date: subDays(18),
     created_by: '00000000-0000-0000-0009-000000000003',
     created_at: subDays(18) + 'T12:00:00Z',
+  },
+  // ── October 2026 — 3 co-owners usage ──────────────────────────────────────
+  // Owner A — Richard Morgan: Monaco Weekend
+  {
+    id: 'opex-oct-01', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'fuel' as OperationalExpenseCategory, description: 'Diesel refuel — Monaco departure', amount: 8200, currency: 'EUR',
+    expense_date: '2026-10-03', department: 'Engineering', voyage_id: 'voyage-oct-01',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-03T07:00:00Z',
+  },
+  {
+    id: 'opex-oct-02', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'provisions' as OperationalExpenseCategory, description: 'Catering for 6 guests — weekend menu', amount: 3400, currency: 'EUR',
+    expense_date: '2026-10-03', department: 'Galley', voyage_id: 'voyage-oct-01',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-03T08:30:00Z',
+  },
+  {
+    id: 'opex-oct-03', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'port_fees' as OperationalExpenseCategory, description: 'Port Hercule — weekend visitor berth', amount: 1200, currency: 'EUR',
+    expense_date: '2026-10-03', department: 'Deck', voyage_id: 'voyage-oct-01',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-03T09:00:00Z',
+  },
+  {
+    id: 'opex-oct-04', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'day_worker' as OperationalExpenseCategory, description: 'Extra stewardess for weekend — Elisa R.', amount: 450, currency: 'EUR',
+    expense_date: '2026-10-04', department: 'Interior', voyage_id: 'voyage-oct-01',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-04T07:00:00Z',
+  },
+  // Owner B — Sofia Rossi: Sardinia Trip
+  {
+    id: 'opex-oct-05', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'fuel' as OperationalExpenseCategory, description: 'Diesel refuel — Olbia Marina', amount: 9600, currency: 'EUR',
+    expense_date: '2026-10-10', department: 'Engineering', voyage_id: 'voyage-oct-02',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-10T08:00:00Z',
+  },
+  {
+    id: 'opex-oct-06', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'provisions' as OperationalExpenseCategory, description: 'Provisioning 10 guests — 5 day menu plan', amount: 6800, currency: 'EUR',
+    expense_date: '2026-10-10', department: 'Galley', voyage_id: 'voyage-oct-02',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-10T09:00:00Z',
+  },
+  {
+    id: 'opex-oct-07', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'port_fees' as OperationalExpenseCategory, description: 'Porto Cervo marina — 4 nights', amount: 3200, currency: 'EUR',
+    expense_date: '2026-10-10', department: 'Deck', voyage_id: 'voyage-oct-02',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-10T10:00:00Z',
+  },
+  {
+    id: 'opex-oct-08', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'maintenance' as OperationalExpenseCategory, description: 'Watermaker membrane replacement — urgent', amount: 2100, currency: 'EUR',
+    expense_date: '2026-10-12', department: 'Engineering', voyage_id: 'voyage-oct-02',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-12T14:00:00Z',
+  },
+  {
+    id: 'opex-oct-09', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'day_worker' as OperationalExpenseCategory, description: 'Two day workers — Sardinia dive excursion setup', amount: 900, currency: 'EUR',
+    expense_date: '2026-10-11', department: 'Deck', voyage_id: 'voyage-oct-02',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-11T07:00:00Z',
+  },
+  // Owner C — James Peterson: Corporate Event
+  {
+    id: 'opex-oct-10', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'fuel' as OperationalExpenseCategory, description: 'Diesel refuel — pre-event cruise', amount: 5400, currency: 'EUR',
+    expense_date: '2026-10-18', department: 'Engineering', voyage_id: 'voyage-oct-03',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-18T06:00:00Z',
+  },
+  {
+    id: 'opex-oct-11', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'provisions' as OperationalExpenseCategory, description: 'Premium catering — 20 corporate guests + champagne', amount: 9200, currency: 'EUR',
+    expense_date: '2026-10-18', department: 'Galley', voyage_id: 'voyage-oct-03',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-18T08:00:00Z',
+  },
+  {
+    id: 'opex-oct-12', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'port_fees' as OperationalExpenseCategory, description: 'Monaco Yacht Club — event berth premium', amount: 2800, currency: 'EUR',
+    expense_date: '2026-10-18', department: 'Deck', voyage_id: 'voyage-oct-03',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-18T09:00:00Z',
+  },
+  {
+    id: 'opex-oct-13', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'day_worker' as OperationalExpenseCategory, description: 'Event staff — 3 extra crew for corporate dinner', amount: 1350, currency: 'EUR',
+    expense_date: '2026-10-18', department: 'Interior', voyage_id: 'voyage-oct-03',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'opex-oct-14', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'other' as OperationalExpenseCategory, description: 'Floral arrangements & decor — corporate event', amount: 1800, currency: 'EUR',
+    expense_date: '2026-10-17', department: 'Interior', voyage_id: 'voyage-oct-03',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-17T15:00:00Z',
+  },
+  // General expenses — not linked to any owner voyage
+  {
+    id: 'opex-oct-15', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'mooring' as OperationalExpenseCategory, description: 'Antibes Port Vauban — monthly berth October', amount: 4500, currency: 'EUR',
+    expense_date: '2026-10-01', department: 'Deck',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-01T08:00:00Z',
+  },
+  {
+    id: 'opex-oct-16', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'electricity' as OperationalExpenseCategory, description: 'Shore power — Antibes October', amount: 580, currency: 'EUR',
+    expense_date: '2026-10-01', department: 'Engineering',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-01T08:05:00Z',
+  },
+  {
+    id: 'opex-oct-17', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'internet' as OperationalExpenseCategory, description: 'Starlink maritime — October', amount: 250, currency: 'USD',
+    expense_date: '2026-10-01', department: 'Engineering',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-01T08:10:00Z',
+  },
+  {
+    id: 'opex-oct-18', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'insurance' as OperationalExpenseCategory, description: 'Hull & Machinery — Q4 premium installment', amount: 18500, currency: 'USD',
+    expense_date: '2026-10-02', department: 'General',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-02T10:00:00Z',
+  },
+  {
+    id: 'opex-oct-19', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'water' as OperationalExpenseCategory, description: 'Dockside water — Antibes October', amount: 110, currency: 'EUR',
+    expense_date: '2026-10-01', department: 'Engineering',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-01T08:15:00Z',
+  },
+  {
+    id: 'opex-oct-20', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'maintenance' as OperationalExpenseCategory, description: 'Generator 500h service — Kohler authorized dealer', amount: 3200, currency: 'EUR',
+    expense_date: '2026-10-08', department: 'Engineering',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-08T11:00:00Z',
+  },
+  {
+    id: 'opex-oct-21', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'waste_disposal' as OperationalExpenseCategory, description: 'Sewage pump-out & bilge treatment — Antibes', amount: 220, currency: 'EUR',
+    expense_date: '2026-10-15', department: 'Engineering',
+    created_by: 'e7d4a1b3-1ba9-470d-b419-1da7c0183334', created_at: '2026-10-15T14:00:00Z',
+  },
+  // Ocean Star — October
+  {
+    id: 'opex-oct-22', vessel_id: '00000000-0000-0000-0001-000000000002', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'mooring' as OperationalExpenseCategory, description: 'Fort Lauderdale Bahia Mar — October berth', amount: 3400, currency: 'USD',
+    expense_date: '2026-10-01', department: 'Deck',
+    created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-01T12:00:00Z',
+  },
+  {
+    id: 'opex-oct-23', vessel_id: '00000000-0000-0000-0001-000000000002', company_id: '00000000-0000-0000-0000-000000000001',
+    category: 'fuel' as OperationalExpenseCategory, description: 'Diesel — FLIBS preparation sea trial', amount: 4200, currency: 'USD',
+    expense_date: '2026-10-20', department: 'Engineering',
+    created_by: '00000000-0000-0000-0009-000000000003', created_at: '2026-10-20T09:00:00Z',
+  },
+];
+
+// ── Demo Voyages — October 2026, 3 co-owners of Azure Dream ────────────────
+export const demoVoyages: Voyage[] = [
+  {
+    id: 'voyage-oct-01',
+    vessel_id: '00000000-0000-0000-0001-000000000001',
+    company_id: '00000000-0000-0000-0000-000000000001',
+    name: 'Owner A — Monaco Weekend',
+    departure_port: 'Antibes',
+    arrival_port: 'Monaco',
+    departure_date: '2026-10-03',
+    arrival_date: '2026-10-05',
+    status: 'completed',
+    notes: 'Richard Morgan — 6 guests, short weekend cruise',
+    revenue: 0,
+    revenue_currency: 'EUR',
+    charter_type: 'Owner Use',
+    created_at: '2026-09-28T10:00:00Z',
+  },
+  {
+    id: 'voyage-oct-02',
+    vessel_id: '00000000-0000-0000-0001-000000000001',
+    company_id: '00000000-0000-0000-0000-000000000001',
+    name: 'Owner B — Sardinia Trip',
+    departure_port: 'Antibes',
+    arrival_port: 'Porto Cervo',
+    departure_date: '2026-10-10',
+    arrival_date: '2026-10-14',
+    status: 'completed',
+    notes: 'Sofia Rossi — 10 guests, 5-day Sardinia itinerary with dive excursion',
+    revenue: 0,
+    revenue_currency: 'EUR',
+    charter_type: 'Owner Use',
+    created_at: '2026-09-30T14:00:00Z',
+  },
+  {
+    id: 'voyage-oct-03',
+    vessel_id: '00000000-0000-0000-0001-000000000001',
+    company_id: '00000000-0000-0000-0000-000000000001',
+    name: 'Owner C — Corporate Event',
+    departure_port: 'Antibes',
+    arrival_port: 'Monaco',
+    departure_date: '2026-10-18',
+    arrival_date: '2026-10-20',
+    status: 'completed',
+    notes: 'James Peterson — 20 corporate guests, evening dinner cruise',
+    revenue: 0,
+    revenue_currency: 'EUR',
+    charter_type: 'Event',
+    created_at: '2026-10-05T09:00:00Z',
   },
 ];
 

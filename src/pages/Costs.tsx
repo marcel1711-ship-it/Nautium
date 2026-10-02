@@ -7,7 +7,7 @@ import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
-import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory } from '../data/demoData';
+import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory, demoVoyages } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { downloadHTML } from '../utils/helpers';
@@ -136,7 +136,12 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   useEffect(() => {
     const effectiveCompanyId = companyId || currentUser?.company_id || null;
     if (!effectiveCompanyId || !currentUser) { setVoyageFilterOptions([]); setFilterVoyage('all'); return; }
-    if (isDemoUser(currentUser.email)) { setVoyageFilterOptions([]); return; }
+    if (isDemoUser(currentUser.email)) {
+      const vesselId = (!selectedVesselId || selectedVesselId === 'all') ? null : selectedVesselId;
+      const filtered = vesselId ? demoVoyages.filter(v => v.vessel_id === vesselId) : demoVoyages;
+      setVoyageFilterOptions(filtered.map(v => ({ id: v.id, name: v.name })));
+      return;
+    }
     const vesselId = (!selectedVesselId || selectedVesselId === 'all') ? null : selectedVesselId;
     const filters: any[] = [];
     if (vesselId) filters.push({ field: 'vessel_id', op: 'eq', value: vesselId });

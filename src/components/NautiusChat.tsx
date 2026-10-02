@@ -170,7 +170,7 @@ export const NautiusChat: React.FC = () => {
       loadManuals();
       loadEquipment();
     }
-  }, [currentUser, selectedVesselId, sessionReady]);
+  }, [currentUser, selectedVesselId, sessionReady, open]);
 
   const fetchManualContent = async (manual: Manual): Promise<string | null> => {
     if (!manual.file_url || manual.file_url.startsWith('/')) return null;

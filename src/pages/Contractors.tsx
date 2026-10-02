@@ -10,6 +10,7 @@ import { fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { canCreate, UserRole } from '../types';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 interface ContractorsProps {
   onNavigate: (page: string, params?: any) => void;
@@ -316,9 +317,12 @@ export const Contractors: React.FC<ContractorsProps> = ({ onNavigate }) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            Preferred Contractors
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              Preferred Contractors
+            </h1>
+            <HelpTooltip text="Manage your network of marine service providers. Add contractors by specialty, store contact info and ratings, and quickly find the right vendor for any job." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm">
             Your trusted network of marine service providers
           </p>

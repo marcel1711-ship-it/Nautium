@@ -6,6 +6,7 @@ import { isPushSupported, getPermissionState, subscribeToPush, unsubscribeFromPu
 import { demoCompanies, demoVessels } from '../data/demoData';
 import { supabase } from '../lib/supabase';
 import { formatDate } from '../utils/helpers';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 interface SettingsProps {
   onNavigate: (page: string, params?: any) => void;
@@ -223,7 +224,10 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">{t('settings.title')}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">{t('settings.title')}</h1>
+          <HelpTooltip text="Configure your account preferences: profile info, notification settings, language, and listing options for bookings and charter operations." />
+        </div>
         <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('settings.subtitle')}</p>
       </div>
 

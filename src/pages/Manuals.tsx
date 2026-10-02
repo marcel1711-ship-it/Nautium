@@ -8,6 +8,7 @@ import { demoMaintenanceManuals, demoEquipment, demoVessels } from '../data/demo
 import { formatFileSize, formatDateTime } from '../utils/helpers';
 import { UploadManualModal } from '../components/Manuals/UploadManualModal';
 import { MaintenanceManual } from '../types';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 interface ManualsProps {
   onNavigate: (page: string, params?: any) => void;
@@ -147,7 +148,10 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">{t('manuals.title')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">{t('manuals.title')}</h1>
+            <HelpTooltip text="Upload and organize equipment manuals, technical documents, and reference materials. Link manuals to specific equipment for quick access during maintenance." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('manuals.subtitle')}</p>
         </div>
         <button

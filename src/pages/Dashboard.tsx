@@ -18,6 +18,7 @@ import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
 import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
 import { UpcomingVoyagesCard } from '../components/Voyages/VoyageCalendar';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 
 interface DashboardProps {
@@ -1022,7 +1023,10 @@ const MasterAdminDashboard: React.FC<{ onNavigate: (page: string, params?: any) 
     <div className="space-y-6 pt-4">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{t('dashboard.masterTitle')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{t('dashboard.masterTitle')}</h1>
+            <HelpTooltip text="Platform overview for administrators. Monitor fleet status, customer accounts, pending onboarding submissions, and system-wide metrics at a glance." />
+          </div>
           <p className="text-gray-400 mt-2 text-sm font-medium tracking-wide uppercase" style={{ letterSpacing: '0.08em' }}>{t('dashboard.masterSubtitle')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'linear-gradient(135deg, #0a1628 0%, #0d1f3c 100%)', borderRadius: 12, border: '1px solid rgba(56,189,248,0.2)', flexShrink: 0 }}>
@@ -1232,6 +1236,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     <div className="space-y-6 pt-4">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
         <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{t('dashboard.title')}</h1>
+        <HelpTooltip text="Your vessel dashboard. See overdue and upcoming maintenance, low-stock inventory alerts, compliance status, and upcoming voyages. Click any card to navigate to its section." />
         {userDepartment && deptStyle && (
           <span style={{ padding: '4px 12px', borderRadius: 100, background: deptStyle.bg, color: deptStyle.text, border: `1px solid ${deptStyle.border}`, fontSize: 12, fontWeight: 700 }}>{userDepartment}</span>
         )}

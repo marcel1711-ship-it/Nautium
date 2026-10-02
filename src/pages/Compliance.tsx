@@ -11,6 +11,7 @@ import { useToast } from '../components/UI/Toast';
 import { canCreate, UserRole } from '../types';
 import { validateDocumentFile } from '../lib/security';
 import { NewTaskModal, NewTaskData } from '../components/Maintenance/NewTaskModal';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 interface ComplianceProps {
   onNavigate: (page: string, params?: any) => void;
@@ -894,7 +895,10 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Compliance</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Compliance</h1>
+            <HelpTooltip text="Track vessel and crew certificates, surveys, and inspections. Monitor expiry dates, upload documents, and get alerts before certificates expire." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">Track vessel and crew certificates — never miss an expiry date</p>
         </div>
         {userCanCreate && (

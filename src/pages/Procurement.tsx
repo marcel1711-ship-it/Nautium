@@ -9,6 +9,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { fetchSingle, dbInsert, dbUpdate, dbDelete, fetchByCompany, fetchByVessel } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 import { PurchaseRequest, PurchaseRequestItem, PRStatus, POStatus } from '../types';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 
 interface ProcurementProps {
   onNavigate: (page: string, params?: any) => void;
@@ -339,10 +340,13 @@ export const Procurement: React.FC<ProcurementProps> = ({ onNavigate }) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <ShoppingCart className="w-7 h-7 text-blue-600" />
-            Procurement
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <ShoppingCart className="w-7 h-7 text-blue-600" />
+              Procurement
+            </h1>
+            <HelpTooltip text="Create and manage purchase requests for parts and supplies. Track approval status, generate purchase orders, and monitor delivery of ordered items." />
+          </div>
           <p className="text-gray-500 mt-1">Purchase requests and orders</p>
         </div>
         <button

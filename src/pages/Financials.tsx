@@ -19,19 +19,40 @@ interface MonthlyVesselSpend {
   [vesselId: string]: string | number;
 }
 
+export type FilterMode = 'month' | 'year' | 'period';
+
 export interface PeriodFilter {
   year: number;
   month: number;
   isFullYear: boolean;
+  mode: FilterMode;
+  period: string;
 }
 
 const fmtCurrency = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v || 0);
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const VESSEL_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2'];
 
+const PERIOD_OPTIONS = [
+  { value: '1m', label: 'Last Month' },
+  { value: '3m', label: 'Last 3 Months' },
+  { value: '6m', label: 'Last 6 Months' },
+  { value: '1y', label: 'Last Year' },
+];
+
 const getPeriodRange = (p: PeriodFilter) => {
   const pad = (n: number) => String(n).padStart(2, '0');
-  if (p.isFullYear) return { start: `${p.year}-01-01`, end: `${p.year}-12-31` };
+  if (p.mode === 'period') {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    let start: Date;
+    if (p.period === '1m') start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    else if (p.period === '3m') start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    else if (p.period === '6m') start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    else start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    return { start: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`, end: todayStr };
+  }
+  if (p.mode === 'year' || p.isFullYear) return { start: `${p.year}-01-01`, end: `${p.year}-12-31` };
   const lastDay = new Date(p.year, p.month, 0).getDate();
   return { start: `${p.year}-${pad(p.month)}-01`, end: `${p.year}-${pad(p.month)}-${pad(lastDay)}` };
 };
@@ -52,7 +73,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const overviewVessel: string = (!selectedVesselId || selectedVesselId === 'all') ? 'all' : selectedVesselId;
 
   const now = new Date();
-  const [filter, setFilter] = useState<PeriodFilter>({ year: now.getFullYear(), month: now.getMonth() + 1, isFullYear: false });
+  const [filter, setFilter] = useState<PeriodFilter>({ year: now.getFullYear(), month: now.getMonth() + 1, isFullYear: false, mode: 'month', period: '3m' });
   const [periodSpend, setPeriodSpend] = useState(0);
   const [periodRevenue, setPeriodRevenue] = useState(0);
   const [periodBudget, setPeriodBudget] = useState(0);
@@ -63,7 +84,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   useEffect(() => { if (companyId) loadTrend(); }, [companyId]);
 
   // Re-carga cuando cambia el filtro O cuando cambia el barco seleccionado en el Header
-  useEffect(() => { if (companyId) loadPeriodTotals(); }, [companyId, filter.year, filter.month, filter.isFullYear, overviewVessel]);
+  useEffect(() => { if (companyId) loadPeriodTotals(); }, [companyId, filter.year, filter.month, filter.isFullYear, filter.mode, filter.period, overviewVessel]);
 
   // Sincroniza activeVessels cuando el Header cambia el barco seleccionado
   useEffect(() => {
@@ -177,7 +198,9 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       { select_cols: 'monthly_salary' }
     );
     const crewSalaryTotal = crewData.reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
-    const monthsInPeriod = filter.isFullYear ? 12 : 1;
+    const monthsInPeriod = filter.mode === 'period'
+      ? (filter.period === '1m' ? 1 : filter.period === '3m' ? 3 : filter.period === '6m' ? 6 : 12)
+      : (filter.mode === 'year' || filter.isFullYear) ? 12 : 1;
     const crewCostForPeriod = crewSalaryTotal * monthsInPeriod;
 
     const totalSpend = operationalTotal + fuelTotal + partsTotal + serviceTotal + crewCostForPeriod;
@@ -199,7 +222,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       ...vesselFilter,
       { field: 'department', op: 'eq' as const, value: 'Total' },
       { field: 'year', op: 'eq' as const, value: filter.year },
-      ...(filter.isFullYear ? [] : [{ field: 'month', op: 'eq' as const, value: filter.month }]),
+      ...((filter.mode === 'year' || filter.isFullYear || filter.mode === 'period') ? [] : [{ field: 'month', op: 'eq' as const, value: filter.month }]),
     ];
     const budgets = await fetchFiltered('vessel_budgets', companyId, budgetFilters, { select_cols: 'budget_amount' });
     setPeriodBudget(budgets.reduce((s: number, b: any) => s + Number(b.budget_amount || 0), 0));
@@ -211,7 +234,9 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
   const budgetUsedPct = periodBudget > 0 ? Math.round((periodSpend / periodBudget) * 100) : 0;
   const netPL = periodRevenue - periodSpend;
-  const periodLabel = filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
+  const periodLabel = filter.mode === 'period'
+    ? (PERIOD_OPTIONS.find(o => o.value === filter.period)?.label || filter.period)
+    : filter.mode === 'year' || filter.isFullYear ? `${filter.year} (Full Year)` : `${MONTHS[filter.month - 1]} ${filter.year}`;
   const vesselLabel = overviewVessel === 'all' ? 'All Vessels' : vessels.find(v => v.id === overviewVessel)?.name || '';
 
   const handleExportOverview = async () => {
@@ -277,8 +302,10 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     const opItems = opExpenses.map((e: any) => ({ description: e.description || e.category || 'Expense', amount: Number(e.amount || 0), date: e.expense_date, vessel: getVesselName(e.vessel_id) }));
     const fuelItems = fuelEntries.map((e: any) => ({ description: 'Fuel refill', amount: Number(e.total_cost || 0), date: e.log_date, vessel: getVesselName(e.vessel_id) }));
     const serviceItems = histEntries.filter((h: any) => h.external_service_cost > 0).map((h: any) => ({ description: h.task_title || 'Service', amount: Number(h.external_service_cost), date: h.completion_date, vessel: getVesselName(h.vessel_id) }));
-    const monthsInPeriod = filter.isFullYear ? 12 : 1;
-    const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.first_name || ''} ${c.last_name || ''} — ${c.role || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod, vessel: getVesselName(c.vessel_id) }));
+    const monthsInPeriod2 = filter.mode === 'period'
+      ? (filter.period === '1m' ? 1 : filter.period === '3m' ? 3 : filter.period === '6m' ? 6 : 12)
+      : (filter.mode === 'year' || filter.isFullYear) ? 12 : 1;
+    const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.first_name || ''} ${c.last_name || ''} — ${c.role || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod2, vessel: getVesselName(c.vessel_id) }));
 
     const breakdownRows = [
       buildCategoryBlock('Operational', spendBreakdown.operational, opItems),
@@ -340,28 +367,39 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
           <Calendar className="w-4 h-4 text-gray-400" />
-          <select
-            value={filter.month}
-            disabled={filter.isFullYear}
-            onChange={e => setFilter(f => ({ ...f, month: Number(e.target.value) }))}
-            className="text-sm font-medium text-gray-700 bg-transparent outline-none disabled:opacity-40">
-            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select
-            value={filter.year}
-            onChange={e => setFilter(f => ({ ...f, year: Number(e.target.value) }))}
-            className="text-sm font-medium text-gray-700 bg-transparent outline-none">
-            {[filter.year - 1, filter.year, filter.year + 1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <label className="flex items-center gap-1.5 pl-2 ml-1 border-l border-gray-200 text-sm font-medium text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={filter.isFullYear}
-              onChange={e => setFilter(f => ({ ...f, isFullYear: e.target.checked }))}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            Full Year
-          </label>
+          <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            {([['month', 'Month'], ['year', 'Year'], ['period', 'Period']] as const).map(([m, label]) => (
+              <button key={m} onClick={() => setFilter(f => ({ ...f, mode: m, isFullYear: m === 'year' }))}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${filter.mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="h-4 w-px bg-gray-200" />
+          {filter.mode === 'month' && (
+            <>
+              <select value={filter.month} onChange={e => setFilter(f => ({ ...f, month: Number(e.target.value) }))}
+                className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={filter.year} onChange={e => setFilter(f => ({ ...f, year: Number(e.target.value) }))}
+                className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+                {[filter.year - 1, filter.year, filter.year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
+          {filter.mode === 'year' && (
+            <select value={filter.year} onChange={e => setFilter(f => ({ ...f, year: Number(e.target.value) }))}
+              className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+              {[filter.year - 2, filter.year - 1, filter.year, filter.year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+          {filter.mode === 'period' && (
+            <select value={filter.period} onChange={e => setFilter(f => ({ ...f, period: e.target.value }))}
+              className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+              {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
@@ -554,7 +592,9 @@ const VoyagePL: React.FC<{
   const totalRevenue = rows.reduce((s, r) => s + Number(r.voyage.revenue || 0), 0);
   const totalExpenses = rows.reduce((s, r) => s + r.expenses, 0);
   const totalNet = totalRevenue - totalExpenses;
-  const periodLabel = filter.isFullYear ? `${filter.year}` : `${MONTHS[filter.month - 1]} ${filter.year}`;
+  const periodLabel = filter.mode === 'period'
+    ? (PERIOD_OPTIONS.find(o => o.value === filter.period)?.label || filter.period)
+    : (filter.mode === 'year' || filter.isFullYear) ? `${filter.year}` : `${MONTHS[filter.month - 1]} ${filter.year}`;
 
   const handleExport = () => {
     const rowsHtml = rows.map(r => `<tr>

@@ -82,6 +82,22 @@ function getPeriodStart(period: string): Date | null {
   if (period === '1y') return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
   return null;
 }
+function getControlledRange(cp: { year: number; month: number; isFullYear: boolean; mode?: string; period?: string }): { start: string; end: string } {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (cp.mode === 'period' && cp.period) {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    let start: Date;
+    if (cp.period === '1m') start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    else if (cp.period === '3m') start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    else if (cp.period === '6m') start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    else start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    return { start: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`, end: todayStr };
+  }
+  if (cp.mode === 'year' || cp.isFullYear) return { start: `${cp.year}-01-01`, end: `${cp.year}-12-31` };
+  const lastDay = new Date(cp.year, cp.month, 0).getDate();
+  return { start: `${cp.year}-${pad(cp.month)}-01`, end: `${cp.year}-${pad(cp.month)}-${pad(lastDay)}` };
+}
 function formatCurrency(amount: number, currency = 'USD') {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount);
 }
@@ -129,9 +145,11 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   const [filterVoyage, setFilterVoyage] = useState<string>('all');
   const [voyageFilterOptions, setVoyageFilterOptions] = useState<{ id: string; name: string }[]>([]);
 
+  const effectiveRange = controlledPeriod ? getControlledRange(controlledPeriod) : null;
+
   useEffect(() => {
     if (currentUser) loadAll();
-  }, [currentUser, selectedVesselId, period, companyId]);
+  }, [currentUser, selectedVesselId, period, companyId, controlledPeriod?.year, controlledPeriod?.month, controlledPeriod?.isFullYear, controlledPeriod?.mode, controlledPeriod?.period]);
 
   useEffect(() => {
     const effectiveCompanyId = companyId || currentUser?.company_id || null;
@@ -168,8 +186,11 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       const userVessels = currentUser.role === 'master_admin' ? demoVessels : demoVessels.filter(v => currentUser.vessel_ids.includes(v.id));
       setVessels(userVessels.map(v => ({ id: v.id, name: v.name })));
       const vesselFilter = (id: string) => selectedVessel === 'all' ? (currentUser.role === 'master_admin' || currentUser.vessel_ids.includes(id)) : id === selectedVessel;
-      const periodStart = getPeriodStart(period);
-      const afterPeriod = (date: string) => !periodStart || new Date(date) >= periodStart;
+      const periodStart = effectiveRange ? null : getPeriodStart(period);
+      const afterPeriod = (date: string) => {
+        if (effectiveRange) return date >= effectiveRange.start && date <= effectiveRange.end;
+        return !periodStart || new Date(date) >= periodStart;
+      };
       const filteredInv = mergedInventory.filter(i => vesselFilter(i.vessel_id) && i.unit_cost && i.unit_cost > 0);
       setItemsWithoutCost(mergedInventory.filter(i => vesselFilter(i.vessel_id)).length - filteredInv.length);
       setInventoryItems(filteredInv.map(i => ({
@@ -199,14 +220,19 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   };
 
   const loadPeriodCosts = async () => {
-    const periodStart = getPeriodStart(period);
-    await Promise.all([loadFuelCosts(periodStart), loadMaintenanceCosts(periodStart), loadOpExpenses(periodStart)]);
+    const range = effectiveRange || (getPeriodStart(period) ? { start: getPeriodStart(period)!.toISOString().split('T')[0], end: null } : { start: null, end: null });
+    await Promise.all([loadFuelCosts(range), loadMaintenanceCosts(range), loadOpExpenses(range)]);
   };
 
-  const loadFuelCosts = async (periodStart: Date | null) => {
+  const inRange = (date: string, range: { start: string | null; end: string | null }) => {
+    if (range.start && date < range.start) return false;
+    if (range.end && date > range.end) return false;
+    return true;
+  };
+
+  const loadFuelCosts = async (range: { start: string | null; end: string | null }) => {
     const effectiveCompanyId = getEffectiveCompanyId();
     if (!effectiveCompanyId) return;
-    const periodStr = periodStart ? periodStart.toISOString().split('T')[0] : null;
     const allFuelLog = await fetchByCompany('fuel_log', effectiveCompanyId, 'log_date', false);
     const allResources = await fetchByCompany('fuel_resources', effectiveCompanyId, 'name', true);
     const resMap: Record<string, string> = {};
@@ -214,18 +240,17 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
     const filtered = allFuelLog.filter((r: any) =>
       r.entry_type === 'refill' && r.total_cost != null &&
       (selectedVessel === 'all' || r.vessel_id === selectedVessel) &&
-      (!periodStr || r.log_date >= periodStr)
+      inRange(r.log_date, range)
     );
     setFuelCosts(filtered.map((r: any) => ({ resource_name: resMap[r.resource_id] || 'Unknown resource', quantity: r.quantity, total_cost: r.total_cost, currency: r.currency || 'USD', date: r.log_date, vessel_id: r.vessel_id })));
   };
 
-  const loadMaintenanceCosts = async (periodStart: Date | null) => {
+  const loadMaintenanceCosts = async (range: { start: string | null; end: string | null }) => {
     const effectiveCompanyId = getEffectiveCompanyId();
     if (!effectiveCompanyId) return;
-    const periodStr = periodStart ? periodStart.toISOString().split('T')[0] : null;
     const allHistory = await fetchByCompany('maintenance_history', effectiveCompanyId, 'completion_date', false);
     const histData = allHistory.filter((h: any) =>
-      (selectedVessel === 'all' || h.vessel_id === selectedVessel) && (!periodStr || h.completion_date >= periodStr)
+      (selectedVessel === 'all' || h.vessel_id === selectedVessel) && inRange(h.completion_date, range)
     );
     const partCosts: SparePartCost[] = [];
     const svcCosts: ServiceCost[] = [];
@@ -249,14 +274,13 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
     setServiceCosts(svcCosts);
   };
 
-  const loadOpExpenses = async (periodStart: Date | null) => {
+  const loadOpExpenses = async (range: { start: string | null; end: string | null }) => {
     const effectiveCompanyId = getEffectiveCompanyId();
     if (!effectiveCompanyId) return;
-    const periodStr = periodStart ? periodStart.toISOString().split('T')[0] : null;
     const all = await fetchByCompany('operational_expenses', effectiveCompanyId, 'expense_date', false);
     setOpExpenses(all.filter((e: any) =>
       (selectedVessel === 'all' || e.vessel_id === selectedVessel) &&
-      (!periodStr || e.expense_date >= periodStr)
+      inRange(e.expense_date, range)
     ));
   };
 
@@ -499,12 +523,14 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       <div className="flex flex-wrap gap-3">
         {tab === 'period' && (
           <>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <select value={period} onChange={e => setPeriod(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
-                {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
+            {!controlledPeriod && (
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <select value={period} onChange={e => setPeriod(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+                  {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            )}
             {voyageFilterOptions.length > 0 && (
               <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
                 <Navigation className="w-4 h-4 text-gray-400" />

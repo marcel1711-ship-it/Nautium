@@ -167,16 +167,18 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
           <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Budget</h1>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm">Set and track monthly budgets per vessel and department</p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
-            className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 bg-white">
-            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-            className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 bg-white">
-            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
+        {!controlledYear && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 bg-white">
+              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
+              className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 bg-white">
+              {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── KPI cards — respetan filtro, labels dinámicos ── */}

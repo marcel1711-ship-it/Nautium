@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
   { id: 'vessels',                labelKey: 'nav.vessels',               icon: Ship,            roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'users-customer',         labelKey: 'nav.users',                 icon: Users,           roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'crew',                   labelKey: 'nav.crew',                  icon: Users2,          roles: ['customer_admin', 'fleet_manager', 'captain', ...CREW_ROLES] },
-  { id: 'guest-list',              labelKey: 'nav.guestList',             icon: UserCheck,       roles: ['customer_admin', 'fleet_manager', 'captain', 'chief_stew', 'deck_officer'] },
+  { id: 'guest-list',              labelKey: 'nav.voyages',               icon: Compass,         roles: ['customer_admin', 'fleet_manager', 'captain', 'chief_stew', 'deck_officer'] },
   { id: 'maintenance',            labelKey: 'nav.maintenance',           icon: Wrench,          roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'inventory',              labelKey: 'nav.inventory',             icon: Package,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'equipment',              labelKey: 'nav.equipment',             icon: Boxes,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },

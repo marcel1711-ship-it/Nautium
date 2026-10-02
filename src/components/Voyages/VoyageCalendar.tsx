@@ -150,14 +150,20 @@ export const UpcomingVoyagesCard: React.FC<Props> = ({ companyId, vessels, selec
   );
 };
 
-const VoyageCalendarModal: React.FC<{
+export const VoyageCalendarModal: React.FC<{
   voyages: Voyage[];
   vessels: Vessel[];
-  vesselColorMap: Record<string, typeof VESSEL_COLORS[0]>;
+  vesselColorMap?: Record<string, typeof VESSEL_COLORS[0]>;
   initialVesselId?: string | null;
   onClose: () => void;
   onNavigate: (page: string, params?: any) => void;
-}> = ({ voyages, vessels, vesselColorMap, initialVesselId, onClose, onNavigate }) => {
+}> = ({ voyages, vessels, vesselColorMap: externalColorMap, initialVesselId, onClose, onNavigate }) => {
+  const vesselColorMap = useMemo(() => {
+    if (externalColorMap) return externalColorMap;
+    const map: Record<string, typeof VESSEL_COLORS[0]> = {};
+    vessels.forEach((v, i) => { map[v.id] = VESSEL_COLORS[i % VESSEL_COLORS.length]; });
+    return map;
+  }, [externalColorMap, vessels]);
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());

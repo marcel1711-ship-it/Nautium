@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, User, LogOut, ChevronDown, Ship, Settings, Menu, Users, Building2,
-  CheckCheck, WifiOff, Wifi, Layers, DollarSign, Clock } from 'lucide-react';
+  CheckCheck, WifiOff, Wifi, Layers, DollarSign, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { demoVessels } from '../../data/demoData';
-import { supabase } from '../../lib/supabase';
+import { demoVessels, demoVoyages } from '../../data/demoData';
+import { supabase, fetchByCompany } from '../../lib/supabase';
+import { VoyageCalendarModal } from '../Voyages/VoyageCalendar';
+import { Voyage, Vessel } from '../../types';
 
 interface HeaderProps {
   onNavigate?: (page: string) => void;
@@ -69,6 +71,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
   const [userVessels, setUserVessels] = useState<VesselOption[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
 
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarVoyages, setCalendarVoyages] = useState<Voyage[]>([]);
+  const [calendarVessels, setCalendarVessels] = useState<Vessel[]>([]);
+
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
 
@@ -88,6 +94,22 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
   }, []);
 
   const canSeeNotifications = NOTIFICATION_ROLES.includes(currentUser?.role || '');
+
+  const openCalendar = useCallback(async () => {
+    setShowCalendar(true);
+    if (!currentUser?.company_id) return;
+    if (isDemoUser(currentUser.email || '')) {
+      setCalendarVoyages(demoVoyages as any);
+      setCalendarVessels(demoVessels.map(v => ({ id: v.id, name: v.name, type: v.type || 'motor_yacht' })) as Vessel[]);
+      return;
+    }
+    const [voyages, vessels] = await Promise.all([
+      fetchByCompany('voyages', currentUser.company_id, 'departure_date', true),
+      fetchByCompany('vessels', currentUser.company_id, 'name', true),
+    ]);
+    setCalendarVoyages(voyages || []);
+    setCalendarVessels((vessels || []).map((v: any) => ({ id: v.id, name: v.name, type: v.type || 'motor_yacht' })));
+  }, [currentUser]);
 
   const loadNotifications = useCallback(async () => {
     if (!canSeeNotifications || isDemoUser(currentUser?.email || '')) return;
@@ -288,6 +310,14 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
 
           <div className="flex items-center gap-3">
 
+            <button
+              onClick={openCalendar}
+              className="relative p-2 hover:bg-white/[0.06] rounded-xl transition-colors"
+              title="Voyage Calendar"
+            >
+              <Calendar className="w-5 h-5 text-slate-400 hover:text-white transition-colors" />
+            </button>
+
             {canSeeNotifications && (
               <div className="relative">
                 <button
@@ -422,6 +452,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
           </div>
         </div>
       </header>
+
+      {showCalendar && (
+        <VoyageCalendarModal
+          voyages={calendarVoyages}
+          vessels={calendarVessels}
+          initialVesselId={selectedVesselId}
+          onClose={() => setShowCalendar(false)}
+          onNavigate={onNavigate || (() => {})}
+        />
+      )}
     </>
   );
 };

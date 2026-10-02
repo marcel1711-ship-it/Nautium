@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Info } from 'lucide-react';
 import { useHelpMode } from '../../contexts/HelpModeContext';
 
@@ -8,9 +8,19 @@ interface HelpTooltipProps {
   className?: string;
 }
 
-export const HelpTooltip: React.FC<HelpTooltipProps> = ({ text, position = 'top', className = '' }) => {
+export const HelpTooltip: React.FC<HelpTooltipProps> = ({ text, position = 'bottom', className = '' }) => {
   const { helpMode } = useHelpMode();
   const [show, setShow] = useState(false);
+  const hideTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleEnter = useCallback(() => {
+    clearTimeout(hideTimeout.current);
+    setShow(true);
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    hideTimeout.current = setTimeout(() => setShow(false), 150);
+  }, []);
 
   if (!helpMode) return null;
 
@@ -31,12 +41,16 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ text, position = 'top'
   return (
     <span
       className={`relative inline-flex items-center ${className}`}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       <Info className="w-4 h-4 text-blue-400 cursor-help transition-all hover:text-blue-300 hover:scale-110" />
       {show && (
-        <div className={`absolute z-50 ${positionClasses[position]} pointer-events-none`}>
+        <div
+          className={`absolute z-50 ${positionClasses[position]}`}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
+        >
           <div className="bg-gray-900 text-white text-xs font-medium px-3 py-2 rounded-lg shadow-lg max-w-xs whitespace-normal leading-relaxed">
             {text}
             <div className={`absolute w-0 h-0 border-4 border-transparent ${arrowClasses[position]}`} />

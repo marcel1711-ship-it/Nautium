@@ -4,6 +4,7 @@ import {
   Waves, Ship, Anchor, Wind, AlertCircle, Camera, ImageIcon,
   Building2, Eye,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -159,9 +160,12 @@ export const WaterToys: React.FC<WaterToysProps> = ({ onNavigate, params }) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {companyId && companyName ? `${companyName} — Water Toys` : 'Water Toys & Tenders'}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {companyId && companyName ? `${companyName} — Water Toys` : 'Water Toys & Tenders'}
+            </h1>
+            <HelpTooltip text="Manage tenders, jet skis, SeaBobs, and all water equipment. Track specs, serial numbers, engine details, and status for each toy." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">Manage tenders, jet skis, and water equipment</p>
         </div>
         {userCanCreate && (

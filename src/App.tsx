@@ -7,6 +7,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
 import { ToastProvider } from './components/UI/Toast';
+import { HelpModeProvider } from './contexts/HelpModeContext';
 import { OfflineBanner } from './components/OfflineBanner';
 import { initOfflineSync } from './lib/offlineSync';
 import { prefetchOfflineData, resetPrefetch } from './lib/offlinePrefetch';
@@ -417,9 +418,11 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <LanguageProvider>
-          <ToastProvider>
-            <AppContent />
-          </ToastProvider>
+          <HelpModeProvider>
+            <ToastProvider>
+              <AppContent />
+            </ToastProvider>
+          </HelpModeProvider>
         </LanguageProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -4,6 +4,7 @@ import {
   Users, Edit2, Trash2, X, Printer, UserPlus, Anchor, Clock,
   FileText, Eye, AlertCircle, Download,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -307,7 +308,10 @@ export const GuestList: React.FC<GuestListProps> = ({ onNavigate }) => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Guest List</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">Voyages</h1>
+              <HelpTooltip text="Create and manage voyages with their guest lists. Expand a voyage to see passengers, add new guests, and generate IMO FAL Form 6 documents for port authorities." />
+            </div>
             <p className="text-gray-500 text-sm mt-1">Manage voyage passengers and generate port authority documents</p>
           </div>
           {canEdit && (

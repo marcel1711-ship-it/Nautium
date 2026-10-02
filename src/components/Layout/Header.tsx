@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, User, LogOut, ChevronDown, Ship, Settings, Menu, Users, Building2,
-  CheckCheck, WifiOff, Wifi, Layers, DollarSign, Clock, Calendar } from 'lucide-react';
+  CheckCheck, WifiOff, Wifi, Layers, DollarSign, Clock, Calendar, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { demoVessels, demoVoyages } from '../../data/demoData';
 import { supabase, fetchByCompany } from '../../lib/supabase';
 import { VoyageCalendarModal } from '../Voyages/VoyageCalendar';
 import { Voyage, Vessel } from '../../types';
+import { useHelpMode } from '../../contexts/HelpModeContext';
 
 interface HeaderProps {
   onNavigate?: (page: string) => void;
@@ -65,6 +66,7 @@ const getNotificationStyle = (type: string) => {
 export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
   const { currentUser, logout, selectedVesselId, setSelectedVesselId } = useAuth();
   const { t } = useLanguage();
+  const { helpMode, toggleHelpMode } = useHelpMode();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showVesselMenu, setShowVesselMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -309,6 +311,14 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, onMenuToggle }) => {
           </div>
 
           <div className="flex items-center gap-3">
+
+            <button
+              onClick={toggleHelpMode}
+              className={`relative p-2 rounded-xl transition-colors ${helpMode ? 'bg-blue-500/20' : 'hover:bg-white/[0.06]'}`}
+              title={helpMode ? 'Disable help tooltips' : 'Enable help tooltips'}
+            >
+              <HelpCircle className={`w-5 h-5 transition-colors ${helpMode ? 'text-blue-400' : 'text-slate-400 hover:text-white'}`} />
+            </button>
 
             <button
               onClick={openCalendar}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Search, AlertTriangle, Plus, Filter, ChevronDown, FileDown, MapPin, SlidersHorizontal, Pencil, Trash2, FileSpreadsheet, Anchor, Sofa, Settings, ChefHat, Shield, DollarSign } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { demoInventoryItems, demoVessels } from '../data/demoData';
@@ -295,13 +296,15 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {t('inventory.title')}
-            {/* Show department badge if locked */}
-            {isDeptLocked && (
-              <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>
-            )}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {t('inventory.title')}
+              {isDeptLocked && (
+                <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>
+              )}
+            </h1>
+            <HelpTooltip text="Manage spare parts and consumables. Track stock levels, set minimum quantities for low-stock alerts, record unit costs, and filter by department or location." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('inventory.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">

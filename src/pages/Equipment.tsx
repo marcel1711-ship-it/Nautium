@@ -7,6 +7,7 @@ import {
   Download, Upload, FileDown, Camera, ImageIcon, Building2, Clock,
   Activity,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -330,10 +331,13 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {companyId && companyName ? `${companyName} — ${t('equipment.title')}` : t('equipment.title')}
-            {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {companyId && companyName ? `${companyName} — ${t('equipment.title')}` : t('equipment.title')}
+              {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
+            </h1>
+            <HelpTooltip text="Register and monitor all onboard equipment: engines, generators, pumps, navigation systems, and more. Track serial numbers, running hours, and service intervals by department." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('equipment.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">

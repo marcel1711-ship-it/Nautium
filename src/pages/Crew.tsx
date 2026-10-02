@@ -4,6 +4,7 @@ import {
   Ship, Filter, UserCheck, UserMinus, Clock, AlertTriangle, ShieldCheck,
   ClipboardCheck, ChevronLeft, Check, X, FileDown, Shield,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchByCompany, fetchFiltered, dbInsert, dbUpdate } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
@@ -147,7 +148,10 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Crew</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">Crew</h1>
+            <HelpTooltip text="Manage your crew members: roles, certifications, contract dates, and monthly salaries. Add new crew, track certificate expiry, and export crew lists." />
+          </div>
           <p className="text-sm text-gray-400">
             {activeVessel === 'all' ? 'All vessels' : vesselName(activeVessel)}
             {' · '}{crew.length} member{crew.length !== 1 ? 's' : ''}

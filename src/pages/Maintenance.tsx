@@ -5,6 +5,7 @@ import {
   AlertCircle, Anchor, Sofa, Settings, ChefHat, Shield,
   RefreshCw, Pin, Clock
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchByCompany, fetchByVessel, dbInsert, dbUpdate } from '../lib/supabase';
@@ -519,10 +520,13 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {companyId && companyName ? `${companyName} — ${t('maintenance.title')}` : t('maintenance.title')}
-            {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {companyId && companyName ? `${companyName} — ${t('maintenance.title')}` : t('maintenance.title')}
+              {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
+            </h1>
+            <HelpTooltip text="Schedule and track maintenance tasks. Create tasks with priorities and deadlines, assign to departments, attach manual extracts, and log completion with parts used and service costs." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('maintenance.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3 self-start sm:self-auto">

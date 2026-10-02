@@ -14,6 +14,7 @@ import {
   Pencil,
   Building2,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchByCompany, fetchByVessel, fetchFiltered, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -439,9 +440,12 @@ ${alertResources.length ? `<div class="alerts"><strong>Level Alerts (${alertReso
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {companyId && companyName ? `${companyName} — ${t('fuel.title')}` : t('fuel.title')}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {companyId && companyName ? `${companyName} — ${t('fuel.title')}` : t('fuel.title')}
+            </h1>
+            <HelpTooltip text="Log fuel and fluid consumption: diesel, fresh water, lube oil, and more. Record refills, track tank levels, and monitor usage trends over time." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('fuel.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">

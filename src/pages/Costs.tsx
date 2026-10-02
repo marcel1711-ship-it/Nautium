@@ -4,6 +4,7 @@ import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
   Clock, AlertTriangle, ShoppingCart, Navigation
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
@@ -486,10 +487,13 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
       )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-            {companyId && companyName ? `${companyName} — ${t('costs.title')}` : t('costs.title')}
-            {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">
+              {companyId && companyName ? `${companyName} — ${t('costs.title')}` : t('costs.title')}
+              {isDeptLocked && <span className="ml-3 text-lg font-semibold text-blue-600">· {departmentFilter}</span>}
+            </h1>
+            <HelpTooltip text="Track all vessel expenses: operational costs, fuel, spare parts, and external services. Use the period and voyage filters to narrow down the view. Switch between Period and Inventory tabs." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('costs.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">

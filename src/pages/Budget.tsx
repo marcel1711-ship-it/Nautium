@@ -4,6 +4,7 @@ import {
   AlertTriangle, ChevronDown, Ship, Settings, Anchor, Sofa,
   ChefHat, Shield, Package, Users,
 } from 'lucide-react';
+import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchByCompany, fetchFiltered, dbUpdate, dbInsert } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
@@ -164,7 +165,10 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Budget</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Budget</h1>
+            <HelpTooltip text="Set monthly budgets per vessel and department. Click any budget cell to edit it. Track actual spending vs. budget with automatic alerts when overspending." />
+          </div>
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm">Set and track monthly budgets per vessel and department</p>
         </div>
         {!controlledYear && (

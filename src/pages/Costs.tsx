@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
   Anchor, Zap, Droplets, Wifi, Trash, Ship, Shield, MoreHorizontal, Calendar,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
-  Clock, AlertTriangle, ShoppingCart
+  Clock, AlertTriangle, ShoppingCart, Navigation
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -126,10 +126,27 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filterVoyage, setFilterVoyage] = useState<string>('all');
+  const [voyageFilterOptions, setVoyageFilterOptions] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (currentUser) loadAll();
   }, [currentUser, selectedVesselId, period, companyId]);
+
+  useEffect(() => {
+    const effectiveCompanyId = companyId || currentUser?.company_id || null;
+    if (!effectiveCompanyId || !currentUser) { setVoyageFilterOptions([]); setFilterVoyage('all'); return; }
+    if (isDemoUser(currentUser.email)) { setVoyageFilterOptions([]); return; }
+    const vesselId = (!selectedVesselId || selectedVesselId === 'all') ? null : selectedVesselId;
+    const filters: any[] = [];
+    if (vesselId) filters.push({ field: 'vessel_id', op: 'eq', value: vesselId });
+    fetchByCompany('voyages', effectiveCompanyId, 'departure_date', false)
+      .then((data: any[]) => {
+        const filtered = vesselId ? data.filter((v: any) => v.vessel_id === vesselId) : data;
+        setVoyageFilterOptions(filtered.map((v: any) => ({ id: v.id, name: v.name || `Voyage ${v.id.slice(0, 6)}` })));
+      })
+      .catch(() => setVoyageFilterOptions([]));
+  }, [currentUser, selectedVesselId, companyId]);
 
   const getEffectiveCompanyId = () => companyId || currentUser?.company_id || null;
 
@@ -286,13 +303,18 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   const approvedExpenses = opExpenses.filter(e => (e as any).status !== 'pending_approval');
   const pendingExpenses  = opExpenses.filter(e => (e as any).status === 'pending_approval');
 
-  const filteredOpExpenses = isDeptLocked
-    ? approvedExpenses.filter(e => e.department === departmentFilter || e.department === 'General')
-    : approvedExpenses;
+  const voyageFilter = (e: OperationalExpense) =>
+    filterVoyage === 'all' ? true : filterVoyage === 'none' ? !e.voyage_id : e.voyage_id === filterVoyage;
 
-  const filteredPendingExpenses = isDeptLocked
+  const filteredOpExpenses = (isDeptLocked
+    ? approvedExpenses.filter(e => e.department === departmentFilter || e.department === 'General')
+    : approvedExpenses
+  ).filter(voyageFilter);
+
+  const filteredPendingExpenses = (isDeptLocked
     ? pendingExpenses.filter(e => e.department === departmentFilter || e.department === 'General')
-    : pendingExpenses;
+    : pendingExpenses
+  ).filter(voyageFilter);
 
   const totalFuel    = isDeptLocked ? 0 : fuelCosts.reduce((s, r) => s + r.total_cost, 0);
   const totalParts   = sparePartCosts.reduce((s, r) => s + r.total, 0);
@@ -471,12 +493,24 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
 
       <div className="flex flex-wrap gap-3">
         {tab === 'period' && (
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <select value={period} onChange={e => setPeriod(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
-              {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+          <>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <select value={period} onChange={e => setPeriod(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+                {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            {voyageFilterOptions.length > 0 && (
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
+                <Navigation className="w-4 h-4 text-gray-400" />
+                <select value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)} className="text-sm font-medium text-gray-700 bg-transparent outline-none">
+                  <option value="all">{t('costs.allVoyages') || 'All Voyages'}</option>
+                  <option value="none">{t('costs.noVoyage') || 'General (no voyage)'}</option>
+                  {voyageFilterOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+            )}
+          </>
         )}
       </div>
 

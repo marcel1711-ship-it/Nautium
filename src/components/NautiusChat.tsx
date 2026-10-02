@@ -302,30 +302,22 @@ export const NautiusChat: React.FC = () => {
       const manualDocuments: MessageContent[] = [];
 
       for (const manual of relevantManuals) {
-        const base64 = await fetchManualContent(manual);
-        if (base64) {
-          manualDocuments.push({
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-            title: manual.title,
-          });
-        } else if (manual.file_url && !manual.file_url.startsWith('/')) {
-          try {
-            const allPages = await extractPdfText(manual.file_url, manual.id);
-            const relevant = findRelevantPages(allPages, userMessage);
-            if (relevant.length > 0) {
-              const pagesText = relevant
-                .sort((a, b) => a.pageNum - b.pageNum)
-                .map(p => `[Page ${p.pageNum}]\n${p.text}`)
-                .join('\n\n');
-              manualDocuments.push({
-                type: 'text',
-                text: `--- Extracted from manual "${manual.title}" (${allPages.length} total pages, showing ${relevant.length} most relevant) ---\n\n${pagesText}\n\n--- End of "${manual.title}" ---`,
-              });
-            }
-          } catch (err) {
-            console.warn('[NautiusChat] PDF text extraction failed for', manual.title, err);
+        if (!manual.file_url || manual.file_url.startsWith('/')) continue;
+        try {
+          const allPages = await extractPdfText(manual.file_url, manual.id);
+          const relevant = findRelevantPages(allPages, userMessage);
+          if (relevant.length > 0) {
+            const pagesText = relevant
+              .sort((a, b) => a.pageNum - b.pageNum)
+              .map(p => `[Page ${p.pageNum}]\n${p.text}`)
+              .join('\n\n');
+            manualDocuments.push({
+              type: 'text',
+              text: `--- Extracted from manual "${manual.title}" (${allPages.length} total pages, showing ${relevant.length} most relevant) ---\n\n${pagesText}\n\n--- End of "${manual.title}" ---`,
+            });
           }
+        } catch (err) {
+          console.warn('[NautiusChat] PDF text extraction failed for', manual.title, err);
         }
       }
 

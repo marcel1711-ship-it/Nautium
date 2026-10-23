@@ -169,7 +169,7 @@ export const Vessels: React.FC<VesselsProps> = ({ onNavigate, companyId: filterC
 
   const filteredVessels = getFilteredVessels();
   const types = Array.from(new Set(vessels.map(v => v.type).filter(Boolean)));
-  const canEditVessel = currentUser?.role === 'master_admin' || currentUser?.role === 'customer_admin';
+  const canEditVessel = currentUser?.role === 'master_admin' || currentUser?.role === 'customer_admin' || currentUser?.role === 'fleet_manager';
   const canEditNotif = !isDemoUser && canEditVessel;
   const atVesselLimit = vesselLimit !== null && vessels.length >= vesselLimit;
   const canAddVessel = !isDemoUser && canEditVessel;

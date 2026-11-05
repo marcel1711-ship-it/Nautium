@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { NetworkFirst, NetworkOnly } from 'workbox-strategies';
+import { CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -9,10 +9,15 @@ declare const self: ServiceWorkerGlobalScope;
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-// Supabase Storage — never cache
+// Supabase Storage — cache manuals, plans and equipment photos for offline access
 registerRoute(
   ({ url }) => url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/storage'),
-  new NetworkOnly()
+  new CacheFirst({
+    cacheName: 'vessel-files',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 }), // 30 days
+    ],
+  })
 );
 
 // Supabase Auth — never cache

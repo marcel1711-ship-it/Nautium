@@ -42,7 +42,6 @@ const Roadmap = lazy(() => import('./pages/Roadmap').then(m => ({ default: m.Roa
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const GuestList = lazy(() => import('./pages/GuestList').then(m => ({ default: m.GuestList })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
-const DeckPlan = lazy(() => import('./pages/DeckPlan').then(m => ({ default: m.DeckPlan })));
 const DataSim = lazy(() => import('./pages/DataSim').then(m => ({ default: m.DataSim })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
@@ -274,9 +273,6 @@ const AppContent: React.FC = () => {
 
       case 'manuals':
         return <Manuals onNavigate={handleNavigate} />;
-
-      case 'deck-plan':
-        return <DeckPlan onNavigate={handleNavigate} />;
 
       case 'fuel':
         return <Fuel onNavigate={handleNavigate} params={pageParams} />;

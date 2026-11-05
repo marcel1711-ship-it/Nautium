@@ -266,7 +266,7 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
               ) : (
                 <>
                   <p className="text-gray-700 font-medium">Click to upload or drag and drop</p>
-                  <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX up to 50MB</p>
+                  <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX up to 100MB</p>
                 </>
               )}
             </div>

@@ -99,13 +99,13 @@ describe('validateDocumentFile', () => {
     expect(validateDocumentFile(makeFile('archive.zip', 'application/zip', 500))).toContain('PDF');
   });
 
-  it('rejects files over 50 MB', () => {
-    const size = 50 * 1024 * 1024 + 1;
-    expect(validateDocumentFile(makeFile('huge.pdf', 'application/pdf', size))).toContain('50 MB');
+  it('rejects files over 100 MB', () => {
+    const size = 100 * 1024 * 1024 + 1;
+    expect(validateDocumentFile(makeFile('huge.pdf', 'application/pdf', size))).toContain('100 MB');
   });
 
-  it('accepts files exactly 50 MB', () => {
-    const size = 50 * 1024 * 1024;
+  it('accepts files exactly 100 MB', () => {
+    const size = 100 * 1024 * 1024;
     expect(validateDocumentFile(makeFile('ok.pdf', 'application/pdf', size))).toBeNull();
   });
 });

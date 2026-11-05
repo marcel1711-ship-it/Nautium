@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, ClipboardList, Users, Ship } from 'lucide-react';
+import { X, FileText, ClipboardList, Users, Ship, Map } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, dbUpdate } from '../../lib/supabase';
@@ -20,6 +20,7 @@ const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
 const UPLOAD_CATEGORIES = [
   { key: 'Manuals',                icon: FileText,      label: 'Manuals',           labelEs: 'Manuales' },
+  { key: 'Plans & Drawings',       icon: Map,           label: 'Plans & Drawings',  labelEs: 'Planos y Diagramas' },
   { key: 'Clearances',             icon: ClipboardList, label: 'Clearances',        labelEs: 'Despachos' },
   { key: 'Crew & Guest',           icon: Users,         label: 'Crew & Guest',      labelEs: 'Tripulación e Invitados' },
   { key: 'Vessel Documentation',   icon: Ship,          label: 'Vessel Docs',       labelEs: 'Docs del Barco' },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList, Pencil } from 'lucide-react';
+import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList, Pencil, Map } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, dbDelete } from '../lib/supabase';
@@ -23,6 +23,7 @@ const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 const CATEGORIES = [
   { key: 'all',              labelKey: 'manuals.allCategories', icon: FolderOpen,    color: 'blue' },
   { key: 'Manuals',          labelKey: 'manuals.catManuals',    icon: FileText,      color: 'blue' },
+  { key: 'Plans & Drawings', labelKey: 'manuals.catPlans',      icon: Map,           color: 'violet' },
   { key: 'Clearances',       labelKey: 'manuals.catClearances', icon: ClipboardList, color: 'amber' },
   { key: 'Crew & Guest',     labelKey: 'manuals.catCrewGuest',  icon: Users,         color: 'cyan' },
   { key: 'Vessel Documentation', labelKey: 'manuals.catVesselDocs', icon: ShipIcon,  color: 'emerald' },
@@ -30,6 +31,7 @@ const CATEGORIES = [
 
 const CAT_COLORS: Record<string, string> = {
   Manuals: 'bg-blue-100 text-blue-700',
+  'Plans & Drawings': 'bg-violet-100 text-violet-700',
   Clearances: 'bg-amber-100 text-amber-700',
   'Crew & Guest': 'bg-cyan-100 text-cyan-700',
   'Vessel Documentation': 'bg-emerald-100 text-emerald-700',

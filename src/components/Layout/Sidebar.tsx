@@ -68,6 +68,7 @@ const FLEET_MANAGER_PRIMARY = [
   'guest-list',     // Guest List / Voyages
   'compliance',     // Compliance
   'contractors',    // Preferred Contractors
+  'deck-plan',      // Deck Plans
   'settings',       // Settings — siempre al final
 ];
 

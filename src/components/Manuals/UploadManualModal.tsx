@@ -109,10 +109,13 @@ export const UploadManualModal: React.FC<UploadManualModalProps> = ({ onClose, o
           .from('manuals')
           .upload(filePath, file);
 
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(filePath);
-          fileUrl = urlData.publicUrl;
+        if (uploadError) {
+          showToast(`Upload failed: ${uploadError.message}`, 'error');
+          setUploading(false);
+          return;
         }
+        const { data: urlData } = supabase.storage.from('manuals').getPublicUrl(filePath);
+        fileUrl = urlData.publicUrl;
       }
 
       const record = await dbInsert('maintenance_manuals', {

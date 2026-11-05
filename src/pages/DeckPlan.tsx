@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchByCompany } from '../lib/supabase';
 import { useToast } from '../components/UI/Toast';
 
 interface DeckPlanProps {
@@ -184,24 +184,22 @@ export const DeckPlan: React.FC<DeckPlanProps> = ({ onNavigate }) => {
     if (!currentUser || isDemoUser(currentUser.email)) { setLoading(false); return; }
     setLoading(true);
     try {
-      let eqQuery = supabase
-        .from('equipment')
-        .select('id, name, type, department, location_on_vessel, status, manufacturer, model, image_url')
-        .eq('company_id', currentUser.company_id)
-        .order('name');
-      if (vesselId) eqQuery = eqQuery.eq('vessel_id', vesselId);
-      const { data: eqData } = await eqQuery;
-      if (eqData) setEquipment(eqData);
+      const cid = currentUser.company_id;
+      if (!cid) { setLoading(false); return; }
 
-      let planQuery = supabase
-        .from('maintenance_manuals')
-        .select('id, title, file_url')
-        .eq('company_id', currentUser.company_id)
-        .eq('category', 'Plans & Drawings')
-        .order('title');
-      if (vesselId) planQuery = planQuery.eq('vessel_id', vesselId);
-      const { data: planData } = await planQuery;
-      if (planData) setPlans(planData);
+      const [equipmentData, manualsData] = await Promise.all([
+        fetchByCompany('equipment', cid, 'name', true),
+        fetchByCompany('maintenance_manuals', cid, 'title', true),
+      ]);
+
+      const filteredEq = vesselId
+        ? equipmentData.filter((e: any) => e.vessel_id === vesselId)
+        : equipmentData;
+      setEquipment(filteredEq);
+
+      const filteredPlans = (manualsData as any[])
+        .filter((m: any) => m.category === 'Plans & Drawings' && (!vesselId || m.vessel_id === vesselId));
+      setPlans(filteredPlans);
     } catch {
       showToast('Error loading data', 'error');
     } finally {

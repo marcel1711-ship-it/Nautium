@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList } from 'lucide-react';
+import { FileText, Upload, Search, Download, Trash2, Filter, ChevronDown, BookOpen, ExternalLink, FolderOpen, Ship as ShipIcon, Users, ClipboardList, Pencil } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, fetchByCompany, dbDelete } from '../lib/supabase';
@@ -7,6 +7,7 @@ import { useToast } from '../components/UI/Toast';
 import { demoMaintenanceManuals, demoEquipment, demoVessels } from '../data/demoData';
 import { formatFileSize, formatDateTime } from '../utils/helpers';
 import { UploadManualModal } from '../components/Manuals/UploadManualModal';
+import { EditManualModal } from '../components/Manuals/EditManualModal';
 import { MaintenanceManual } from '../types';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 
@@ -58,6 +59,7 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
   const [equipment, setEquipment] = useState<EquipmentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editingManual, setEditingManual] = useState<MaintenanceManual | null>(null);
 
   useEffect(() => {
     loadData();
@@ -378,13 +380,22 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => setDeleteConfirm(manual.id)}
-                          className="px-3 py-2.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
-                          title={t('manuals.deleteManual')}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => setEditingManual(manual)}
+                            className="px-3 py-2.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"
+                            title={t('common.edit')}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(manual.id)}
+                            className="px-3 py-2.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                            title={t('manuals.deleteManual')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
                       )
                     )}
                   </div>
@@ -398,6 +409,14 @@ export const Manuals: React.FC<ManualsProps> = ({ onNavigate }) => {
       {showUploadModal && (
         <UploadManualModal
           onClose={() => setShowUploadModal(false)}
+          onSaved={loadData}
+        />
+      )}
+
+      {editingManual && (
+        <EditManualModal
+          manual={editingManual}
+          onClose={() => setEditingManual(null)}
           onSaved={loadData}
         />
       )}

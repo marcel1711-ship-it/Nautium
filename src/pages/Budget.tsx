@@ -100,8 +100,15 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
     finally { setLoading(false); }
   };
 
-  const getBudget = (vesselId: string, dept: string) =>
+  const getDeptBudget = (vesselId: string, dept: string) =>
     budgets.find(b => b.vessel_id === vesselId && b.department === dept)?.budget_amount || 0;
+
+  const getBudget = (vesselId: string, dept: string) => {
+    if (dept === 'Total') {
+      return DEPARTMENTS.filter(d => d !== 'Total').reduce((s, d) => s + getDeptBudget(vesselId, d), 0);
+    }
+    return getDeptBudget(vesselId, dept);
+  };
 
   const getCrewSalary = (vesselId: string) =>
     crewMembers.filter(c => c.vessel_id === vesselId).reduce((s, c) => s + Number(c.monthly_salary || 0), 0);
@@ -116,6 +123,7 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
   };
 
   const saveBudget = async (vesselId: string, dept: string, amount: number) => {
+    if (dept === 'Total') return;
     const existing = budgets.find(b => b.vessel_id === vesselId && b.department === dept);
     try {
       if (existing) {
@@ -125,6 +133,19 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
           company_id: companyId, vessel_id: vesselId,
           year: selectedYear, month: selectedMonth,
           department: dept, budget_amount: amount,
+        });
+      }
+      // Auto-update Total row in DB so other pages read the correct sum
+      const newTotal = DEPARTMENTS.filter(d => d !== 'Total')
+        .reduce((s, d) => s + (d === dept ? amount : getDeptBudget(vesselId, d)), 0);
+      const existingTotal = budgets.find(b => b.vessel_id === vesselId && b.department === 'Total');
+      if (existingTotal) {
+        await dbUpdate('vessel_budgets', existingTotal.id, { budget_amount: newTotal });
+      } else {
+        await dbInsert('vessel_budgets', {
+          company_id: companyId, vessel_id: vesselId,
+          year: selectedYear, month: selectedMonth,
+          department: 'Total', budget_amount: newTotal,
         });
       }
       showToast('Budget saved', 'success');
@@ -322,9 +343,9 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
                             <div className="flex items-center gap-2 group">
                               <div>
                                 <p className="text-sm font-bold text-gray-900 tabular-nums">{budget > 0 ? fmt(budget) : '—'}</p>
-                                <p className="text-xs text-gray-400">budget</p>
+                                <p className="text-xs text-gray-400">{dept === 'Total' ? 'auto-sum' : 'budget'}</p>
                               </div>
-                              {userCanEdit && (
+                              {userCanEdit && dept !== 'Total' && (
                                 <button onClick={() => handleEditStart(vessel.id, dept)}
                                   className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
                                   <Edit2 className="w-3.5 h-3.5" />

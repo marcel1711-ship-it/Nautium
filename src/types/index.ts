@@ -315,7 +315,7 @@ export interface CrewMember {
   salary_currency: string;
   photo_url?: string;
   notes?: string;
-  status: 'active' | 'on_leave' | 'off_vessel';
+  status: 'active' | 'on_leave' | 'off_vessel' | 'inactive';
   created_at: string;
   updated_at: string;
 }

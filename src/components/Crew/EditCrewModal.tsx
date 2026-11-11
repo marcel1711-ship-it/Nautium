@@ -235,6 +235,7 @@ export const EditCrewModal: React.FC<EditCrewModalProps> = ({ member, vessels, o
                 <option value="active">Active</option>
                 <option value="on_leave">On leave</option>
                 <option value="off_vessel">Off vessel</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
             <div>

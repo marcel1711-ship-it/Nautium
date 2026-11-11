@@ -29,6 +29,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; te
   active:     { label: 'Active',     dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
   on_leave:   { label: 'On leave',   dot: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700' },
   off_vessel: { label: 'Off vessel', dot: 'bg-gray-400',    bg: 'bg-gray-100',   text: 'text-gray-600' },
+  inactive:   { label: 'Inactive',   dot: 'bg-red-400',     bg: 'bg-red-50',     text: 'text-red-700' },
 };
 
 const fmtCurrency = (v: number, currency: string) =>
@@ -199,6 +200,7 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
               <option value="active">Active</option>
               <option value="on_leave">On leave</option>
               <option value="off_vessel">Off vessel</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
 

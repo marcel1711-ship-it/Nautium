@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
   Anchor, Zap, Droplets, Wifi, Trash, Ship, Shield, MoreHorizontal, Calendar,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
-  Clock, AlertTriangle, ShoppingCart, Navigation
+  Clock, AlertTriangle, ShoppingCart, Navigation, Paperclip, FileText
 } from 'lucide-react';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
+import { supabase, fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory, demoVoyages } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
@@ -657,7 +657,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
                   const Icon = cat?.icon || MoreHorizontal;
                   const catLabel = EXPENSE_CATEGORY_LABELS[exp.category] || exp.category;
                   const vesselTag = showFleetBreakdown ? `${getVesselName(exp.vessel_id)} · ` : '';
-                  return { label: exp.description || catLabel, sub: `${vesselTag}${catLabel} · ${exp.department || 'General'} · ${fmtDate(exp.expense_date)}`, amount: exp.amount, currency: exp.currency, icon: <Icon className={`w-5 h-5 ${cat?.color || 'text-gray-500'}`} />, iconBg: 'bg-gray-100', id: exp.id };
+                  return { label: exp.description || catLabel, sub: `${vesselTag}${catLabel} · ${exp.department || 'General'} · ${fmtDate(exp.expense_date)}`, amount: exp.amount, currency: exp.currency, icon: <Icon className={`w-5 h-5 ${cat?.color || 'text-gray-500'}`} />, iconBg: 'bg-gray-100', id: exp.id, receiptUrl: (exp as any).receipt_url };
                 })}
                 total={totalOp}
                 onDelete={(id) => setConfirmDeleteId(id)}
@@ -858,14 +858,27 @@ const CostTable: React.FC<{ rows: CostRow[]; total: number }> = ({ rows, total }
   </div>
 );
 
-interface CostRowWithDelete extends CostRow { id: string; }
-const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; onDelete: (id: string) => void }> = ({ rows, total, onDelete }) => (
+interface CostRowWithDelete extends CostRow { id: string; receiptUrl?: string | null; }
+const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; onDelete: (id: string) => void }> = ({ rows, total, onDelete }) => {
+  const missingCount = rows.filter(r => !r.receiptUrl).length;
+  return (
   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    {missingCount > 0 && (
+      <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-500" />
+        <span className="text-xs font-medium text-amber-700">{missingCount} expense{missingCount > 1 ? 's' : ''} without receipt</span>
+      </div>
+    )}
     <div className="divide-y divide-gray-100">
       {rows.map(row => (
         <div key={row.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${row.iconBg}`}>{row.icon}</div>
           <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">{row.label}</p><p className="text-xs text-gray-500 mt-0.5 truncate">{row.sub}</p></div>
+          {row.receiptUrl ? (
+            <a href={row.receiptUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 text-green-500 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 flex-shrink-0" title="View receipt"><FileText className="w-4 h-4" /></a>
+          ) : (
+            <span className="p-1.5 text-amber-400 flex-shrink-0" title="No receipt attached"><Paperclip className="w-4 h-4" /></span>
+          )}
           <p className="text-sm font-bold text-gray-900 shrink-0">{formatCurrency(row.amount, row.currency)}</p>
           <button onClick={() => onDelete(row.id)} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
         </div>
@@ -876,7 +889,8 @@ const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; 
       <span className="text-sm font-bold text-gray-900">{formatCurrency(total)}</span>
     </div>
   </div>
-);
+  );
+};
 
 // ── AddExpenseModal — con categorías por dept, campo libre en Other,
 //    y verificación de threshold ────────────────────────────────────────────
@@ -895,6 +909,8 @@ const AddExpenseModal: React.FC<{
   const [customCategory, setCustomCategory] = useState('');
   const [thresholdBlock, setThresholdBlock] = useState<{ threshold: number; amount: number } | null>(null);
   const [voyageOptions, setVoyageOptions] = useState<{ id: string; name: string }[]>([]);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const receiptInputRef = React.useRef<HTMLInputElement>(null);
 
   const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
 
@@ -980,6 +996,18 @@ const AddExpenseModal: React.FC<{
         }
       }
 
+      // ── Upload receipt if provided ─────────────────────────────────────
+      let receipt_url: string | null = null;
+      if (receiptFile) {
+        const ext = receiptFile.name.split('.').pop() || 'pdf';
+        const path = `${companyId}/${form.vessel_id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('receipts').upload(path, receiptFile);
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(path);
+          receipt_url = urlData.publicUrl;
+        }
+      }
+
       // ── Guardar (bajo el umbral, aprobado directo) ────────────────────
       await dbInsert('operational_expenses', {
         vessel_id:          form.vessel_id,
@@ -997,7 +1025,20 @@ const AddExpenseModal: React.FC<{
         requested_by:       currentUser.id,
         requested_by_name:  currentUser.full_name,
         voyage_id:          form.voyage_id || null,
+        receipt_url,
       });
+
+      // ── Notification if no receipt ──────────────────────────────────────
+      if (!receipt_url) {
+        const vesselName = vessels.find(v => v.id === form.vessel_id)?.name || 'Unknown vessel';
+        await dbInsert('admin_notifications', {
+          type: 'system',
+          title: 'Expense without receipt',
+          message: `${currentUser.full_name} added a ${form.currency} ${amount.toLocaleString()} expense (${form.category}) for ${vesselName} without a receipt.`,
+          metadata: { vessel_id: form.vessel_id, category: form.category, amount, user_name: currentUser.full_name },
+          company_id: companyId,
+        }).catch(() => {});
+      }
 
       onSaved('approved');
 
@@ -1173,6 +1214,26 @@ const AddExpenseModal: React.FC<{
               </select>
             </div>
           )}
+
+          {/* Receipt / Invoice */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Receipt / Invoice</label>
+            <input type="file" ref={receiptInputRef} accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="hidden" />
+            {receiptFile ? (
+              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                <FileText className="w-5 h-5 text-green-600 shrink-0" />
+                <span className="text-sm text-green-800 truncate flex-1">{receiptFile.name}</span>
+                <button type="button" onClick={() => { setReceiptFile(null); if (receiptInputRef.current) receiptInputRef.current.value = ''; }}
+                  className="p-1 hover:bg-green-100 rounded-lg"><X className="w-4 h-4 text-green-600" /></button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => receiptInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Paperclip className="w-4 h-4" /> Attach receipt (PDF or image)
+              </button>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-2 border-t border-gray-200">
             <button type="button" onClick={onClose}

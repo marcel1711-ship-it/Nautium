@@ -292,6 +292,7 @@ export interface OperationalExpense {
   /** Department that owns this expense */
   department?: OperationalExpenseDepartment | null;
   voyage_id?: string | null;
+  receipt_url?: string | null;
   created_at: string;
 }
 

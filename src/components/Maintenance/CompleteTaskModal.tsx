@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin, Clock, Users, Shield } from 'lucide-react';
+import { X, CheckCircle, Upload, Package, Plus, Trash2, Image, XCircle, Save, RefreshCw, Pin, Clock, Users, Shield, Paperclip, FileText } from 'lucide-react';
 import { MaintenanceTask, InventoryItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, fetchByCompany } from '../../lib/supabase';
@@ -26,6 +26,7 @@ export interface CompletionData {
   crew_attendance: { id: string; name: string }[] | null;
   corrective_actions: string | null;
   department: string | null;
+  receipt_url: string | null;
 }
 interface PartRow {
   inventory_id: string;
@@ -61,6 +62,8 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [showDraftRestored, setShowDraftRestored] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,10 +159,22 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
     setNewPartId(''); setNewPartQty(1); setAddingPart(false);
   };
 
+  const uploadReceipt = async (): Promise<string | null> => {
+    if (!receiptFile || !currentUser || isDemoUser(currentUser.email)) return null;
+    const ext = receiptFile.name.split('.').pop() || 'pdf';
+    const path = `${currentUser.id}/${task.id}_receipt_${Date.now()}.${ext}`;
+    if (navigator.onLine) {
+      const { error } = await supabase.storage.from('receipts').upload(path, receiptFile);
+      if (!error) { const { data } = supabase.storage.from('receipts').getPublicUrl(path); return data.publicUrl; }
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!confirmed) return;
     const photoUrls = await uploadPhotos();
+    const receiptUrl = await uploadReceipt();
     const attendanceList = isSafetyTask && selectedCrew.size > 0
       ? crewMembers.filter(c => selectedCrew.has(c.id)).map(c => ({ id: c.id, name: c.full_name }))
       : null;
@@ -175,6 +190,7 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
       crew_attendance: attendanceList,
       corrective_actions: correctiveActions.trim() || null,
       department: (task as any).department || null,
+      receipt_url: receiptUrl,
     };
     clearDraft();
     onComplete(completionData);
@@ -373,6 +389,26 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
                 placeholder="0.00" min="0" step="0.01" />
             </div>
             <p className="mt-1.5 text-xs text-gray-500">{t('maintenance.externalServiceCostHint')}</p>
+          </div>
+
+          {/* Receipt / Invoice */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Receipt / Invoice</label>
+            <input type="file" ref={receiptInputRef} accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="hidden" />
+            {receiptFile ? (
+              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                <FileText className="w-5 h-5 text-green-600 shrink-0" />
+                <span className="text-sm text-green-800 truncate flex-1">{receiptFile.name}</span>
+                <button type="button" onClick={() => { setReceiptFile(null); if (receiptInputRef.current) receiptInputRef.current.value = ''; }}
+                  className="p-1 hover:bg-green-100 rounded-lg"><X className="w-4 h-4 text-green-600" /></button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => receiptInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Paperclip className="w-4 h-4" /> Attach receipt (PDF or image)
+              </button>
+            )}
           </div>
 
           {/* Parts used */}

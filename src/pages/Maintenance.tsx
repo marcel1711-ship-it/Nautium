@@ -454,6 +454,38 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
       }
     }
 
+    // 4. Auto-create operational expense if there was an external service cost
+    if (completionData.external_service_cost && completionData.external_service_cost > 0) {
+      try {
+        await dbInsert('operational_expenses', {
+          vessel_id:          selectedTaskObj.vessel_id,
+          company_id:         effectiveCompanyId,
+          category:           'maintenance',
+          description:        `Maintenance: ${selectedTaskObj.title}`,
+          amount:             completionData.external_service_cost,
+          currency:           'USD',
+          expense_date:       (completionData.completion_date || new Date().toISOString()).split('T')[0],
+          department:         completionData.department || (selectedTaskObj as any).department || 'Engineering',
+          created_by:         currentUser.id,
+          status:             'approved',
+          requested_by:       currentUser.id,
+          requested_by_name:  currentUser.full_name,
+          receipt_url:        completionData.receipt_url || null,
+        });
+        if (!completionData.receipt_url) {
+          await dbInsert('admin_notifications', {
+            type: 'system',
+            title: 'Maintenance expense without receipt',
+            message: `${currentUser.full_name} completed "${selectedTaskObj.title}" with $${completionData.external_service_cost.toLocaleString()} service cost — no receipt attached.`,
+            metadata: { vessel_id: selectedTaskObj.vessel_id, task_id: selectedTaskObj.id, amount: completionData.external_service_cost },
+            company_id: effectiveCompanyId,
+          }).catch(() => {});
+        }
+      } catch (expErr) {
+        console.warn('[handleComplete] Could not auto-create expense:', expErr);
+      }
+    }
+
     setShowCompleteModal(false);
     setSelectedTask(null);
     showToast('Task marked as complete', 'success');

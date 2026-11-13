@@ -698,6 +698,18 @@ const NcrModal: React.FC<{
 };
 
 // ── DRILL DETAIL COMPONENT ──────────────────────────────────────────────────
+interface PendingDrill {
+  id: string;
+  title: string;
+  vessel_id: string;
+  next_due_date: string | null;
+  status: string;
+  priority: string;
+  frequency: string;
+  description: string | null;
+  company_id: string;
+}
+
 interface DrillDetailProps {
   drill: DrillRecord;
   vessels: VesselOption[];
@@ -892,6 +904,164 @@ const DrillDetailView: React.FC<DrillDetailProps> = ({ drill, vessels, crewMembe
   );
 };
 
+// ── COMPLETE DRILL MODAL ────────────────────────────────────────────────────
+interface CompleteDrillModalProps {
+  drill: PendingDrill;
+  vessels: VesselOption[];
+  crewMembers: CrewOption[];
+  currentUser: any;
+  onClose: () => void;
+  onCompleted: () => void;
+}
+const CompleteDrillModal: React.FC<CompleteDrillModalProps> = ({ drill, vessels, crewMembers, currentUser, onClose, onCompleted }) => {
+  const { showToast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attendance, setAttendance] = useState<{ id: string; name: string }[]>([]);
+  const [correctiveActions, setCorrectiveActions] = useState('');
+  const [comments, setComments] = useState('');
+
+  const vesselCrew = crewMembers.filter(c => c.vessel_id === drill.vessel_id);
+  const vessel = vessels.find(v => v.id === drill.vessel_id);
+
+  const toggleCrew = (cm: CrewOption) => {
+    setAttendance(prev =>
+      prev.some(a => a.id === cm.id)
+        ? prev.filter(a => a.id !== cm.id)
+        : [...prev, { id: cm.id, name: cm.full_name }]
+    );
+  };
+
+  const selectAll = () => {
+    setAttendance(vesselCrew.map(cm => ({ id: cm.id, name: cm.full_name })));
+  };
+
+  const handleSubmit = async () => {
+    if (attendance.length === 0) {
+      showToast('Please select at least one crew member who attended', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      await dbInsert('maintenance_history', {
+        task_id: drill.id,
+        vessel_id: drill.vessel_id,
+        company_id: drill.company_id,
+        task_title: drill.title,
+        due_date: drill.next_due_date,
+        completion_date: completionDate,
+        completed_by_id: currentUser.id,
+        completed_by_name: currentUser.full_name,
+        crew_attendance: attendance,
+        corrective_actions: correctiveActions.trim() || null,
+        comments: comments.trim() || null,
+        department: 'Safety',
+      });
+
+      // Update the task: if recurring, calculate next due date; if one-time, mark completed
+      const isRecurring = drill.frequency !== 'one_time';
+      if (isRecurring && drill.next_due_date) {
+        const current = new Date(drill.next_due_date + 'T00:00:00');
+        let nextDate: Date;
+        if (drill.frequency === 'weekly') { nextDate = new Date(current); nextDate.setDate(nextDate.getDate() + 7); }
+        else if (drill.frequency === 'monthly') { nextDate = new Date(current); nextDate.setMonth(nextDate.getMonth() + 1); }
+        else if (drill.frequency === 'quarterly') { nextDate = new Date(current); nextDate.setMonth(nextDate.getMonth() + 3); }
+        else if (drill.frequency === 'semi_annual') { nextDate = new Date(current); nextDate.setMonth(nextDate.getMonth() + 6); }
+        else if (drill.frequency === 'annual') { nextDate = new Date(current); nextDate.setFullYear(nextDate.getFullYear() + 1); }
+        else { nextDate = new Date(current); nextDate.setMonth(nextDate.getMonth() + 1); }
+        const nextStr = nextDate.toISOString().split('T')[0];
+        await dbUpdate('maintenance_tasks', drill.id, {
+          last_completed_date: completionDate,
+          next_due_date: nextStr,
+          status: 'upcoming',
+        });
+      } else {
+        await dbUpdate('maintenance_tasks', drill.id, {
+          status: 'completed',
+          last_completed_date: completionDate,
+        });
+      }
+
+      showToast('Drill completed successfully', 'success');
+      onCompleted();
+    } catch { showToast('Error completing drill', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8">
+        <div className="bg-gradient-to-r from-green-600 to-green-700 p-5 rounded-t-2xl text-white flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><CheckCircle className="w-5 h-5" /></div>
+            <div>
+              <h2 className="text-lg font-bold">Complete Drill</h2>
+              <p className="text-green-100 text-sm">{drill.title}{vessel ? ` — ${vessel.name}` : ''}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Completion Date</label>
+            <input type="date" value={completionDate} onChange={e => setCompletionDate(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Users className="w-4 h-4" />Crew Attendance *</label>
+              <button onClick={selectAll} type="button" className="text-xs text-blue-600 font-medium hover:underline">Select All</button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">ISM Code requires documenting all participants</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {vesselCrew.map(cm => {
+                const isSelected = attendance.some(a => a.id === cm.id);
+                return (
+                  <button key={cm.id} onClick={() => toggleCrew(cm)} type="button"
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${isSelected ? 'border-green-500 bg-green-50 ring-1 ring-green-500' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-green-600' : 'border-2 border-gray-300'}`}>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium truncate ${isSelected ? 'text-green-900' : 'text-gray-900'}`}>{cm.full_name}</p>
+                      <p className="text-xs text-gray-500 truncate">{cm.position}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {attendance.length > 0 && <p className="text-xs text-green-600 font-medium mt-2">{attendance.length} crew selected</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" />Corrective Actions</label>
+            <p className="text-xs text-gray-500 mb-2">Document any issues found during the drill</p>
+            <textarea value={correctiveActions} onChange={e => setCorrectiveActions(e.target.value)} rows={3}
+              placeholder="e.g. Fire hose on bridge deck had low pressure — replaced coupling and re-tested"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Comments</label>
+            <textarea value={comments} onChange={e => setComments(e.target.value)} rows={2} placeholder="Additional observations..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none" />
+          </div>
+        </div>
+
+        <div className="p-6 pt-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50">
+            <CheckCircle className="w-4 h-4" />{saving ? 'Saving...' : 'Mark as Completed'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── MAIN PAGE ────────────────────────────────────────────────────────────────
 export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const { currentUser, selectedVesselId } = useAuth();
@@ -902,8 +1072,10 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety' | 'ncr'>('all');
   const [drillHistory, setDrillHistory] = useState<DrillRecord[]>([]);
+  const [pendingDrills, setPendingDrills] = useState<PendingDrill[]>([]);
   const [showDrillModal, setShowDrillModal] = useState(false);
   const [selectedDrill, setSelectedDrill] = useState<DrillRecord | null>(null);
+  const [completingDrill, setCompletingDrill] = useState<PendingDrill | null>(null);
   const [ncrs, setNcrs] = useState<NCReport[]>([]);
   const [showNcrModal, setShowNcrModal] = useState(false);
   const [editingNcr, setEditingNcr] = useState<NCReport | null>(null);
@@ -930,17 +1102,19 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
     setLoading(true);
     const cid = currentUser.company_id;
     if (!cid) { setLoading(false); return; }
-    const [compliance, vessels, crew, drills, ncrData] = await Promise.all([
+    const [compliance, vessels, crew, drills, ncrData, pending] = await Promise.all([
       fetchByCompany('compliance_items', cid, 'expiry_date', true),
       fetchByCompany('vessels', cid, 'name', true),
       fetchByCompany('crew_members', cid, 'full_name', true),
       supabase.from('maintenance_history').select('id, task_title, completion_date, completed_by_name, crew_attendance, corrective_actions, vessel_id, comments').eq('company_id', cid).eq('department', 'Safety').order('completion_date', { ascending: false }).then(r => r.data || []),
       supabase.from('non_conformity_reports').select('*').eq('company_id', cid).order('detected_date', { ascending: false }).then(r => r.data || []),
+      supabase.from('maintenance_tasks').select('id, title, vessel_id, next_due_date, status, priority, frequency, description, company_id').eq('company_id', cid).eq('department', 'Safety').in('status', ['upcoming', 'due_soon', 'overdue']).order('next_due_date', { ascending: true }).then(r => r.data || []),
     ]);
     setItems(compliance);
     setVessels(vessels.map((v: any) => ({ id: v.id, name: v.name })));
     setCrewMembers((crew as any[]).filter(c => c.status === 'active').map(c => ({ id: c.id, full_name: c.full_name, position: c.position, vessel_id: c.vessel_id, photo_url: c.photo_url })));
     setDrillHistory(drills as DrillRecord[]);
+    setPendingDrills(pending as PendingDrill[]);
     setNcrs(ncrData as NCReport[]);
     // Refresh selected item if open
     if (selectedItem) {
@@ -1151,7 +1325,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
               {t === 'vessel' ? <Ship className="w-4 h-4" /> : t === 'crew' ? <User className="w-4 h-4" /> : t === 'safety' ? <Shield className="w-4 h-4" /> : t === 'ncr' ? <ClipboardList className="w-4 h-4" /> : null}
               {t === 'all' ? 'All' : t === 'vessel' ? 'Vessel' : t === 'crew' ? 'Crew' : t === 'safety' ? 'Safety Drills' : 'NCRs'}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterType === t ? 'bg-white/20' : 'bg-gray-100'}`}>
-                {t === 'all' ? items.length : t === 'safety' ? drillHistory.length : t === 'ncr' ? ncrs.length : items.filter(i => i.type === t).length}
+                {t === 'all' ? items.length : t === 'safety' ? (drillHistory.length + pendingDrills.length) : t === 'ncr' ? ncrs.length : items.filter(i => i.type === t).length}
               </span>
             </button>
           ))}
@@ -1167,17 +1341,62 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
                 </button>
               </div>
             )}
+            {/* Pending / Scheduled Drills */}
+            {!loading && (() => {
+              const filtered = pendingDrills.filter(d => filterVessel === 'all' || d.vessel_id === filterVessel);
+              if (filtered.length === 0) return null;
+              return (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" />Scheduled Drills ({filtered.length})</h3>
+                  <div className="space-y-2">
+                    {filtered.map(pd => {
+                      const vessel = vessels.find(v => v.id === pd.vessel_id);
+                      const isOverdue = pd.status === 'overdue';
+                      const isDueSoon = pd.status === 'due_soon';
+                      return (
+                        <div key={pd.id} className={`p-4 rounded-xl border transition-all ${isOverdue ? 'border-red-300 bg-red-50' : isDueSoon ? 'border-orange-300 bg-orange-50' : 'border-blue-200 bg-blue-50'}`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isOverdue ? 'bg-red-200' : isDueSoon ? 'bg-orange-200' : 'bg-blue-200'}`}>
+                                <Clock className={`w-5 h-5 ${isOverdue ? 'text-red-700' : isDueSoon ? 'text-orange-700' : 'text-blue-700'}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-sm">{pd.title}</h3>
+                                <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                                  {vessel && <span className="flex items-center gap-1"><Ship className="w-3 h-3" />{vessel.name}</span>}
+                                  {pd.next_due_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Due {new Date(pd.next_due_date).toLocaleDateString()}</span>}
+                                  <span className={`px-2 py-0.5 rounded-full font-semibold ${isOverdue ? 'bg-red-200 text-red-800' : isDueSoon ? 'bg-orange-200 text-orange-800' : 'bg-blue-200 text-blue-800'}`}>
+                                    {isOverdue ? 'Overdue' : isDueSoon ? 'Due Soon' : 'Upcoming'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {userCanCreate && (
+                              <button onClick={() => setCompletingDrill(pd)}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold text-sm hover:from-green-700 hover:to-green-800 transition-all shadow-sm shrink-0">
+                                <CheckCircle className="w-4 h-4" />Complete Drill
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />)}</div>
-            ) : drillHistory.length === 0 ? (
+            ) : drillHistory.length === 0 && pendingDrills.length === 0 ? (
               <div className="text-center py-12">
                 <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-600 font-medium">No safety drills recorded yet</p>
-                <p className="text-gray-400 text-sm mt-1">Complete a Safety task in Maintenance to see drill records here</p>
+                <p className="text-gray-400 text-sm mt-1">Schedule a drill or complete a Safety task to see records here</p>
               </div>
-            ) : (
+            ) : drillHistory.length > 0 ? (
               <>
-                <p className="text-sm text-gray-600 mb-4">Showing <span className="font-semibold text-gray-900">{drillHistory.filter(d => filterVessel === 'all' || d.vessel_id === filterVessel).length}</span> drill records</p>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" />Completed Drills ({drillHistory.filter(d => filterVessel === 'all' || d.vessel_id === filterVessel).length})</h3>
                 <div className="space-y-3">
                   {drillHistory
                     .filter(d => filterVessel === 'all' || d.vessel_id === filterVessel)
@@ -1224,7 +1443,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
                   })}
                 </div>
               </>
-            )}
+            ) : null}
           </>
         ) : filterType === 'ncr' ? (
           <>
@@ -1461,6 +1680,17 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
           onClose={() => setShowDrillModal(false)}
           onSave={handleNewDrill}
           defaultDepartment="Safety"
+        />
+      )}
+
+      {completingDrill && (
+        <CompleteDrillModal
+          drill={completingDrill}
+          vessels={vessels}
+          crewMembers={crewMembers}
+          currentUser={currentUser}
+          onClose={() => setCompletingDrill(null)}
+          onCompleted={() => { setCompletingDrill(null); loadData(); }}
         />
       )}
 

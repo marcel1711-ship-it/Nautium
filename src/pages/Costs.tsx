@@ -7,7 +7,7 @@ import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete } from '../lib/supabase';
+import { supabase, fetchSingle, fetchByCompany, fetchFiltered, dbInsert, dbDelete, dbUpdate } from '../lib/supabase';
 import { demoOperationalExpenses, demoInventoryItems, demoVessels, demoFuelLog, demoMaintenanceHistory, demoVoyages } from '../data/demoData';
 import { OperationalExpense, OperationalExpenseCategory, OperationalExpenseDepartment, getRoleDepartment, UserRole } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
@@ -142,6 +142,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterVoyage, setFilterVoyage] = useState<string>('all');
   const [voyageFilterOptions, setVoyageFilterOptions] = useState<{ id: string; name: string }[]>([]);
@@ -661,6 +662,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
                 })}
                 total={totalOp}
                 onDelete={(id) => setConfirmDeleteId(id)}
+                onEdit={(id) => setEditingExpenseId(id)}
               />
             )}
           </section>
@@ -817,6 +819,21 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
           onCancel={() => setConfirmDeleteId(null)} isLoading={deletingId === confirmDeleteId}
         />
       )}
+      {editingExpenseId && (() => {
+        const exp = opExpenses.find(e => e.id === editingExpenseId);
+        if (!exp) return null;
+        return (
+          <EditExpenseReceiptModal
+            expense={exp}
+            companyId={currentUser?.company_id || ''}
+            onClose={() => setEditingExpenseId(null)}
+            onSaved={() => {
+              setEditingExpenseId(null);
+              if (currentUser) loadOpExpenses(getPeriodStart(period));
+            }}
+          />
+        );
+      })()}
     </div>
   );
 };
@@ -859,7 +876,7 @@ const CostTable: React.FC<{ rows: CostRow[]; total: number }> = ({ rows, total }
 );
 
 interface CostRowWithDelete extends CostRow { id: string; receiptUrl?: string | null; }
-const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; onDelete: (id: string) => void }> = ({ rows, total, onDelete }) => {
+const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; onDelete: (id: string) => void; onEdit?: (id: string) => void }> = ({ rows, total, onDelete, onEdit }) => {
   const missingCount = rows.filter(r => !r.receiptUrl).length;
   return (
   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -871,16 +888,16 @@ const CostTableWithDelete: React.FC<{ rows: CostRowWithDelete[]; total: number; 
     )}
     <div className="divide-y divide-gray-100">
       {rows.map(row => (
-        <div key={row.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+        <div key={row.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onEdit?.(row.id)}>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${row.iconBg}`}>{row.icon}</div>
           <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">{row.label}</p><p className="text-xs text-gray-500 mt-0.5 truncate">{row.sub}</p></div>
           {row.receiptUrl ? (
-            <a href={row.receiptUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 text-green-500 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 flex-shrink-0" title="View receipt"><FileText className="w-4 h-4" /></a>
+            <button onClick={e => { e.stopPropagation(); window.open(row.receiptUrl!, '_blank'); }} className="p-1.5 text-green-500 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 flex-shrink-0" title="View receipt"><FileText className="w-4 h-4" /></button>
           ) : (
-            <span className="p-1.5 text-amber-400 flex-shrink-0" title="No receipt attached"><Paperclip className="w-4 h-4" /></span>
+            <span className="p-1.5 text-amber-400 flex-shrink-0" title="No receipt — click to add"><Paperclip className="w-4 h-4" /></span>
           )}
           <p className="text-sm font-bold text-gray-900 shrink-0">{formatCurrency(row.amount, row.currency)}</p>
-          <button onClick={() => onDelete(row.id)} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={e => { e.stopPropagation(); onDelete(row.id); }} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 flex-shrink-0"><Trash2 className="w-4 h-4" /></button>
         </div>
       ))}
     </div>
@@ -1246,6 +1263,99 @@ const AddExpenseModal: React.FC<{
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// ── EditExpenseReceiptModal — upload/replace receipt on existing expense ───
+const EditExpenseReceiptModal: React.FC<{
+  expense: OperationalExpense;
+  companyId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ expense, companyId, onClose, onSaved }) => {
+  const { showToast } = useToast();
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const receiptInputRef = React.useRef<HTMLInputElement>(null);
+  const currentReceipt = (expense as any).receipt_url as string | null;
+
+  const handleSave = async () => {
+    if (!receiptFile) return;
+    setSaving(true);
+    try {
+      const ext = receiptFile.name.split('.').pop() || 'pdf';
+      const path = `${companyId}/${expense.vessel_id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('receipts').upload(path, receiptFile);
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(path);
+      await dbUpdate('operational_expenses', expense.id, { receipt_url: urlData.publicUrl });
+      showToast('Receipt uploaded', 'success');
+      onSaved();
+    } catch (err) {
+      console.error('Upload receipt error:', err);
+      showToast('Error uploading receipt', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Expense Details</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Description</span><span className="text-sm font-semibold text-gray-900">{expense.description || expense.category}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Amount</span><span className="text-sm font-bold text-gray-900">{expense.currency} {expense.amount.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Date</span><span className="text-sm text-gray-700">{fmtDate(expense.expense_date)}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Department</span><span className="text-sm text-gray-700">{expense.department || 'General'}</span></div>
+          </div>
+
+          {currentReceipt && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+              <FileText className="w-5 h-5 text-green-600 shrink-0" />
+              <span className="text-sm text-green-800 flex-1">Receipt attached</span>
+              <a href={currentReceipt} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-green-700 hover:text-green-800 underline">View</a>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{currentReceipt ? 'Replace Receipt' : 'Upload Receipt'}</label>
+            <input type="file" ref={receiptInputRef} accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="hidden" />
+            {receiptFile ? (
+              <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                <span className="text-sm text-blue-800 truncate flex-1">{receiptFile.name}</span>
+                <button type="button" onClick={() => { setReceiptFile(null); if (receiptInputRef.current) receiptInputRef.current.value = ''; }}
+                  className="p-1 hover:bg-blue-100 rounded-lg"><X className="w-4 h-4 text-blue-600" /></button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => receiptInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Paperclip className="w-4 h-4" /> {currentReceipt ? 'Choose new file' : 'Attach receipt (PDF or image)'}
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-2 border-t border-gray-200">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+              Close
+            </button>
+            <button type="button" onClick={handleSave} disabled={!receiptFile || saving}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg disabled:opacity-50">
+              {saving ? 'Uploading...' : 'Save Receipt'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

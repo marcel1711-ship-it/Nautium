@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck, Plus, Search, AlertTriangle, CheckCircle,
   Clock, X, Calendar, FileText, User, Ship, ChevronDown, Trash2,
-  ArrowLeft, Upload, ExternalLink, Pencil, Download, Shield, Users, ClipboardList,
+  ArrowLeft, Upload, ExternalLink, Pencil, Download, Shield, Users, ClipboardList, Check, Save,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
@@ -697,6 +697,201 @@ const NcrModal: React.FC<{
   );
 };
 
+// ── DRILL DETAIL COMPONENT ──────────────────────────────────────────────────
+interface DrillDetailProps {
+  drill: DrillRecord;
+  vessels: VesselOption[];
+  crewMembers: CrewOption[];
+  userCanEdit: boolean;
+  onBack: () => void;
+  onUpdated: (d: DrillRecord) => void;
+}
+
+const DrillDetailView: React.FC<DrillDetailProps> = ({ drill, vessels, crewMembers, userCanEdit, onBack, onUpdated }) => {
+  const { showToast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editAttendance, setEditAttendance] = useState<{ id: string; name: string }[]>(drill.crew_attendance || []);
+  const [editCorrective, setEditCorrective] = useState(drill.corrective_actions || '');
+  const [editComments, setEditComments] = useState(drill.comments || '');
+
+  const drillVessel = vessels.find(v => v.id === drill.vessel_id);
+  const attendance = drill.crew_attendance || [];
+  const vesselCrew = crewMembers.filter(c => c.vessel_id === drill.vessel_id);
+
+  const toggleCrewMember = (cm: CrewOption) => {
+    setEditAttendance(prev =>
+      prev.some(a => a.id === cm.id)
+        ? prev.filter(a => a.id !== cm.id)
+        : [...prev, { id: cm.id, name: cm.full_name }]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('maintenance_history').update({
+        crew_attendance: editAttendance.length > 0 ? editAttendance : null,
+        corrective_actions: editCorrective.trim() || null,
+        comments: editComments.trim() || null,
+      }).eq('id', drill.id);
+      if (error) throw error;
+      const updated: DrillRecord = {
+        ...drill,
+        crew_attendance: editAttendance.length > 0 ? editAttendance : null,
+        corrective_actions: editCorrective.trim() || null,
+        comments: editComments.trim() || null,
+      };
+      onUpdated(updated);
+      setEditing(false);
+      showToast('Drill record updated', 'success');
+    } catch { showToast('Error saving drill record', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const startEditing = () => {
+    setEditAttendance(drill.crew_attendance || []);
+    setEditCorrective(drill.corrective_actions || '');
+    setEditComments(drill.comments || '');
+    setEditing(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors">
+        <ArrowLeft className="w-5 h-5" />Back to Compliance
+      </button>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{drill.task_title}</h2>
+                <p className="text-red-100 text-sm mt-0.5">Safety Drill Record</p>
+              </div>
+            </div>
+            {userCanEdit && !editing && (
+              <button onClick={startEditing} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-semibold transition-all">
+                <Pencil className="w-4 h-4" />Edit
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Info cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {drillVessel && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Ship className="w-3.5 h-3.5" />Vessel</div>
+                <p className="text-gray-900 font-semibold">{drillVessel.name}</p>
+              </div>
+            )}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Calendar className="w-3.5 h-3.5" />Completion Date</div>
+              <p className="text-gray-900 font-semibold">{new Date(drill.completion_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><User className="w-3.5 h-3.5" />Completed By</div>
+              <p className="text-gray-900 font-semibold">{drill.completed_by_name}</p>
+            </div>
+          </div>
+
+          {/* Crew Attendance */}
+          {editing ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Users className="w-4 h-4" />Crew Attendance</h3>
+              <p className="text-xs text-gray-500 mb-3">Select all crew members who participated in this drill</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {vesselCrew.map(cm => {
+                  const isSelected = editAttendance.some(a => a.id === cm.id);
+                  return (
+                    <button key={cm.id} onClick={() => toggleCrewMember(cm)} type="button"
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-600' : 'border-2 border-gray-300'}`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{cm.full_name}</p>
+                        <p className="text-xs text-gray-500 truncate">{cm.position}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {editAttendance.length > 0 && (
+                <p className="text-xs text-blue-600 font-medium mt-2">{editAttendance.length} crew member{editAttendance.length !== 1 ? 's' : ''} selected</p>
+              )}
+            </div>
+          ) : attendance.length > 0 ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Users className="w-4 h-4" />Crew Attendance ({attendance.length})</h3>
+              <div className="flex flex-wrap gap-2">
+                {attendance.map((a, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium">
+                    <User className="w-3.5 h-3.5" />{a.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : !editing ? (
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <p className="text-sm text-yellow-800 flex items-center gap-2"><AlertTriangle className="w-4 h-4" />No crew attendance recorded — ISM Code requires documenting drill participants</p>
+            </div>
+          ) : null}
+
+          {/* Corrective Actions */}
+          {editing ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" />Corrective Actions</h3>
+              <p className="text-xs text-gray-500 mb-2">Document any issues found during the drill and actions taken</p>
+              <textarea value={editCorrective} onChange={e => setEditCorrective(e.target.value)} rows={3} placeholder="e.g. Fire hose on bridge deck had low pressure — replaced coupling and re-tested"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" />
+            </div>
+          ) : drill.corrective_actions ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" />Corrective Actions</h3>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-sm text-amber-800">{drill.corrective_actions}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Comments */}
+          {editing ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Comments</h3>
+              <textarea value={editComments} onChange={e => setEditComments(e.target.value)} rows={3} placeholder="Additional observations, notes, or follow-up items..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" />
+            </div>
+          ) : drill.comments ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Comments</h3>
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <p className="text-sm text-gray-700">{drill.comments}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Save / Cancel buttons */}
+          {editing && (
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setEditing(false)} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50">
+                <Save className="w-4 h-4" />{saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── MAIN PAGE ────────────────────────────────────────────────────────────────
 export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const { currentUser, selectedVesselId } = useAuth();
@@ -852,77 +1047,17 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
 
   // ── DRILL DETAIL VIEW ───────────────────────────────────────────────────
   if (selectedDrill) {
-    const drillVessel = vessels.find(v => v.id === selectedDrill.vessel_id);
-    const attendance = selectedDrill.crew_attendance || [];
-    return (
-      <div className="space-y-6">
-        <button onClick={() => setSelectedDrill(null)} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors">
-          <ArrowLeft className="w-5 h-5" />Back to Compliance
-        </button>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 text-white">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">{selectedDrill.task_title}</h2>
-                <p className="text-red-100 text-sm mt-0.5">Safety Drill Record</p>
-              </div>
-            </div>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {drillVessel && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Ship className="w-3.5 h-3.5" />Vessel</div>
-                  <p className="text-gray-900 font-semibold">{drillVessel.name}</p>
-                </div>
-              )}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Calendar className="w-3.5 h-3.5" />Completion Date</div>
-                <p className="text-gray-900 font-semibold">{new Date(selectedDrill.completion_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><User className="w-3.5 h-3.5" />Completed By</div>
-                <p className="text-gray-900 font-semibold">{selectedDrill.completed_by_name}</p>
-              </div>
-            </div>
-
-            {attendance.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Users className="w-4 h-4" />Crew Attendance ({attendance.length})</h3>
-                <div className="flex flex-wrap gap-2">
-                  {attendance.map((a, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium">
-                      <User className="w-3.5 h-3.5" />{a.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selectedDrill.corrective_actions && (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" />Corrective Actions</h3>
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                  <p className="text-sm text-amber-800">{selectedDrill.corrective_actions}</p>
-                </div>
-              </div>
-            )}
-
-            {selectedDrill.comments && (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Comments</h3>
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
-                  <p className="text-sm text-gray-700">{selectedDrill.comments}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return <DrillDetailView
+      drill={selectedDrill}
+      vessels={vessels}
+      crewMembers={crewMembers}
+      userCanEdit={userCanCreate}
+      onBack={() => setSelectedDrill(null)}
+      onUpdated={(updated) => {
+        setSelectedDrill(updated);
+        setDrillHistory(prev => prev.map(d => d.id === updated.id ? updated : d));
+      }}
+    />;
   }
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────

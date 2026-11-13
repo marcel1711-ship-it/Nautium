@@ -316,138 +316,218 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       buildCategoryBlock('Crew Salaries', spendBreakdown.crew, crewItems),
     ].join('');
 
-    // ── YTD 12-Month Trend Data ──────────────────────────────────────────
+    // ── YTD 12-Month Data by Category ──────────────────────────────────────
     const now2 = new Date();
-    const ytdStart = `${now2.getFullYear()}-01-01`;
-    const ytdEnd = `${now2.getFullYear()}-12-31`;
-    const [ytdExpenses, ytdFuel, ytdVoyages] = await Promise.all([
+    const ytdYear = now2.getFullYear();
+    const ytdStart = `${ytdYear}-01-01`;
+    const ytdEnd = `${ytdYear}-12-31`;
+    const [ytdOp, ytdFuelAll, ytdHist, ytdVoyages] = await Promise.all([
       fetchFiltered('operational_expenses', companyId,
         [...vesselFilter, { field: 'expense_date', op: 'gte', value: ytdStart }, { field: 'expense_date', op: 'lte', value: ytdEnd }],
-        { select_cols: 'amount, expense_date' }),
+        { select_cols: 'amount, expense_date, category' }),
       fetchFiltered('fuel_log', companyId,
         [...vesselFilter, { field: 'entry_type', op: 'eq', value: 'refill' }, { field: 'log_date', op: 'gte', value: ytdStart }, { field: 'log_date', op: 'lte', value: ytdEnd }, { field: 'total_cost', op: 'not_null' }],
         { select_cols: 'total_cost, log_date' }),
+      fetchFiltered('maintenance_history', companyId,
+        [...vesselFilter, { field: 'completion_date', op: 'gte', value: ytdStart }, { field: 'completion_date', op: 'lte', value: ytdEnd }],
+        { select_cols: 'external_service_cost, parts_used, completion_date' }),
       fetchFiltered('voyages', companyId,
         [...vesselFilter, { field: 'departure_date', op: 'gte', value: ytdStart }, { field: 'departure_date', op: 'lte', value: ytdEnd }],
         { select_cols: 'revenue, departure_date' }),
     ]);
 
-    const monthlyCrewCost = crewData.reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
-    const monthlyTrend: { label: string; expenses: number; revenue: number }[] = [];
-    for (let m = 0; m < 12; m++) {
-      const key = `${now2.getFullYear()}-${String(m + 1).padStart(2, '0')}`;
-      const mExpenses = ytdExpenses.filter((e: any) => (e.expense_date || '').startsWith(key)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0)
-        + ytdFuel.filter((e: any) => (e.log_date || '').startsWith(key)).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0)
-        + (m < now2.getMonth() + 1 ? monthlyCrewCost : 0);
-      const mRevenue = ytdVoyages.filter((v: any) => (v.departure_date || '').startsWith(key)).reduce((s: number, v: any) => s + Number(v.revenue || 0), 0);
-      monthlyTrend.push({ label: MONTHS[m].substring(0, 3), expenses: mExpenses, revenue: mRevenue });
+    // Build parts cost lookup for YTD history
+    const ytdPartIds: string[] = [];
+    ytdHist.forEach((h: any) => { if (h.parts_used?.length) h.parts_used.forEach((p: any) => ytdPartIds.push(p.inventory_id)); });
+    let ytdInvMap: Record<string, number> = {};
+    if (ytdPartIds.length > 0) {
+      const allInvYtd = await fetchByCompany('inventory_items', companyId);
+      allInvYtd.filter((i: any) => ytdPartIds.includes(i.id)).forEach((inv: any) => { ytdInvMap[inv.id] = inv.unit_cost || 0; });
     }
 
-    const ytdTotalRevenue = monthlyTrend.reduce((s, m) => s + m.revenue, 0);
-    const ytdTotalExpenses = monthlyTrend.reduce((s, m) => s + m.expenses, 0);
+    const monthlyCrewCost = crewData.reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
+    const catColors: Record<string, string> = { Operational: '#3b82f6', Fuel: '#f59e0b', Parts: '#8b5cf6', Service: '#06b6d4', 'Crew Salaries': '#10b981', Revenue: '#22c55e' };
+    const catKeys = ['Operational', 'Fuel', 'Parts', 'Service', 'Crew Salaries'] as const;
+
+    type MonthCat = { label: string; Operational: number; Fuel: number; Parts: number; Service: number; 'Crew Salaries': number; Revenue: number; total: number };
+    const monthly: MonthCat[] = [];
+    for (let m = 0; m < 12; m++) {
+      const key = `${ytdYear}-${String(m + 1).padStart(2, '0')}`;
+      const row: MonthCat = { label: MONTHS[m].substring(0, 3), Operational: 0, Fuel: 0, Parts: 0, Service: 0, 'Crew Salaries': 0, Revenue: 0, total: 0 };
+
+      ytdOp.filter((e: any) => (e.expense_date || '').startsWith(key)).forEach((e: any) => { row.Operational += Number(e.amount || 0); });
+      ytdFuelAll.filter((e: any) => (e.log_date || '').startsWith(key)).forEach((e: any) => { row.Fuel += Number(e.total_cost || 0); });
+      ytdHist.filter((h: any) => (h.completion_date || '').startsWith(key)).forEach((h: any) => {
+        if (h.external_service_cost > 0) row.Service += Number(h.external_service_cost);
+        if (h.parts_used?.length) h.parts_used.forEach((p: any) => { row.Parts += (ytdInvMap[p.inventory_id] || 0) * (p.quantity || 1); });
+      });
+      if (m < now2.getMonth() + 1) row['Crew Salaries'] = monthlyCrewCost;
+      ytdVoyages.filter((v: any) => (v.departure_date || '').startsWith(key)).forEach((v: any) => { row.Revenue += Number(v.revenue || 0); });
+      row.total = row.Operational + row.Fuel + row.Parts + row.Service + row['Crew Salaries'];
+      monthly.push(row);
+    }
+
+    const ytdTotals: Record<string, number> = {};
+    catKeys.forEach(k => { ytdTotals[k] = monthly.reduce((s, m) => s + m[k], 0); });
+    const ytdTotalExpenses = catKeys.reduce((s, k) => s + ytdTotals[k], 0);
+    const ytdTotalRevenue = monthly.reduce((s, m) => s + m.Revenue, 0);
     const ytdNet = ytdTotalRevenue - ytdTotalExpenses;
-    const maxBar = Math.max(...monthlyTrend.map(m => Math.max(m.expenses, m.revenue)), 1);
+    const currentMonth = now2.getMonth() + 1;
 
-    // Build bar chart SVG
-    const chartW = 680, chartH = 200, barW = 22, gap = 34.6;
-    const bars = monthlyTrend.map((m, i) => {
-      const x = 40 + i * gap;
-      const expH = (m.expenses / maxBar) * 160;
-      const revH = (m.revenue / maxBar) * 160;
-      return `<rect x="${x}" y="${180 - expH}" width="${barW}" height="${expH}" rx="3" fill="#ef4444" opacity="0.8"/>` +
-        `<rect x="${x + barW + 2}" y="${180 - revH}" width="${barW}" height="${revH}" rx="3" fill="#22c55e" opacity="0.8"/>` +
-        `<text x="${x + barW}" y="${196}" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">${m.label}</text>`;
+    // ── Revenue vs Expenses Bar Chart ────────────────────────────────────
+    const maxRevExp = Math.max(...monthly.map(m => Math.max(m.total, m.Revenue)), 1);
+    const chartW = 700, bH = 180;
+    const revExpBars = monthly.map((m, i) => {
+      const x = 50 + i * 54;
+      const eH = (m.total / maxRevExp) * 150;
+      const rH = (m.Revenue / maxRevExp) * 150;
+      return `<rect x="${x}" y="${bH - eH}" width="20" height="${eH}" rx="3" fill="#ef4444" opacity="0.85"/>` +
+        `<rect x="${x + 22}" y="${bH - rH}" width="20" height="${rH}" rx="3" fill="#22c55e" opacity="0.85"/>` +
+        `<text x="${x + 21}" y="${bH + 14}" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">${m.label}</text>`;
     }).join('');
-    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(p => {
-      const y = 180 - p * 160;
-      const val = Math.round(maxBar * p);
-      const label = val >= 1000 ? `$${Math.round(val / 1000)}k` : `$${val}`;
-      return `<line x1="38" y1="${y}" x2="${chartW}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/><text x="36" y="${y + 3}" text-anchor="end" fill="#9ca3af" font-size="8" font-family="system-ui">${label}</text>`;
+    const revExpGrid = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = bH - p * 150;
+      const v = Math.round(maxRevExp * p);
+      return `<line x1="48" y1="${y}" x2="${chartW}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/><text x="46" y="${y + 3}" text-anchor="end" fill="#9ca3af" font-size="8" font-family="system-ui">${v >= 1000 ? '$' + Math.round(v/1000) + 'k' : '$' + v}</text>`;
     }).join('');
-    const trendSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${chartW} ${chartH}" width="${chartW}" height="${chartH}" style="display:block;margin:8px auto">${gridLines}${bars}</svg>`;
+    const revExpSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${chartW} ${bH + 20}" style="display:block;width:100%">${revExpGrid}${revExpBars}</svg>`;
 
-    // Build donut chart SVG for spend breakdown
-    const categories = [
-      { label: 'Operational', value: spendBreakdown.operational, color: '#3b82f6' },
-      { label: 'Fuel', value: spendBreakdown.fuel, color: '#f59e0b' },
-      { label: 'Parts', value: spendBreakdown.parts, color: '#8b5cf6' },
-      { label: 'Service', value: spendBreakdown.service, color: '#06b6d4' },
-      { label: 'Crew Salaries', value: spendBreakdown.crew, color: '#10b981' },
-    ].filter(c => c.value > 0);
+    // ── Stacked Area Chart by Category ───────────────────────────────────
+    const maxStack = Math.max(...monthly.map(m => m.total), 1);
+    const aW = 700, aH = 180;
+    const catPaths: string[] = [];
+    const stackedKeys = [...catKeys].reverse();
+    stackedKeys.forEach(cat => {
+      const points: string[] = [];
+      monthly.forEach((m, i) => {
+        const x = 50 + i * ((aW - 80) / 11);
+        let cumul = 0;
+        for (const k of catKeys) { cumul += m[k]; if (k === cat) break; }
+        const y = aH - (cumul / maxStack) * 150;
+        points.push(`${x},${y}`);
+      });
+      const bottomPoints = monthly.map((m, i) => {
+        const x = 50 + i * ((aW - 80) / 11);
+        let cumul = 0;
+        for (const k of catKeys) { if (k === cat) break; cumul += m[k]; }
+        return `${x},${aH - (cumul / maxStack) * 150}`;
+      }).reverse();
+      catPaths.push(`<polygon points="${points.join(' ')} ${bottomPoints.join(' ')}" fill="${catColors[cat]}" opacity="0.7"/>`);
+    });
+    const areaLabels = monthly.map((m, i) => {
+      const x = 50 + i * ((aW - 80) / 11);
+      return `<text x="${x}" y="${aH + 14}" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">${m.label}</text>`;
+    }).join('');
+    const areaGrid = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = aH - p * 150;
+      const v = Math.round(maxStack * p);
+      return `<line x1="48" y1="${y}" x2="${aW}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/><text x="46" y="${y + 3}" text-anchor="end" fill="#9ca3af" font-size="8" font-family="system-ui">${v >= 1000 ? '$' + Math.round(v/1000) + 'k' : '$' + v}</text>`;
+    }).join('');
+    const areaSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${aW} ${aH + 20}" style="display:block;width:100%">${areaGrid}${catPaths.join('')}${areaLabels}</svg>`;
+
+    // ── Donut Chart ──────────────────────────────────────────────────────
+    const categories = catKeys.map(k => ({ label: k, value: ytdTotals[k], color: catColors[k] })).filter(c => c.value > 0);
     const totalCat = categories.reduce((s, c) => s + c.value, 0);
     let cumulAngle = -Math.PI / 2;
-    const donutR = 70, donutInner = 45, cx = 100, cy = 100;
+    const donutR = 70, donutInner = 45, cx2 = 100, cy2 = 100;
     const arcs = categories.map(cat => {
-      const angle = (cat.value / totalCat) * 2 * Math.PI;
-      const startAngle = cumulAngle;
-      cumulAngle += angle;
-      const endAngle = cumulAngle;
-      const largeArc = angle > Math.PI ? 1 : 0;
-      const x1 = cx + donutR * Math.cos(startAngle), y1 = cy + donutR * Math.sin(startAngle);
-      const x2 = cx + donutR * Math.cos(endAngle), y2 = cy + donutR * Math.sin(endAngle);
-      const ix1 = cx + donutInner * Math.cos(endAngle), iy1 = cy + donutInner * Math.sin(endAngle);
-      const ix2 = cx + donutInner * Math.cos(startAngle), iy2 = cy + donutInner * Math.sin(startAngle);
-      return `<path d="M${x1},${y1} A${donutR},${donutR} 0 ${largeArc},1 ${x2},${y2} L${ix1},${iy1} A${donutInner},${donutInner} 0 ${largeArc},0 ${ix2},${iy2} Z" fill="${cat.color}"/>`;
+      const angle = Math.max((cat.value / totalCat) * 2 * Math.PI, 0.01);
+      const sa = cumulAngle; cumulAngle += angle; const ea = cumulAngle;
+      const la = angle > Math.PI ? 1 : 0;
+      return `<path d="M${cx2 + donutR * Math.cos(sa)},${cy2 + donutR * Math.sin(sa)} A${donutR},${donutR} 0 ${la},1 ${cx2 + donutR * Math.cos(ea)},${cy2 + donutR * Math.sin(ea)} L${cx2 + donutInner * Math.cos(ea)},${cy2 + donutInner * Math.sin(ea)} A${donutInner},${donutInner} 0 ${la},0 ${cx2 + donutInner * Math.cos(sa)},${cy2 + donutInner * Math.sin(sa)} Z" fill="${cat.color}"/>`;
     }).join('');
-    const legendItems = categories.map((cat, i) => {
-      const pct = Math.round((cat.value / totalCat) * 100);
-      return `<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></div><span style="font-size:12px;color:#374151">${cat.label}</span><span style="font-size:12px;color:#9ca3af;margin-left:auto">${fmtCurrency(cat.value)} (${pct}%)</span></div>`;
+    const legendItems = categories.map(cat => {
+      const pct = totalCat > 0 ? Math.round((cat.value / totalCat) * 100) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></div><span style="font-size:12px;color:#374151;flex:1">${cat.label}</span><span style="font-size:12px;font-weight:600;color:#111">${fmtCurrency(cat.value)}</span><span style="font-size:11px;color:#9ca3af;width:36px;text-align:right">${pct}%</span></div>`;
     }).join('');
-    const donutSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="180" height="180">${arcs}</svg>`;
+
+    // ── Monthly Category Table ───────────────────────────────────────────
+    const monthHeaders = monthly.map(m => `<th class="right" style="min-width:52px">${m.label}</th>`).join('');
+    const catTableRows = catKeys.map(cat => {
+      const cells = monthly.map(m => `<td class="right">${m[cat] > 0 ? fmtCurrency(m[cat]) : '<span style="color:#d1d5db">—</span>'}</td>`).join('');
+      return `<tr><td style="font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColors[cat]};margin-right:6px"></span>${cat}</td>${cells}<td class="right" style="font-weight:700">${fmtCurrency(ytdTotals[cat])}</td></tr>`;
+    }).join('');
+    const revenueCells = monthly.map(m => `<td class="right" style="color:#16a34a">${m.Revenue > 0 ? fmtCurrency(m.Revenue) : '<span style="color:#d1d5db">—</span>'}</td>`).join('');
+    const totalCells = monthly.map(m => `<td class="right" style="font-weight:600">${fmtCurrency(m.total)}</td>`).join('');
+    const netCells = monthly.map(m => { const n = m.Revenue - m.total; return `<td class="right" style="font-weight:600;color:${n >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(n)}</td>`; }).join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Financial Report — ${vesselLabel} — ${periodLabel}</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111;max-width:780px;margin:0 auto}
-    h1{font-size:24px;margin-bottom:4px;color:#0f172a}h2{font-size:15px;margin:28px 0 10px;color:#374151;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
-    .meta{color:#6b7280;font-size:13px;margin-bottom:28px}.kpi-row{display:flex;gap:14px;margin-bottom:20px}
-    .kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
-    .kpi .label{font-size:10px;text-transform:uppercase;color:#9ca3af;font-weight:600;letter-spacing:0.06em}
-    .kpi .value{font-size:22px;font-weight:700;margin-top:4px}
-    .kpi .sub{font-size:11px;color:#9ca3af;margin-top:2px}
-    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}
-    th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:10px;letter-spacing:0.05em}
-    .right{text-align:right}.footer{margin-top:36px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}
-    .chart-legend{display:flex;flex-direction:column;gap:8px;flex:1}
-    .charts-row{display:flex;align-items:center;gap:32px;margin-top:8px}
-    .bar-legend{display:flex;gap:16px;justify-content:center;margin-top:4px}
-    .bar-legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280}
-    .bar-legend .dot{width:8px;height:8px;border-radius:2px}
-    .section{margin-bottom:8px}
-    @media print{body{padding:20px}.kpi-row{break-inside:avoid}.charts-row{break-inside:avoid}}</style></head><body>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div><h1>Financial Report</h1><p class="meta" style="margin-bottom:0">${vesselLabel} · ${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p></div>
-      <div style="text-align:right"><span style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.02em">Nautium</span><br><span style="font-size:10px;color:#9ca3af">www.nautium.app</span></div>
-    </div>
-    <hr style="border:none;border-top:2px solid #0f172a;margin:16px 0 24px">
+    <style>
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111;max-width:900px;margin:0 auto}
+      h1{font-size:24px;margin-bottom:4px;color:#0f172a}
+      h2{font-size:14px;margin:28px 0 10px;color:#374151;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+      .meta{color:#6b7280;font-size:13px}
+      .kpi-row{display:flex;gap:12px;margin-bottom:20px}
+      .kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px}
+      .kpi .label{font-size:9px;text-transform:uppercase;color:#9ca3af;font-weight:700;letter-spacing:0.07em}
+      .kpi .value{font-size:20px;font-weight:700;margin-top:3px}
+      .kpi .sub{font-size:10px;color:#9ca3af;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-top:6px}
+      th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #f3f4f6;font-size:11px}
+      th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:9px;letter-spacing:0.05em;border-bottom:2px solid #e5e7eb}
+      .right{text-align:right}
+      .footer{margin-top:36px;padding-top:16px;border-top:2px solid #0f172a;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between}
+      .charts-row{display:flex;align-items:center;gap:28px;margin:8px 0 16px}
+      .chart-legend{flex:1}
+      .legend-row{display:flex;gap:16px;justify-content:center;margin-top:6px}
+      .legend-row span{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7280}
+      .legend-row .dot{width:8px;height:8px;border-radius:2px}
+      .cat-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:6px}
+      .cat-legend span{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280}
+      .overflow-table{overflow-x:auto}
+      @media print{body{padding:20px;font-size:11px}.kpi-row{break-inside:avoid}table{font-size:10px}}
+    </style></head><body>
 
-    <h2>Period Summary</h2>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+      <div><h1>Financial Report</h1><p class="meta">${vesselLabel} · ${periodLabel}</p></div>
+      <div style="text-align:right"><div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.02em">Nautium</div><div style="font-size:10px;color:#9ca3af">www.nautium.app</div><div style="font-size:10px;color:#9ca3af;margin-top:2px">${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</div></div>
+    </div>
+    <hr style="border:none;border-top:2px solid #0f172a;margin:12px 0 20px">
+
+    <h2>Period Summary — ${periodLabel}</h2>
     <div class="kpi-row">
       <div class="kpi"><div class="label">Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(periodRevenue)}</div></div>
       <div class="kpi"><div class="label">Expenses</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
-      <div class="kpi"><div class="label">Net P&L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div>
-      <div class="kpi"><div class="label">Budget</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : '—'}</div><div class="sub">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) + ' remaining' : 'No budget set'}</div></div>
+      <div class="kpi"><div class="label">Net P&amp;L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div>
+      <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : '—'}</div><div class="sub">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) + ' remaining' : 'No budget set'}</div></div>
     </div>
 
-    <h2>${now2.getFullYear()} Year-to-Date</h2>
+    <h2>${ytdYear} Year-to-Date Summary</h2>
     <div class="kpi-row">
       <div class="kpi"><div class="label">YTD Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(ytdTotalRevenue)}</div></div>
       <div class="kpi"><div class="label">YTD Expenses</div><div class="value">${fmtCurrency(ytdTotalExpenses)}</div></div>
       <div class="kpi"><div class="label">YTD Net</div><div class="value" style="color:${ytdNet >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(ytdNet)}</div></div>
-      <div class="kpi"><div class="label">Avg Monthly Spend</div><div class="value">${fmtCurrency(Math.round(ytdTotalExpenses / Math.min(now2.getMonth() + 1, 12)))}</div></div>
+      <div class="kpi"><div class="label">Avg Monthly Spend</div><div class="value">${fmtCurrency(Math.round(ytdTotalExpenses / currentMonth))}</div></div>
     </div>
 
-    <h2>Monthly Trend — ${now2.getFullYear()}</h2>
-    <div class="section">
-      ${trendSvg}
-      <div class="bar-legend"><span><div class="dot" style="background:#ef4444"></div>Expenses</span><span><div class="dot" style="background:#22c55e"></div>Revenue</span></div>
-    </div>
+    <h2>Revenue vs Expenses — ${ytdYear}</h2>
+    ${revExpSvg}
+    <div class="legend-row"><span><div class="dot" style="background:#ef4444"></div>Expenses</span><span><div class="dot" style="background:#22c55e"></div>Revenue</span></div>
 
-    <h2>Spend by Category</h2>
+    <h2>Spend by Category — ${ytdYear}</h2>
     <div class="charts-row">
-      ${donutSvg}
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="170" height="170" style="flex-shrink:0">${arcs}</svg>
       <div class="chart-legend">${legendItems}</div>
     </div>
 
-    <h2>Expense Detail</h2>
+    <h2>Spend Trend by Category — ${ytdYear}</h2>
+    ${areaSvg}
+    <div class="cat-legend">${catKeys.map(k => `<span><div class="dot" style="background:${catColors[k]};width:8px;height:8px;border-radius:2px"></div>${k}</span>`).join('')}</div>
+
+    <h2>Monthly Breakdown — ${ytdYear}</h2>
+    <div class="overflow-table">
+    <table>
+      <thead><tr><th>Category</th>${monthHeaders}<th class="right" style="font-weight:700">Total</th></tr></thead>
+      <tbody>
+        ${catTableRows}
+        <tr style="border-top:2px solid #e5e7eb"><td style="font-weight:700">Total Expenses</td>${totalCells}<td class="right" style="font-weight:700">${fmtCurrency(ytdTotalExpenses)}</td></tr>
+        <tr style="background:#f0fdf4"><td style="font-weight:600;color:#16a34a">Revenue</td>${revenueCells}<td class="right" style="font-weight:700;color:#16a34a">${fmtCurrency(ytdTotalRevenue)}</td></tr>
+        <tr style="border-top:2px solid #374151"><td style="font-weight:700">Net P&amp;L</td>${netCells}<td class="right" style="font-weight:700;color:${ytdNet >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(ytdNet)}</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2>Expense Detail — ${periodLabel}</h2>
     <table><thead><tr><th>Category / Item</th><th class="right">Amount</th></tr></thead><tbody>
     ${breakdownRows}
     <tr style="font-weight:700;border-top:2px solid #374151"><td>Total</td><td class="right">${fmtCurrency(periodSpend)}</td></tr>

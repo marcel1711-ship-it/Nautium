@@ -316,31 +316,146 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       buildCategoryBlock('Crew Salaries', spendBreakdown.crew, crewItems),
     ].join('');
 
+    // ── YTD 12-Month Trend Data ──────────────────────────────────────────
+    const now2 = new Date();
+    const ytdStart = `${now2.getFullYear()}-01-01`;
+    const ytdEnd = `${now2.getFullYear()}-12-31`;
+    const [ytdExpenses, ytdFuel, ytdVoyages] = await Promise.all([
+      fetchFiltered('operational_expenses', companyId,
+        [...vesselFilter, { field: 'expense_date', op: 'gte', value: ytdStart }, { field: 'expense_date', op: 'lte', value: ytdEnd }],
+        { select_cols: 'amount, expense_date' }),
+      fetchFiltered('fuel_log', companyId,
+        [...vesselFilter, { field: 'entry_type', op: 'eq', value: 'refill' }, { field: 'log_date', op: 'gte', value: ytdStart }, { field: 'log_date', op: 'lte', value: ytdEnd }, { field: 'total_cost', op: 'not_null' }],
+        { select_cols: 'total_cost, log_date' }),
+      fetchFiltered('voyages', companyId,
+        [...vesselFilter, { field: 'departure_date', op: 'gte', value: ytdStart }, { field: 'departure_date', op: 'lte', value: ytdEnd }],
+        { select_cols: 'revenue, departure_date' }),
+    ]);
+
+    const monthlyCrewCost = crewData.reduce((s: number, c: any) => s + Number(c.monthly_salary || 0), 0);
+    const monthlyTrend: { label: string; expenses: number; revenue: number }[] = [];
+    for (let m = 0; m < 12; m++) {
+      const key = `${now2.getFullYear()}-${String(m + 1).padStart(2, '0')}`;
+      const mExpenses = ytdExpenses.filter((e: any) => (e.expense_date || '').startsWith(key)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0)
+        + ytdFuel.filter((e: any) => (e.log_date || '').startsWith(key)).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0)
+        + (m < now2.getMonth() + 1 ? monthlyCrewCost : 0);
+      const mRevenue = ytdVoyages.filter((v: any) => (v.departure_date || '').startsWith(key)).reduce((s: number, v: any) => s + Number(v.revenue || 0), 0);
+      monthlyTrend.push({ label: MONTHS[m].substring(0, 3), expenses: mExpenses, revenue: mRevenue });
+    }
+
+    const ytdTotalRevenue = monthlyTrend.reduce((s, m) => s + m.revenue, 0);
+    const ytdTotalExpenses = monthlyTrend.reduce((s, m) => s + m.expenses, 0);
+    const ytdNet = ytdTotalRevenue - ytdTotalExpenses;
+    const maxBar = Math.max(...monthlyTrend.map(m => Math.max(m.expenses, m.revenue)), 1);
+
+    // Build bar chart SVG
+    const chartW = 680, chartH = 200, barW = 22, gap = 34.6;
+    const bars = monthlyTrend.map((m, i) => {
+      const x = 40 + i * gap;
+      const expH = (m.expenses / maxBar) * 160;
+      const revH = (m.revenue / maxBar) * 160;
+      return `<rect x="${x}" y="${180 - expH}" width="${barW}" height="${expH}" rx="3" fill="#ef4444" opacity="0.8"/>` +
+        `<rect x="${x + barW + 2}" y="${180 - revH}" width="${barW}" height="${revH}" rx="3" fill="#22c55e" opacity="0.8"/>` +
+        `<text x="${x + barW}" y="${196}" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">${m.label}</text>`;
+    }).join('');
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(p => {
+      const y = 180 - p * 160;
+      const val = Math.round(maxBar * p);
+      const label = val >= 1000 ? `$${Math.round(val / 1000)}k` : `$${val}`;
+      return `<line x1="38" y1="${y}" x2="${chartW}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/><text x="36" y="${y + 3}" text-anchor="end" fill="#9ca3af" font-size="8" font-family="system-ui">${label}</text>`;
+    }).join('');
+    const trendSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${chartW} ${chartH}" width="${chartW}" height="${chartH}" style="display:block;margin:8px auto">${gridLines}${bars}</svg>`;
+
+    // Build donut chart SVG for spend breakdown
+    const categories = [
+      { label: 'Operational', value: spendBreakdown.operational, color: '#3b82f6' },
+      { label: 'Fuel', value: spendBreakdown.fuel, color: '#f59e0b' },
+      { label: 'Parts', value: spendBreakdown.parts, color: '#8b5cf6' },
+      { label: 'Service', value: spendBreakdown.service, color: '#06b6d4' },
+      { label: 'Crew Salaries', value: spendBreakdown.crew, color: '#10b981' },
+    ].filter(c => c.value > 0);
+    const totalCat = categories.reduce((s, c) => s + c.value, 0);
+    let cumulAngle = -Math.PI / 2;
+    const donutR = 70, donutInner = 45, cx = 100, cy = 100;
+    const arcs = categories.map(cat => {
+      const angle = (cat.value / totalCat) * 2 * Math.PI;
+      const startAngle = cumulAngle;
+      cumulAngle += angle;
+      const endAngle = cumulAngle;
+      const largeArc = angle > Math.PI ? 1 : 0;
+      const x1 = cx + donutR * Math.cos(startAngle), y1 = cy + donutR * Math.sin(startAngle);
+      const x2 = cx + donutR * Math.cos(endAngle), y2 = cy + donutR * Math.sin(endAngle);
+      const ix1 = cx + donutInner * Math.cos(endAngle), iy1 = cy + donutInner * Math.sin(endAngle);
+      const ix2 = cx + donutInner * Math.cos(startAngle), iy2 = cy + donutInner * Math.sin(startAngle);
+      return `<path d="M${x1},${y1} A${donutR},${donutR} 0 ${largeArc},1 ${x2},${y2} L${ix1},${iy1} A${donutInner},${donutInner} 0 ${largeArc},0 ${ix2},${iy2} Z" fill="${cat.color}"/>`;
+    }).join('');
+    const legendItems = categories.map((cat, i) => {
+      const pct = Math.round((cat.value / totalCat) * 100);
+      return `<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></div><span style="font-size:12px;color:#374151">${cat.label}</span><span style="font-size:12px;color:#9ca3af;margin-left:auto">${fmtCurrency(cat.value)} (${pct}%)</span></div>`;
+    }).join('');
+    const donutSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="180" height="180">${arcs}</svg>`;
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Financial Report — ${vesselLabel} — ${periodLabel}</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111}
-    h1{font-size:22px;margin-bottom:4px}h2{font-size:16px;margin:24px 0 8px;color:#374151}
-    .meta{color:#6b7280;font-size:13px;margin-bottom:24px}.kpi-row{display:flex;gap:16px;margin-bottom:24px}
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;margin:0;padding:40px;color:#111;max-width:780px;margin:0 auto}
+    h1{font-size:24px;margin-bottom:4px;color:#0f172a}h2{font-size:15px;margin:28px 0 10px;color:#374151;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
+    .meta{color:#6b7280;font-size:13px;margin-bottom:28px}.kpi-row{display:flex;gap:14px;margin-bottom:20px}
     .kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
-    .kpi .label{font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;letter-spacing:0.05em}
-    .kpi .value{font-size:24px;font-weight:700;margin-top:4px}
-    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px}
-    th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:0.05em}
-    .right{text-align:right}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af}
-    @media print{body{padding:20px}.kpi-row{break-inside:avoid}}</style></head><body>
-    <h1>Financial Overview</h1><p class="meta">${vesselLabel} · ${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
-    <h2>Profit & Loss</h2>
-    <div class="kpi-row"><div class="kpi"><div class="label">Total Revenue</div><div class="value">${fmtCurrency(periodRevenue)}</div></div>
-    <div class="kpi"><div class="label">Total Expenses</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
-    <div class="kpi"><div class="label">Net P&L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div></div>
-    <h2>Budget</h2>
-    <div class="kpi-row"><div class="kpi"><div class="label">Period Spend</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
-    <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : 'No budget'}</div></div>
-    <div class="kpi"><div class="label">Remaining</div><div class="value">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) : '—'}</div></div></div>
-    <h2>Spend Breakdown</h2><table><thead><tr><th>Category / Item</th><th class="right">Amount</th></tr></thead><tbody>
+    .kpi .label{font-size:10px;text-transform:uppercase;color:#9ca3af;font-weight:600;letter-spacing:0.06em}
+    .kpi .value{font-size:22px;font-weight:700;margin-top:4px}
+    .kpi .sub{font-size:11px;color:#9ca3af;margin-top:2px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px}
+    th{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:10px;letter-spacing:0.05em}
+    .right{text-align:right}.footer{margin-top:36px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}
+    .chart-legend{display:flex;flex-direction:column;gap:8px;flex:1}
+    .charts-row{display:flex;align-items:center;gap:32px;margin-top:8px}
+    .bar-legend{display:flex;gap:16px;justify-content:center;margin-top:4px}
+    .bar-legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280}
+    .bar-legend .dot{width:8px;height:8px;border-radius:2px}
+    .section{margin-bottom:8px}
+    @media print{body{padding:20px}.kpi-row{break-inside:avoid}.charts-row{break-inside:avoid}}</style></head><body>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div><h1>Financial Report</h1><p class="meta" style="margin-bottom:0">${vesselLabel} · ${periodLabel} · Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p></div>
+      <div style="text-align:right"><span style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.02em">Nautium</span><br><span style="font-size:10px;color:#9ca3af">www.nautium.app</span></div>
+    </div>
+    <hr style="border:none;border-top:2px solid #0f172a;margin:16px 0 24px">
+
+    <h2>Period Summary</h2>
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(periodRevenue)}</div></div>
+      <div class="kpi"><div class="label">Expenses</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
+      <div class="kpi"><div class="label">Net P&L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div>
+      <div class="kpi"><div class="label">Budget</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : '—'}</div><div class="sub">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) + ' remaining' : 'No budget set'}</div></div>
+    </div>
+
+    <h2>${now2.getFullYear()} Year-to-Date</h2>
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">YTD Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(ytdTotalRevenue)}</div></div>
+      <div class="kpi"><div class="label">YTD Expenses</div><div class="value">${fmtCurrency(ytdTotalExpenses)}</div></div>
+      <div class="kpi"><div class="label">YTD Net</div><div class="value" style="color:${ytdNet >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(ytdNet)}</div></div>
+      <div class="kpi"><div class="label">Avg Monthly Spend</div><div class="value">${fmtCurrency(Math.round(ytdTotalExpenses / Math.min(now2.getMonth() + 1, 12)))}</div></div>
+    </div>
+
+    <h2>Monthly Trend — ${now2.getFullYear()}</h2>
+    <div class="section">
+      ${trendSvg}
+      <div class="bar-legend"><span><div class="dot" style="background:#ef4444"></div>Expenses</span><span><div class="dot" style="background:#22c55e"></div>Revenue</span></div>
+    </div>
+
+    <h2>Spend by Category</h2>
+    <div class="charts-row">
+      ${donutSvg}
+      <div class="chart-legend">${legendItems}</div>
+    </div>
+
+    <h2>Expense Detail</h2>
+    <table><thead><tr><th>Category / Item</th><th class="right">Amount</th></tr></thead><tbody>
     ${breakdownRows}
     <tr style="font-weight:700;border-top:2px solid #374151"><td>Total</td><td class="right">${fmtCurrency(periodSpend)}</td></tr>
-    </tbody></table><div class="footer">Nautium — www.nautium.app</div></body></html>`;
-    downloadHTML(html, `financial-overview-${vesselLabel.replace(/\s+/g,'-').toLowerCase()}-${periodLabel.replace(/\s+/g,'-').toLowerCase()}`);
+    </tbody></table>
+
+    <div class="footer"><span>Nautium — www.nautium.app</span><span>Confidential — Prepared for vessel management use only</span></div>
+    </body></html>`;
+    downloadHTML(html, `financial-report-${vesselLabel.replace(/\s+/g,'-').toLowerCase()}-${periodLabel.replace(/\s+/g,'-').toLowerCase()}`);
   };
 
   return (

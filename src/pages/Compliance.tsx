@@ -708,6 +708,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const [filterType, setFilterType] = useState<'all' | 'vessel' | 'crew' | 'safety' | 'ncr'>('all');
   const [drillHistory, setDrillHistory] = useState<DrillRecord[]>([]);
   const [showDrillModal, setShowDrillModal] = useState(false);
+  const [selectedDrill, setSelectedDrill] = useState<DrillRecord | null>(null);
   const [ncrs, setNcrs] = useState<NCReport[]>([]);
   const [showNcrModal, setShowNcrModal] = useState(false);
   const [editingNcr, setEditingNcr] = useState<NCReport | null>(null);
@@ -849,6 +850,81 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
   const expiring = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'expiring').length;
   const valid    = vesselFilteredItems.filter(i => getStatus(getDaysUntilExpiry(i.expiry_date)) === 'valid').length;
 
+  // ── DRILL DETAIL VIEW ───────────────────────────────────────────────────
+  if (selectedDrill) {
+    const drillVessel = vessels.find(v => v.id === selectedDrill.vessel_id);
+    const attendance = selectedDrill.crew_attendance || [];
+    return (
+      <div className="space-y-6">
+        <button onClick={() => setSelectedDrill(null)} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors">
+          <ArrowLeft className="w-5 h-5" />Back to Compliance
+        </button>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 text-white">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{selectedDrill.task_title}</h2>
+                <p className="text-red-100 text-sm mt-0.5">Safety Drill Record</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {drillVessel && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Ship className="w-3.5 h-3.5" />Vessel</div>
+                  <p className="text-gray-900 font-semibold">{drillVessel.name}</p>
+                </div>
+              )}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><Calendar className="w-3.5 h-3.5" />Completion Date</div>
+                <p className="text-gray-900 font-semibold">{new Date(selectedDrill.completion_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1"><User className="w-3.5 h-3.5" />Completed By</div>
+                <p className="text-gray-900 font-semibold">{selectedDrill.completed_by_name}</p>
+              </div>
+            </div>
+
+            {attendance.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"><Users className="w-4 h-4" />Crew Attendance ({attendance.length})</h3>
+                <div className="flex flex-wrap gap-2">
+                  {attendance.map((a, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium">
+                      <User className="w-3.5 h-3.5" />{a.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedDrill.corrective_actions && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" />Corrective Actions</h3>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-sm text-amber-800">{selectedDrill.corrective_actions}</p>
+                </div>
+              </div>
+            )}
+
+            {selectedDrill.comments && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Comments</h3>
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                  <p className="text-sm text-gray-700">{selectedDrill.comments}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (selectedItem) {
     return (
@@ -974,7 +1050,7 @@ export const Compliance: React.FC<ComplianceProps> = ({ onNavigate }) => {
                     const vessel = vessels.find(v => v.id === drill.vessel_id);
                     const attendance = drill.crew_attendance || [];
                     return (
-                      <div key={drill.id} className="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:shadow-md transition-all">
+                      <div key={drill.id} onClick={() => setSelectedDrill(drill)} className="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">

@@ -51,20 +51,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    const contentBlock = media_type === 'application/pdf'
-      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: image_base64 } }
-      : { type: 'image' as const, source: { type: 'base64' as const, media_type, data: image_base64 } };
-
     const isPdf = media_type === 'application/pdf';
+    const contentBlock = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: image_base64 } }
+      : { type: 'image', source: { type: 'base64', media_type, data: image_base64 } };
+
+    const prompt = [
+      'You are an expense receipt analyzer for a yacht management platform.',
+      '',
+      'Extract the following fields from this receipt/invoice. Return ONLY a valid JSON object, no markdown, no backticks, no explanation.',
+      '',
+      'Fields:',
+      '- amount: number (the total amount paid, no currency symbol)',
+      '- currency: string (3-letter ISO code: USD, EUR, GBP, etc. Default USD if unclear)',
+      '- description: string (short description of what was purchased/paid for, max 60 chars)',
+      '- vendor: string (business name on the receipt, or empty string if unclear)',
+      '- expense_date: string (date in YYYY-MM-DD format, or empty string if unclear)',
+      '- category: one of: mooring, electricity, water, internet, waste_disposal, port_fees, insurance, fuel, maintenance, provisions, crew_expenses, repairs, communications, entertainment, transport, other',
+      '- department: one of: Engineering, Deck, Interior, Galley, Safety, General (best guess based on the expense type)',
+      '- confidence: number 0-100 (how confident you are in the extraction overall)',
+      '',
+      'If you cannot read the receipt clearly, still return the JSON with your best guesses and a low confidence score.',
+    ].join('\n');
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    };
+    if (isPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25';
 
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        ...(isPdf ? { 'anthropic-beta': 'pdfs-2024-09-25' } : {}),
-      },
+      headers,
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -72,27 +91,7 @@ Deno.serve(async (req) => {
           role: 'user',
           content: [
             contentBlock,
-            {
-              type: 'text',
-              text: `You are an expense receipt analyzer for a yacht management platform.
-
-Extract the following fields from this receipt/invoice. Return ONLY a valid JSON object, no markdown, no backticks, no explanation.
-
-Fields:
-- amount: number (the total amount paid, no currency symbol)
-- currency: string (3-letter ISO code: USD, EUR, GBP, etc. Default USD if unclear)
-- description: string (short description of what was purchased/paid for, max 60 chars)
-- vendor: string (business name on the receipt, or "" if unclear)
-- expense_date: string (date in YYYY-MM-DD format, or "" if unclear)
-- category: one of: mooring, electricity, water, internet, waste_disposal, port_fees, insurance, fuel, maintenance, provisions, crew_expenses, repairs, communications, entertainment, transport, other
-- department: one of: Engineering, Deck, Interior, Galley, Safety, General (best guess based on the expense type)
-- confidence: number 0-100 (how confident you are in the extraction overall)
-
-If you cannot read the receipt clearly, still return the JSON with your best guesses and a low confidence score.
-
-Example response:
-{"amount":2850,"currency":"EUR","description":"Diesel refuel at Porto Cervo Marina","vendor":"Porto Cervo Marina","expense_date":"2026-11-01","category":"fuel","department":"Engineering","confidence":92}`,
-            },
+            { type: 'text', text: prompt },
           ],
         }],
       }),

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DollarSign, Plus, Trash2, TrendingDown, Fuel, Wrench, Package,
   Anchor, Zap, Droplets, Wifi, Trash, Ship, Shield, MoreHorizontal, Calendar,
   Boxes, AlertCircle, X, FileDown, Building2, Sofa, Settings, ChefHat, Users,
-  Clock, AlertTriangle, ShoppingCart, Navigation, Paperclip, FileText
+  Clock, AlertTriangle, ShoppingCart, Navigation, Paperclip, FileText, ScanLine, Loader2
 } from 'lucide-react';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
@@ -928,8 +928,69 @@ const AddExpenseModal: React.FC<{
   const [voyageOptions, setVoyageOptions] = useState<{ id: string; name: string }[]>([]);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const receiptInputRef = React.useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanConfidence, setScanConfidence] = useState<number | null>(null);
 
   const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
+
+  const scanReceipt = async (file: File) => {
+    setScanning(true);
+    setScanConfidence(null);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const mediaType = file.type === 'application/pdf' ? 'application/pdf'
+        : file.type || 'image/jpeg';
+
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      const resp = await fetch(`https://fsxjbgopxxbtidlkkafc.supabase.co/functions/v1/extract-receipt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ image_base64: base64, media_type: mediaType }),
+      });
+
+      const data = await resp.json();
+      if (data.extracted && !data.extracted.error) {
+        const e = data.extracted;
+        setForm(prev => ({
+          ...prev,
+          amount: e.amount ? String(e.amount) : prev.amount,
+          currency: e.currency || prev.currency,
+          description: e.description || prev.description,
+          category: e.category || prev.category,
+          department: (defaultDepartment || e.department || prev.department) as OperationalExpenseDepartment,
+          expense_date: e.expense_date || prev.expense_date,
+        }));
+        setScanConfidence(e.confidence ?? null);
+        showToast('Receipt scanned — fields auto-filled', 'success');
+      } else {
+        showToast('Could not read receipt. Please fill manually.', 'warning');
+      }
+    } catch (err) {
+      console.error('Receipt scan error:', err);
+      showToast('Error scanning receipt', 'error');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleReceiptSelect = (file: File | null) => {
+    setReceiptFile(file);
+    if (file) scanReceipt(file);
+  };
 
   const [form, setForm] = useState({
     vessel_id:    vessels.length === 1 ? vessels[0].id : '',
@@ -1120,6 +1181,44 @@ const AddExpenseModal: React.FC<{
 
         <form onSubmit={handleSubmit} className={`p-6 space-y-5 ${thresholdBlock ? 'hidden' : ''}`}>
 
+          {/* Smart Receipt Scanner */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <ScanLine className="w-4 h-4 inline mr-1.5 -mt-0.5" />Scan Receipt
+            </label>
+            <input type="file" ref={receiptInputRef} accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={e => handleReceiptSelect(e.target.files?.[0] || null)} className="hidden" />
+            {scanning ? (
+              <div className="flex items-center justify-center gap-3 px-4 py-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                <span className="text-sm font-medium text-blue-700">Analyzing receipt with AI...</span>
+              </div>
+            ) : receiptFile ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                  <FileText className="w-5 h-5 text-green-600 shrink-0" />
+                  <span className="text-sm text-green-800 truncate flex-1">{receiptFile.name}</span>
+                  {scanConfidence !== null && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${scanConfidence >= 80 ? 'bg-green-100 text-green-700' : scanConfidence >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      {scanConfidence}% match
+                    </span>
+                  )}
+                  <button type="button" onClick={() => { setReceiptFile(null); setScanConfidence(null); if (receiptInputRef.current) receiptInputRef.current.value = ''; }}
+                    className="p-1 hover:bg-green-100 rounded-lg"><X className="w-4 h-4 text-green-600" /></button>
+                </div>
+                {scanConfidence !== null && scanConfidence < 80 && (
+                  <p className="text-xs text-amber-600">Low confidence — please verify the auto-filled fields below.</p>
+                )}
+              </div>
+            ) : (
+              <button type="button" onClick={() => receiptInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-blue-300 text-blue-600 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all bg-blue-50/50">
+                <ScanLine className="w-5 h-5" /> Upload receipt to auto-fill fields
+              </button>
+            )}
+            <p className="mt-1.5 text-xs text-gray-400">AI reads the receipt and fills amount, date, category, and description automatically.</p>
+          </div>
+
           {/* Vessel */}
           {vessels.length > 1 && (
             <div>
@@ -1231,26 +1330,6 @@ const AddExpenseModal: React.FC<{
               </select>
             </div>
           )}
-
-          {/* Receipt / Invoice */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Receipt / Invoice</label>
-            <input type="file" ref={receiptInputRef} accept=".pdf,.jpg,.jpeg,.png,.webp"
-              onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="hidden" />
-            {receiptFile ? (
-              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
-                <FileText className="w-5 h-5 text-green-600 shrink-0" />
-                <span className="text-sm text-green-800 truncate flex-1">{receiptFile.name}</span>
-                <button type="button" onClick={() => { setReceiptFile(null); if (receiptInputRef.current) receiptInputRef.current.value = ''; }}
-                  className="p-1 hover:bg-green-100 rounded-lg"><X className="w-4 h-4 text-green-600" /></button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => receiptInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
-                <Paperclip className="w-4 h-4" /> Attach receipt (PDF or image)
-              </button>
-            )}
-          </div>
 
           <div className="flex gap-3 pt-2 border-t border-gray-200">
             <button type="button" onClick={onClose}

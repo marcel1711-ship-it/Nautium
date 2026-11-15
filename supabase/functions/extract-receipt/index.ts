@@ -55,15 +55,18 @@ Deno.serve(async (req) => {
       ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: image_base64 } }
       : { type: 'image' as const, source: { type: 'base64' as const, media_type, data: image_base64 } };
 
+    const isPdf = media_type === 'application/pdf';
+
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        ...(isPdf ? { 'anthropic-beta': 'pdfs-2024-09-25' } : {}),
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-20250414',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         messages: [{
           role: 'user',

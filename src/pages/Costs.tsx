@@ -937,6 +937,12 @@ const AddExpenseModal: React.FC<{
     setScanning(true);
     setScanConfidence(null);
     try {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('File too large (max 10 MB). Please fill manually.', 'warning');
+        setScanning(false);
+        return;
+      }
+
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => {
@@ -962,7 +968,16 @@ const AddExpenseModal: React.FC<{
         body: JSON.stringify({ image_base64: base64, media_type: mediaType }),
       });
 
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error('Receipt scan HTTP error:', resp.status, errText);
+        showToast(`Scan failed (${resp.status}). Please fill manually.`, 'warning');
+        setScanning(false);
+        return;
+      }
+
       const data = await resp.json();
+      console.log('Receipt scan response:', data);
       if (data.extracted && !data.extracted.error) {
         const e = data.extracted;
         setForm(prev => ({
@@ -977,11 +992,12 @@ const AddExpenseModal: React.FC<{
         setScanConfidence(e.confidence ?? null);
         showToast('Receipt scanned — fields auto-filled', 'success');
       } else {
+        console.error('Receipt scan extraction failed:', data);
         showToast('Could not read receipt. Please fill manually.', 'warning');
       }
     } catch (err) {
       console.error('Receipt scan error:', err);
-      showToast('Error scanning receipt', 'error');
+      showToast('Error scanning receipt. Please fill manually.', 'error');
     } finally {
       setScanning(false);
     }

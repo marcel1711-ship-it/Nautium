@@ -10,10 +10,10 @@ import {
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
+import { supabase, fetchByCompany, fetchFiltered, fetchSingle, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
 import { addFileToQueue } from '../lib/offlineStore';
 import { demoEquipment, demoVessels } from '../data/demoData';
-import { Equipment as EquipmentType, UserRole, getRoleDepartment, canCreate } from '../types';
+import { Equipment as EquipmentType, WaterToy, UserRole, getRoleDepartment, canCreate } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
 import { downloadCSV } from '../utils/helpers';
@@ -89,6 +89,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
 
   const [equipment, setEquipment]           = useState<EquipmentType[]>([]);
   const [vessels, setVessels]               = useState<VesselOption[]>([]);
+  const [waterToyMap, setWaterToyMap]       = useState<Record<string, string>>({});
   const [loading, setLoading]               = useState(true);
   const [search, setSearch]                 = useState('');
   const [filterType, setFilterType]         = useState('all');
@@ -153,12 +154,16 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
     }
     const cid = companyId || currentUser.company_id;
     if (!cid) { setLoading(false); return; }
-    const [vesselsData, equipmentData, historyData] = await Promise.all([
+    const [vesselsData, equipmentData, historyData, waterToysData] = await Promise.all([
       fetchByCompany('vessels', cid, 'name', true),
       fetchByCompany('equipment', cid, 'name', true),
       fetchByCompany('maintenance_history', cid, 'completion_date', false),
+      fetchByCompany('water_toys', cid, 'name', true),
     ]);
     setVessels(vesselsData.map((v: any) => ({ id: v.id, name: v.name })));
+    const wtMap: Record<string, string> = {};
+    (waterToysData || []).forEach((wt: any) => { wtMap[wt.id] = wt.name; });
+    setWaterToyMap(wtMap);
     const filtered = selectedVesselId && selectedVesselId !== 'all'
       ? equipmentData.filter((e: any) => e.vessel_id === selectedVesselId)
       : equipmentData;
@@ -570,6 +575,11 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
                                   {vesselName}
                                 </span>
                               )}
+                              {item.water_toy_id && waterToyMap[item.water_toy_id] && (
+                                <span className="text-xs px-2 py-0.5 bg-teal-50 text-teal-700 rounded-full font-medium flex-shrink-0">
+                                  {waterToyMap[item.water_toy_id]}
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {item.type}
@@ -778,6 +788,8 @@ const EquipmentModal: React.FC<{
   const [photoPreview, setPhotoPreview] = useState<string | null>(item?.photo_url || null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [waterToys, setWaterToys] = useState<{ id: string; name: string }[]>([]);
+
   const [form, setForm] = useState({
     name:              item?.name || '',
     type:              item?.type || '',
@@ -790,7 +802,14 @@ const EquipmentModal: React.FC<{
     notes:             item?.description || '',
     equipment_hours:   item?.equipment_hours?.toString() || '',
     vessel_id:         item?.vessel_id || (selectedVesselId && selectedVesselId !== 'all' ? selectedVesselId : (vessels.length === 1 ? vessels[0].id : '')),
+    water_toy_id:      item?.water_toy_id || '',
   });
+
+  useEffect(() => {
+    if (!form.vessel_id || !companyId) { setWaterToys([]); return; }
+    fetchFiltered('water_toys', companyId, [{ field: 'vessel_id', op: 'eq', value: form.vessel_id }], { select_cols: 'id, name', order_by: 'name' })
+      .then((data) => setWaterToys((data || []).map((wt: any) => ({ id: wt.id, name: wt.name }))));
+  }, [form.vessel_id, companyId]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -882,6 +901,7 @@ const EquipmentModal: React.FC<{
         description:       form.notes || '',
         photo_url,
         equipment_hours:   form.equipment_hours ? Number(form.equipment_hours) : 0,
+        water_toy_id:      form.water_toy_id || null,
       };
       if (item) {
         await dbUpdate('equipment', item.id, payload);
@@ -950,6 +970,17 @@ const EquipmentModal: React.FC<{
               </select>
             </div>
           </div>
+          {waterToys.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Water Toy (optional)</label>
+              <select value={form.water_toy_id}
+                onChange={e => setForm({ ...form, water_toy_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">None — vessel equipment</option>
+                {waterToys.map(wt => <option key={wt.id} value={wt.id}>{wt.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
             <select value={form.department}

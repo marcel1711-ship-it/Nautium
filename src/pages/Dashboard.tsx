@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Package, Calendar,
   Building2, Users as UsersIcon, CreditCard, Activity,
   TrendingUp, Anchor, DollarSign, BarChart3, TrendingDown, Ship,
-  ShieldCheck, ShieldAlert, Check, X, FileDown,
+  ShieldCheck, ShieldAlert, Check, X, FileDown, FileText, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -16,7 +16,7 @@ import { calculateDaysUntilDue, formatDate, isLowStock, sortTasksByUrgency, reca
 import { MaintenanceTask, InventoryItem, MaintenanceHistory, Vessel, getRoleDepartment, UserRole } from '../types';
 import { FleetOverview } from './FleetOverview';
 import { useToast } from '../components/UI/Toast';
-import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
+import { generateOwnerReport, downloadReport, OwnerReportData, generateSalesDossier, SalesDossierData } from '../lib/reports';
 import { UpcomingVoyagesCard } from '../components/Voyages/VoyageCalendar';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 
@@ -628,6 +628,103 @@ const CaptainDashboard: React.FC<{
     downloadReport(html, vessel?.name || 'vessel');
   };
 
+  const [showReportMenu, setShowReportMenu] = useState(false);
+
+  const handleExportSalesDossier = async () => {
+    if (!vessel || !selectedVesselId || selectedVesselId === 'all') return;
+    const cid = companyId || currentUser?.company_id;
+    if (!cid) return;
+
+    try {
+      const [equipmentData, fullHistory, allExpenses, fuelLogs] = await Promise.all([
+        fetchByCompany('equipment', cid, 'name', true),
+        fetchByCompany('maintenance_history', cid, 'completion_date', false),
+        fetchByCompany('operational_expenses', cid, 'expense_date', false),
+        fetchByCompany('fuel_logs', cid, 'log_date', false).catch(() => []),
+      ]);
+
+      const vesselEquipment = equipmentData.filter((e: any) => e.vessel_id === selectedVesselId);
+      const vesselHistory = fullHistory
+        .filter((h: any) => h.vessel_id === selectedVesselId)
+        .sort((a: any, b: any) => new Date(b.completion_date).getTime() - new Date(a.completion_date).getTime());
+      const vesselExpenses = allExpenses.filter((e: any) => e.vessel_id === selectedVesselId);
+      const vesselFuelLogs = fuelLogs.filter((f: any) => f.vessel_id === selectedVesselId);
+      const vesselInventory = inventory.filter((i: any) => i.vessel_id === selectedVesselId);
+
+      const fullVessel = vessels.find((v: any) => v.id === selectedVesselId);
+
+      const expByCat: Record<string, { total: number; count: number }> = {};
+      vesselExpenses.forEach((e: any) => {
+        const cat = e.category || 'other';
+        if (!expByCat[cat]) expByCat[cat] = { total: 0, count: 0 };
+        expByCat[cat].total += e.amount || 0;
+        expByCat[cat].count++;
+      });
+
+      const eqMap: Record<string, string> = {};
+      vesselEquipment.forEach((eq: any) => { eqMap[eq.id] = eq.name; });
+
+      const dossierData: SalesDossierData = {
+        vessel: {
+          name: fullVessel?.name || vessel.name,
+          type: fullVessel?.type,
+          flag: fullVessel?.flag,
+          yearBuilt: fullVessel?.year_built,
+          lengthOverall: fullVessel?.length_overall,
+          grossTonnage: fullVessel?.gross_tonnage,
+          registrationId: fullVessel?.registration_id,
+          description: fullVessel?.description,
+          location: fullVessel?.location,
+        },
+        equipment: vesselEquipment.map((e: any) => ({
+          name: e.name,
+          type: e.type,
+          manufacturer: e.manufacturer,
+          model: e.model,
+          serial_number: e.serial_number,
+          installation_date: e.installation_date,
+          equipment_hours: e.equipment_hours,
+          location_on_vessel: e.location_on_vessel,
+          department: e.department,
+        })),
+        maintenanceHistory: vesselHistory.map((h: any) => ({
+          task_title: h.task_title,
+          completion_date: h.completion_date,
+          completed_by_name: h.completed_by_name,
+          equipment_name: h.equipment_id ? eqMap[h.equipment_id] || '' : '',
+          comments: h.comments,
+          issues_detected: h.issues_detected,
+          external_service_cost: h.external_service_cost,
+        })),
+        expenses: Object.entries(expByCat).map(([category, data]) => ({
+          category,
+          total: data.total,
+          count: data.count,
+        })),
+        totalExpenses: vesselExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0),
+        inventory: vesselInventory.map((i: any) => ({
+          name: i.name,
+          category: i.category,
+          current_stock: i.current_stock,
+          unit_of_measure: i.unit_of_measure,
+          unit_cost: i.unit_cost,
+          part_number: i.part_number,
+        })),
+        fuelLogs: {
+          totalEntries: vesselFuelLogs.length,
+          totalLiters: vesselFuelLogs.reduce((s: number, f: any) => s + (f.quantity || 0), 0),
+        },
+        currency: 'USD',
+        generatedBy: currentUser?.full_name || 'Captain',
+      };
+
+      const html = generateSalesDossier(dossierData);
+      downloadReport(html, `${vessel.name}-sales-dossier`);
+    } catch (err) {
+      console.error('Failed to generate sales dossier:', err);
+    }
+  };
+
   return (
     <div className="space-y-5 pt-4">
       {/* VESSEL HEADER + EXPORT */}
@@ -638,13 +735,39 @@ const CaptainDashboard: React.FC<{
       />
 
       <div className="flex justify-end">
-        <button
-          onClick={handleExportReport}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all text-sm"
-        >
-          <FileDown className="w-4 h-4" />
-          Export Owner Report
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowReportMenu(!showReportMenu)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all text-sm"
+          >
+            <FileDown className="w-4 h-4" />
+            Export Report
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          {showReportMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowReportMenu(false)} />
+              <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                <button onClick={() => { handleExportReport(); setShowReportMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  <div>
+                    <div className="font-medium">Owner Report</div>
+                    <div className="text-xs text-gray-400">Monthly operational summary</div>
+                  </div>
+                </button>
+                <button onClick={() => { handleExportSalesDossier(); setShowReportMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left border-t border-gray-100">
+                  <Ship className="w-4 h-4 text-emerald-500" />
+                  <div>
+                    <div className="font-medium">Vessel Sales Dossier</div>
+                    <div className="text-xs text-gray-400">Complete history for buyers</div>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── PENDING APPROVALS — aparece solo si hay gastos pendientes ── */}

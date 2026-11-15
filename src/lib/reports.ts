@@ -421,3 +421,319 @@ export function downloadReport(html: string, vesselName: string) {
   const now = new Date();
   downloadHTML(html, `${vesselName.replace(/\s+/g, '-')}-report-${now.toISOString().slice(0, 10)}.html`);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VESSEL SALES DOSSIER — comprehensive report for yacht sale/valuation
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface SalesDossierData {
+  vessel: {
+    name: string;
+    type?: string;
+    flag?: string;
+    yearBuilt?: number;
+    lengthOverall?: number;
+    grossTonnage?: number;
+    registrationId?: string;
+    description?: string;
+    location?: string;
+  };
+  equipment: {
+    name: string;
+    type?: string;
+    manufacturer?: string;
+    model?: string;
+    serial_number?: string;
+    installation_date?: string;
+    equipment_hours?: number;
+    location_on_vessel?: string;
+    department?: string;
+  }[];
+  maintenanceHistory: {
+    task_title: string;
+    completion_date: string;
+    completed_by_name: string;
+    equipment_name?: string;
+    comments?: string;
+    issues_detected?: string;
+    external_service_cost?: number;
+  }[];
+  expenses: {
+    category: string;
+    total: number;
+    count: number;
+  }[];
+  totalExpenses: number;
+  inventory: {
+    name: string;
+    category: string;
+    current_stock: number;
+    unit_of_measure: string;
+    unit_cost?: number;
+    part_number?: string;
+  }[];
+  fuelLogs: {
+    totalEntries: number;
+    totalLiters: number;
+    avgConsumption?: number;
+  };
+  currency: string;
+  generatedBy: string;
+}
+
+export function generateSalesDossier(data: SalesDossierData): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const cur = data.currency || 'USD';
+
+  const totalInventoryValue = data.inventory.reduce((s, i) => s + (i.current_stock * (i.unit_cost || 0)), 0);
+  const totalServiceCosts = data.maintenanceHistory.reduce((s, h) => s + (h.external_service_cost || 0), 0);
+
+  const deptGroups = data.equipment.reduce((acc, e) => {
+    const dept = e.department || 'General';
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(e);
+    return acc;
+  }, {} as Record<string, typeof data.equipment>);
+
+  const equipmentRows = Object.entries(deptGroups).map(([dept, items]) => {
+    const header = `<tr><td colspan="7" style="background:#f0f4f8;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#475569;padding:8px 14px;">${dept} (${items.length})</td></tr>`;
+    const rows = items.map(e => `<tr>
+      <td><strong>${e.name}</strong>${e.serial_number ? `<br/><small>S/N: ${e.serial_number}</small>` : ''}</td>
+      <td>${e.type || '—'}</td>
+      <td>${e.manufacturer || '—'}</td>
+      <td>${e.model || '—'}</td>
+      <td>${e.location_on_vessel || '—'}</td>
+      <td class="num">${e.equipment_hours != null ? e.equipment_hours.toLocaleString() : '—'}</td>
+      <td>${e.installation_date ? new Date(e.installation_date).toLocaleDateString('en-GB') : '—'}</td>
+    </tr>`).join('');
+    return header + rows;
+  }).join('');
+
+  const historyRows = data.maintenanceHistory.slice(0, 200).map(h => {
+    const hasIssue = !!h.issues_detected;
+    return `<tr${hasIssue ? ' style="background:#fffbeb"' : ''}>
+      <td><strong>${h.task_title}</strong>${h.equipment_name ? `<br/><small>${h.equipment_name}</small>` : ''}</td>
+      <td>${new Date(h.completion_date).toLocaleDateString('en-GB')}</td>
+      <td>${h.completed_by_name}</td>
+      <td>${h.comments || '—'}</td>
+      <td${hasIssue ? ' style="color:#b45309;font-weight:600"' : ''}>${h.issues_detected || 'None'}</td>
+      <td class="num">${h.external_service_cost ? `${cur} ${h.external_service_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const expenseRows = data.expenses.sort((a, b) => b.total - a.total).map(e => `<tr>
+    <td style="font-weight:600;text-transform:capitalize">${e.category.replace(/_/g, ' ')}</td>
+    <td class="num">${e.count}</td>
+    <td class="num" style="font-weight:700">${cur} ${e.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+  </tr>`).join('');
+
+  const inventoryRows = data.inventory.map(i => {
+    const val = i.current_stock * (i.unit_cost || 0);
+    return `<tr>
+      <td><strong>${i.name}</strong>${i.part_number ? `<br/><small>${i.part_number}</small>` : ''}</td>
+      <td>${i.category}</td>
+      <td class="num">${i.current_stock} ${i.unit_of_measure}</td>
+      <td class="num">${i.unit_cost ? `${cur} ${i.unit_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}</td>
+      <td class="num">${val > 0 ? `${cur} ${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const vesselMeta = [
+    data.vessel.type ? `Type: ${data.vessel.type}` : null,
+    data.vessel.yearBuilt ? `Built: ${data.vessel.yearBuilt}` : null,
+    data.vessel.lengthOverall ? `LOA: ${data.vessel.lengthOverall}m` : null,
+    data.vessel.grossTonnage ? `GT: ${data.vessel.grossTonnage}` : null,
+    data.vessel.flag ? `Flag: ${data.vessel.flag}` : null,
+    data.vessel.registrationId ? `Reg: ${data.vessel.registrationId}` : null,
+    data.vessel.location ? `Home Port: ${data.vessel.location}` : null,
+  ].filter(Boolean).join(' · ');
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<title>${data.vessel.name} — Vessel Sales Dossier</title>
+<style>
+@page{margin:0;size:A4;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#1e293b;font-size:11px;background:#fff;line-height:1.5;}
+
+.cover{background:linear-gradient(135deg,#0a1628 0%,#122a4e 40%,#1a3f6f 100%);color:#fff;padding:52px 48px 44px;position:relative;overflow:hidden;}
+.cover::after{content:'';position:absolute;top:-80px;right:-80px;width:320px;height:320px;border-radius:50%;background:rgba(255,255,255,0.03);}
+.cover-label{font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:8px;}
+.cover-badge{display:inline-block;padding:4px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:20px;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:20px;}
+.cover h1{font-size:36px;font-weight:800;letter-spacing:-0.5px;line-height:1.1;margin-bottom:8px;}
+.cover-meta{font-size:12px;color:rgba(255,255,255,0.55);line-height:1.6;}
+.cover-date{margin-top:20px;font-size:10px;color:rgba(255,255,255,0.35);}
+${data.vessel.description ? `.cover-desc{margin-top:16px;font-size:12px;color:rgba(255,255,255,0.6);max-width:600px;line-height:1.6;font-style:italic;}` : ''}
+
+.summary-bar{display:flex;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
+.summary-item{flex:1;padding:22px 24px;text-align:center;border-right:1px solid #e2e8f0;}
+.summary-item:last-child{border-right:none;}
+.summary-val{font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#0f172a;}
+.summary-lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-top:4px;}
+.c-blue{color:#2563eb;} .c-green{color:#059669;} .c-slate{color:#475569;}
+
+.section{padding:24px 48px;}
+.section + .section{border-top:1px solid #f1f5f9;}
+.section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.section-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.section-icon.equip{background:#eff6ff;color:#2563eb;}
+.section-icon.maint{background:#ecfdf5;color:#059669;}
+.section-icon.cost{background:#fef3c7;color:#d97706;}
+.section-icon.inv{background:#f3e8ff;color:#7c3aed;}
+.section-icon.fuel{background:#e0f2fe;color:#0284c7;}
+.section-title{font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-0.2px;}
+.section-subtitle{font-size:10px;color:#94a3b8;font-weight:500;}
+
+table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:8px;}
+th{text-align:left;padding:10px 14px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
+td{padding:8px 14px;font-size:11px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+td small{color:#6b7280;font-size:10px;}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+
+.kpi-row{display:flex;gap:12px;margin-bottom:18px;}
+.kpi{flex:1;padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;background:linear-gradient(135deg,#fff,#f8fafc);}
+.kpi-val{font-size:22px;font-weight:800;letter-spacing:-0.3px;color:#0f172a;}
+.kpi-lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-top:4px;}
+.kpi-accent{border-left:3px solid;}
+
+.footer{padding:24px 48px;border-top:2px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;}
+.footer-brand{font-size:11px;font-weight:700;color:#163356;letter-spacing:1px;}
+.footer-info{text-align:right;font-size:9px;color:#94a3b8;}
+.footer-line{width:40px;height:3px;background:linear-gradient(90deg,#2563eb,#7c3aed);border-radius:2px;margin-bottom:6px;}
+
+.empty{padding:20px;text-align:center;color:#94a3b8;font-style:italic;font-size:12px;}
+.disclaimer{margin:12px 48px 0;padding:12px 16px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:10px;color:#64748b;line-height:1.5;}
+
+@media print{
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .section{break-inside:avoid;}
+}
+</style></head><body>
+
+<!-- ═══ COVER ═══ -->
+<div class="cover">
+  <div class="cover-label">Nautium</div>
+  <div class="cover-badge">Vessel Sales Dossier</div>
+  <h1>${data.vessel.name}</h1>
+  <div class="cover-meta">${vesselMeta || 'Managed Vessel'}</div>
+  ${data.vessel.description ? `<div class="cover-desc">${data.vessel.description}</div>` : ''}
+  <div class="cover-date">Generated on ${dateStr} by ${data.generatedBy}</div>
+</div>
+
+<!-- ═══ SUMMARY BAR ═══ -->
+<div class="summary-bar">
+  <div class="summary-item">
+    <div class="summary-val c-blue">${data.equipment.length}</div>
+    <div class="summary-lbl">Equipment Items</div>
+  </div>
+  <div class="summary-item">
+    <div class="summary-val c-green">${data.maintenanceHistory.length}</div>
+    <div class="summary-lbl">Maintenance Records</div>
+  </div>
+  <div class="summary-item">
+    <div class="summary-val c-slate">${cur} ${data.totalExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+    <div class="summary-lbl">Total Operating Expenses</div>
+  </div>
+  <div class="summary-item">
+    <div class="summary-val" style="color:#7c3aed">${cur} ${totalInventoryValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+    <div class="summary-lbl">Spare Parts Value</div>
+  </div>
+</div>
+
+<!-- ═══ EQUIPMENT ═══ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon equip">⚙</div>
+    <div><div class="section-title">Equipment Inventory</div><div class="section-subtitle">Complete list of installed equipment, systems and components</div></div>
+  </div>
+  ${data.equipment.length > 0 ? `
+  <table>
+    <thead><tr><th>Equipment</th><th>Type</th><th>Manufacturer</th><th>Model</th><th>Location</th><th class="num">Hours</th><th>Installed</th></tr></thead>
+    <tbody>${equipmentRows}</tbody>
+  </table>` : '<p class="empty">No equipment records</p>'}
+</div>
+
+<!-- ═══ MAINTENANCE HISTORY ═══ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon maint">🔧</div>
+    <div><div class="section-title">Maintenance History</div><div class="section-subtitle">${data.maintenanceHistory.length} completed maintenance records${data.maintenanceHistory.length > 200 ? ' (showing most recent 200)' : ''}</div></div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi kpi-accent" style="border-left-color:#059669;"><div class="kpi-val" style="color:#059669">${data.maintenanceHistory.length}</div><div class="kpi-lbl">Total Records</div></div>
+    <div class="kpi kpi-accent" style="border-left-color:#2563eb;"><div class="kpi-val c-blue">${cur} ${totalServiceCosts.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div class="kpi-lbl">External Service Costs</div></div>
+    <div class="kpi kpi-accent" style="border-left-color:#d97706;"><div class="kpi-val" style="color:#d97706">${data.maintenanceHistory.filter(h => !!h.issues_detected).length}</div><div class="kpi-lbl">Issues Detected</div></div>
+  </div>
+  ${data.maintenanceHistory.length > 0 ? `
+  <table>
+    <thead><tr><th>Task</th><th>Date</th><th>Completed By</th><th>Comments</th><th>Issues</th><th class="num">Service Cost</th></tr></thead>
+    <tbody>${historyRows}</tbody>
+  </table>` : '<p class="empty">No maintenance history records</p>'}
+</div>
+
+<!-- ═══ EXPENSE SUMMARY ═══ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon cost">💰</div>
+    <div><div class="section-title">Operating Expense Summary</div><div class="section-subtitle">Breakdown by category</div></div>
+  </div>
+  ${data.expenses.length > 0 ? `
+  <table>
+    <thead><tr><th>Category</th><th class="num">Entries</th><th class="num">Total</th></tr></thead>
+    <tbody>${expenseRows}
+      <tr style="background:#f0f4f8;font-weight:700">
+        <td>Grand Total</td>
+        <td class="num">${data.expenses.reduce((s, e) => s + e.count, 0)}</td>
+        <td class="num">${cur} ${data.totalExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+      </tr>
+    </tbody>
+  </table>` : '<p class="empty">No expense records</p>'}
+</div>
+
+<!-- ═══ SPARE PARTS & INVENTORY ═══ -->
+${data.inventory.length > 0 ? `
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon inv">📦</div>
+    <div><div class="section-title">Spare Parts & Inventory</div><div class="section-subtitle">${data.inventory.length} items — Total value: ${cur} ${totalInventoryValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Item</th><th>Category</th><th class="num">Stock</th><th class="num">Unit Cost</th><th class="num">Total Value</th></tr></thead>
+    <tbody>${inventoryRows}</tbody>
+  </table>
+</div>` : ''}
+
+<!-- ═══ FUEL SUMMARY ═══ -->
+${data.fuelLogs.totalEntries > 0 ? `
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon fuel">⛽</div>
+    <div><div class="section-title">Fuel Log Summary</div><div class="section-subtitle">Fuel consumption records</div></div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi kpi-accent" style="border-left-color:#0284c7;"><div class="kpi-val c-blue">${data.fuelLogs.totalEntries}</div><div class="kpi-lbl">Log Entries</div></div>
+    <div class="kpi kpi-accent" style="border-left-color:#059669;"><div class="kpi-val" style="color:#059669">${data.fuelLogs.totalLiters.toLocaleString()} L</div><div class="kpi-lbl">Total Fuel Recorded</div></div>
+    ${data.fuelLogs.avgConsumption ? `<div class="kpi kpi-accent" style="border-left-color:#7c3aed;"><div class="kpi-val" style="color:#7c3aed">${data.fuelLogs.avgConsumption.toLocaleString()} L/h</div><div class="kpi-lbl">Avg Consumption</div></div>` : ''}
+  </div>
+</div>` : ''}
+
+<!-- ═══ DISCLAIMER ═══ -->
+<div class="disclaimer">
+  This Vessel Sales Dossier has been generated from records maintained in Nautium. All maintenance history, equipment data, and expense records reflect information entered by the vessel's management team. This document is intended to support the sale process and does not constitute a survey or warranty. A professional marine survey is recommended before any purchase.
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <div>
+    <div class="footer-line"></div>
+    <div class="footer-brand">NAUTIUM</div>
+  </div>
+  <div class="footer-info">
+    ${data.vessel.name} · Vessel Sales Dossier · ${dateStr}<br/>
+    Generated by ${data.generatedBy} — Powered by Nautium
+  </div>
+</div>
+
+</body></html>`;
+}

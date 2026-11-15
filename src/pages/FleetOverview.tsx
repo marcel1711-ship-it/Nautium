@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  AlertTriangle, BarChart3, ChevronRight, Clock,
+  AlertTriangle, BarChart3, ChevronDown, ChevronRight, Clock,
   DollarSign, Package, ShieldCheck, ShieldAlert, Ship, Wrench,
-  TrendingDown, XCircle, Check, X, FileDown,
+  TrendingDown, XCircle, Check, X, FileDown, FileText,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { demoInventoryItems, demoMaintenanceHistory, demoMaintenanceTasks, demoVessels } from '../data/demoData';
@@ -10,7 +10,7 @@ import { dbUpdate, dbInsert, fetchByVessel, fetchFiltered, fetchByCompany } from
 import { formatDate, isLowStock, recalculateTaskStatuses } from '../utils/helpers';
 import { InventoryItem, MaintenanceHistory, MaintenanceTask, OperationalExpense, Vessel } from '../types';
 import { useToast } from '../components/UI/Toast';
-import { generateOwnerReport, downloadReport, OwnerReportData } from '../lib/reports';
+import { generateOwnerReport, downloadReport, OwnerReportData, generateSalesDossier, SalesDossierData } from '../lib/reports';
 import { UpcomingVoyagesCard } from '../components/Voyages/VoyageCalendar';
 
 interface FleetOverviewProps { onNavigate: (page: string, params?: any) => void; }
@@ -576,6 +576,80 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
     downloadReport(html, vs.vessel.name);
   };
 
+  const [showReportMenu, setShowReportMenu] = useState(false);
+
+  const handleExportSalesDossier = async (vesselId: string) => {
+    const vs = vesselStats.find(v => v.vessel.id === vesselId);
+    if (!vs) return;
+    const cid = currentUser?.company_id;
+    if (!cid) return;
+
+    try {
+      const [equipmentData, fullHistory, allExpenses, fuelLogs, inventoryItems] = await Promise.all([
+        fetchByVessel('equipment', vesselId),
+        fetchByVessel('maintenance_history', vesselId, { order_by: 'completion_date', ascending: false }),
+        fetchByVessel('operational_expenses', vesselId),
+        fetchByVessel('fuel_logs', vesselId).catch(() => []),
+        fetchByVessel('inventory_items', vesselId),
+      ]);
+
+      const eqMap: Record<string, string> = {};
+      (equipmentData || []).forEach((eq: any) => { eqMap[eq.id] = eq.name; });
+
+      const expByCat: Record<string, { total: number; count: number }> = {};
+      (allExpenses || []).forEach((e: any) => {
+        const cat = e.category || 'other';
+        if (!expByCat[cat]) expByCat[cat] = { total: 0, count: 0 };
+        expByCat[cat].total += e.amount || 0;
+        expByCat[cat].count++;
+      });
+
+      const dossierData: SalesDossierData = {
+        vessel: {
+          name: vs.vessel.name,
+          type: vs.vessel.type,
+          flag: vs.vessel.flag,
+          yearBuilt: vs.vessel.year_built,
+          lengthOverall: vs.vessel.length_overall,
+          grossTonnage: vs.vessel.gross_tonnage,
+          registrationId: vs.vessel.registration_id,
+          description: vs.vessel.description,
+          location: vs.vessel.location,
+        },
+        equipment: (equipmentData || []).map((e: any) => ({
+          name: e.name, type: e.type, manufacturer: e.manufacturer, model: e.model,
+          serial_number: e.serial_number, installation_date: e.installation_date,
+          equipment_hours: e.equipment_hours, location_on_vessel: e.location_on_vessel,
+          department: e.department,
+        })),
+        maintenanceHistory: (fullHistory || []).map((h: any) => ({
+          task_title: h.task_title, completion_date: h.completion_date,
+          completed_by_name: h.completed_by_name,
+          equipment_name: h.equipment_id ? eqMap[h.equipment_id] || '' : '',
+          comments: h.comments, issues_detected: h.issues_detected,
+          external_service_cost: h.external_service_cost,
+        })),
+        expenses: Object.entries(expByCat).map(([category, data]) => ({ category, total: data.total, count: data.count })),
+        totalExpenses: (allExpenses || []).reduce((s: number, e: any) => s + (e.amount || 0), 0),
+        inventory: (inventoryItems || []).map((i: any) => ({
+          name: i.name, category: i.category, current_stock: i.current_stock,
+          unit_of_measure: i.unit_of_measure, unit_cost: i.unit_cost, part_number: i.part_number,
+        })),
+        fuelLogs: {
+          totalEntries: (fuelLogs || []).length,
+          totalLiters: (fuelLogs || []).reduce((s: number, f: any) => s + (f.quantity || 0), 0),
+        },
+        currency: 'USD',
+        generatedBy: currentUser?.full_name || 'Fleet Manager',
+      };
+
+      const html = generateSalesDossier(dossierData);
+      downloadReport(html, `${vs.vessel.name}-sales-dossier`);
+    } catch (err) {
+      console.error('Failed to generate sales dossier:', err);
+    }
+  };
+
   const scopedStats = useMemo(() =>
     activeFilter === 'all'
       ? vesselStats
@@ -641,19 +715,47 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           <p className="text-sm text-gray-400">{new Date().toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (activeFilter !== 'all') {
-                handleExportReport(activeFilter);
-              } else if (vesselStats.length > 0) {
-                handleExportReport(vesselStats[0].vessel.id);
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            Export Report
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowReportMenu(!showReportMenu)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <FileDown className="w-4 h-4" />
+              Export Report
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {showReportMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowReportMenu(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  <button onClick={() => {
+                    const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
+                    if (vid) handleExportReport(vid);
+                    setShowReportMenu(false);
+                  }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    <div>
+                      <div className="font-medium">Owner Report</div>
+                      <div className="text-xs text-gray-400">Monthly operational summary</div>
+                    </div>
+                  </button>
+                  <button onClick={() => {
+                    const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
+                    if (vid) handleExportSalesDossier(vid);
+                    setShowReportMenu(false);
+                  }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left border-t border-gray-100">
+                    <Ship className="w-4 h-4 text-emerald-500" />
+                    <div>
+                      <div className="font-medium">Vessel Sales Dossier</div>
+                      <div className="text-xs text-gray-400">Complete history for buyers</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={() => onNavigate('vessels')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
             Manage vessels <ChevronRight className="w-3.5 h-3.5" />
           </button>

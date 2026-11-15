@@ -585,12 +585,13 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
     if (!cid) return;
 
     try {
-      const [equipmentData, fullHistory, allExpenses, fuelLogs, inventoryItems] = await Promise.all([
+      const [equipmentData, fullHistory, allExpenses, fuelLogs, inventoryItems, crewData] = await Promise.all([
         fetchByVessel('equipment', vesselId),
         fetchByVessel('maintenance_history', vesselId, { order_by: 'completion_date', ascending: false }),
         fetchByVessel('operational_expenses', vesselId),
         fetchByVessel('fuel_logs', vesselId).catch(() => []),
         fetchByVessel('inventory_items', vesselId),
+        fetchByVessel('crew_members', vesselId).catch(() => []),
       ]);
 
       const eqMap: Record<string, string> = {};
@@ -603,6 +604,15 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         expByCat[cat].total += e.amount || 0;
         expByCat[cat].count++;
       });
+
+      const expenseDates = (allExpenses || [])
+        .map((e: any) => e.expense_date)
+        .filter(Boolean)
+        .sort();
+      const expenseDateRange = expenseDates.length > 0 ? {
+        from: new Date(expenseDates[0]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        to: new Date(expenseDates[expenseDates.length - 1]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      } : undefined;
 
       const dossierData: SalesDossierData = {
         vessel: {
@@ -630,7 +640,16 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           external_service_cost: h.external_service_cost,
         })),
         expenses: Object.entries(expByCat).map(([category, data]) => ({ category, total: data.total, count: data.count })),
+        expenseDateRange,
         totalExpenses: (allExpenses || []).reduce((s: number, e: any) => s + (e.amount || 0), 0),
+        crew: (crewData || []).map((c: any) => ({
+          full_name: c.full_name,
+          position: c.position,
+          department: c.department,
+          nationality: c.nationality,
+          status: c.status,
+          embark_date: c.embark_date,
+        })),
         inventory: (inventoryItems || []).map((i: any) => ({
           name: i.name, category: i.category, current_stock: i.current_stock,
           unit_of_measure: i.unit_of_measure, unit_cost: i.unit_cost, part_number: i.part_number,

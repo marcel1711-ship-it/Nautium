@@ -463,7 +463,16 @@ export interface SalesDossierData {
     total: number;
     count: number;
   }[];
+  expenseDateRange?: { from: string; to: string };
   totalExpenses: number;
+  crew: {
+    full_name: string;
+    position: string;
+    department?: string;
+    nationality?: string;
+    status?: string;
+    embark_date?: string;
+  }[];
   inventory: {
     name: string;
     category: string;
@@ -581,6 +590,7 @@ ${data.vessel.description ? `.cover-desc{margin-top:16px;font-size:12px;color:rg
 .section-icon.cost{background:#fef3c7;color:#d97706;}
 .section-icon.inv{background:#f3e8ff;color:#7c3aed;}
 .section-icon.fuel{background:#e0f2fe;color:#0284c7;}
+.section-icon.crew{background:#fef2f2;color:#dc2626;}
 .section-title{font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-0.2px;}
 .section-subtitle{font-size:10px;color:#94a3b8;font-weight:500;}
 
@@ -676,7 +686,7 @@ td small{color:#6b7280;font-size:10px;}
 <div class="section">
   <div class="section-header">
     <div class="section-icon cost">💰</div>
-    <div><div class="section-title">Operating Expense Summary</div><div class="section-subtitle">Breakdown by category</div></div>
+    <div><div class="section-title">Operating Expense Summary</div><div class="section-subtitle">Breakdown by category${data.expenseDateRange ? ` &mdash; ${data.expenseDateRange.from} to ${data.expenseDateRange.to}` : ''}</div></div>
   </div>
   ${data.expenses.length > 0 ? `
   <table>
@@ -701,6 +711,28 @@ ${data.inventory.length > 0 ? `
   <table>
     <thead><tr><th>Item</th><th>Category</th><th class="num">Stock</th><th class="num">Unit Cost</th><th class="num">Total Value</th></tr></thead>
     <tbody>${inventoryRows}</tbody>
+  </table>
+</div>` : ''}
+
+<!-- ═══ CREW COMPLEMENT ═══ -->
+${data.crew && data.crew.length > 0 ? `
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon crew">👥</div>
+    <div><div class="section-title">Crew Complement</div><div class="section-subtitle">${data.crew.length} crew member${data.crew.length !== 1 ? 's' : ''}</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Name</th><th>Position</th><th>Department</th><th>Nationality</th><th>Status</th><th>Embark Date</th></tr></thead>
+    <tbody>${data.crew.map(c => `
+      <tr>
+        <td style="font-weight:600">${c.full_name}</td>
+        <td>${c.position || '—'}</td>
+        <td>${c.department || '—'}</td>
+        <td>${c.nationality || '—'}</td>
+        <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;${c.status === 'active' ? 'background:#ecfdf5;color:#059669;border:1px solid #a7f3d0' : 'background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0'}">${c.status || '—'}</span></td>
+        <td>${c.embark_date ? new Date(c.embark_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
+      </tr>`).join('')}
+    </tbody>
   </table>
 </div>` : ''}
 

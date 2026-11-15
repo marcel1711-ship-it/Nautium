@@ -636,11 +636,12 @@ const CaptainDashboard: React.FC<{
     if (!cid) return;
 
     try {
-      const [equipmentData, fullHistory, allExpenses, fuelLogs] = await Promise.all([
+      const [equipmentData, fullHistory, allExpenses, fuelLogs, crewData] = await Promise.all([
         fetchByCompany('equipment', cid, 'name', true),
         fetchByCompany('maintenance_history', cid, 'completion_date', false),
         fetchByCompany('operational_expenses', cid, 'expense_date', false),
         fetchByCompany('fuel_logs', cid, 'log_date', false).catch(() => []),
+        fetchByCompany('crew_members', cid, 'full_name', true).catch(() => []),
       ]);
 
       const vesselEquipment = equipmentData.filter((e: any) => e.vessel_id === selectedVesselId);
@@ -650,6 +651,16 @@ const CaptainDashboard: React.FC<{
       const vesselExpenses = allExpenses.filter((e: any) => e.vessel_id === selectedVesselId);
       const vesselFuelLogs = fuelLogs.filter((f: any) => f.vessel_id === selectedVesselId);
       const vesselInventory = inventory.filter((i: any) => i.vessel_id === selectedVesselId);
+      const vesselCrew = crewData.filter((c: any) => c.vessel_id === selectedVesselId);
+
+      const expenseDates = vesselExpenses
+        .map((e: any) => e.expense_date)
+        .filter(Boolean)
+        .sort();
+      const expenseDateRange = expenseDates.length > 0 ? {
+        from: new Date(expenseDates[0]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        to: new Date(expenseDates[expenseDates.length - 1]).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      } : undefined;
 
       const fullVessel = vessels.find((v: any) => v.id === selectedVesselId);
 
@@ -701,7 +712,16 @@ const CaptainDashboard: React.FC<{
           total: data.total,
           count: data.count,
         })),
+        expenseDateRange,
         totalExpenses: vesselExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0),
+        crew: vesselCrew.map((c: any) => ({
+          full_name: c.full_name,
+          position: c.position,
+          department: c.department,
+          nationality: c.nationality,
+          status: c.status,
+          embark_date: c.embark_date,
+        })),
         inventory: vesselInventory.map((i: any) => ({
           name: i.name,
           category: i.category,

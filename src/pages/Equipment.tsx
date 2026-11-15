@@ -16,7 +16,7 @@ import { demoEquipment, demoVessels } from '../data/demoData';
 import { Equipment as EquipmentType, WaterToy, UserRole, getRoleDepartment, canCreate } from '../types';
 import { ConfirmModal } from '../components/UI/ConfirmModal';
 import { useToast } from '../components/UI/Toast';
-import { downloadCSV } from '../utils/helpers';
+import { downloadCSV, downloadHTML } from '../utils/helpers';
 import { MonitorTab } from '../components/Equipment/MonitorTab';
 import { NmeaDevicesTab } from '../components/Equipment/NmeaDevicesTab';
 
@@ -134,6 +134,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
   const [importing, setImporting]           = useState(false);
   const [importResults, setImportResults]   = useState<{ success: number; errors: string[] } | null>(null);
   const [showImportResults, setShowImportResults] = useState(false);
+  const [showExportMenu, setShowExportMenu]       = useState(false);
 
   useEffect(() => { if (currentUser) loadData(); }, [currentUser, selectedVesselId, companyId]);
 
@@ -212,6 +213,72 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
     const rows = [CSV_HEADERS, ...CSV_EXAMPLE_ROWS];
     downloadCSV(rows, 'equipment-import-template.csv');
     showToast('Template downloaded — fill it in and import', 'success');
+  };
+
+  // ── EXPORT PDF ─────────────────────────────────────────────────────────────
+  const handleExportPDF = () => {
+    if (filteredEquipment.length === 0) { showToast('No equipment to export', 'info'); return; }
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeLabel = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const vesselName = vessels.find(v => v.id === selectedVesselId)?.name || 'All Vessels';
+
+    const tableRows = filteredEquipment.map(e => {
+      const dept = (e as any).department || 'General';
+      const wtName = e.water_toy_id ? waterToyMap[e.water_toy_id] || '' : '';
+      return `<tr>
+        <td><strong>${e.name}</strong>${e.serial_number ? `<br/><small>${e.serial_number}</small>` : ''}</td>
+        <td>${e.type || '—'}</td><td>${dept}</td>
+        <td>${e.manufacturer || '—'}</td><td>${e.model || '—'}</td>
+        <td>${e.location_on_vessel || '—'}</td>
+        <td class="amount">${e.equipment_hours ?? '—'}</td>
+        <td>${wtName || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Equipment Report</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;font-size:11px}
+      .header{background:#1e3a5f;color:#fff;padding:28px 32px 24px}
+      .header h1{font-size:22px;font-weight:700;margin-bottom:4px}
+      .header p{font-size:12px;opacity:.75}
+      .meta{display:flex;gap:32px;padding:14px 32px;background:#f4f7fa;border-bottom:1px solid #dde3eb;flex-wrap:wrap}
+      .meta-item{display:flex;flex-direction:column;gap:2px}
+      .meta-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6b7280}
+      .meta-value{font-size:13px;font-weight:600;color:#1a1a1a}
+      .summary{display:flex;gap:16px;padding:16px 32px}
+      .summary-card{flex:1;padding:12px 16px;border-radius:8px;border:1px solid #e5e7eb}
+      .summary-card .num{font-size:24px;font-weight:700;color:#1d4ed8}
+      .summary-card .lbl{font-size:11px;color:#6b7280;margin-top:2px}
+      .table-wrap{padding:8px 32px 32px}
+      table{width:100%;border-collapse:collapse;margin-top:8px}
+      th{background:#f8fafc;text-align:left;padding:8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#4b5563;border-bottom:2px solid #e5e7eb}
+      td{padding:7px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+      td small{color:#6b7280;font-size:10px}
+      td.amount,th.amount{text-align:right;font-variant-numeric:tabular-nums}
+      .footer{margin-top:24px;padding:12px 32px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center}
+      @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body>
+      <div class="header"><h1>Equipment Report — ${vesselName}</h1><p>Generated on ${dateLabel} at ${timeLabel}</p></div>
+      <div class="meta">
+        <div class="meta-item"><span class="meta-label">Vessel</span><span class="meta-value">${vesselName}</span></div>
+        <div class="meta-item"><span class="meta-label">Items</span><span class="meta-value">${filteredEquipment.length}</span></div>
+      </div>
+      <div class="summary">
+        <div class="summary-card"><div class="num">${filteredEquipment.length}</div><div class="lbl">Total Equipment</div></div>
+        <div class="summary-card"><div class="num">${[...new Set(filteredEquipment.map(e => (e as any).department || 'General'))].length}</div><div class="lbl">Departments</div></div>
+        <div class="summary-card"><div class="num">${[...new Set(filteredEquipment.map(e => e.type).filter(Boolean))].length}</div><div class="lbl">Types</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Dept</th><th>Manufacturer</th><th>Model</th><th>Location</th><th class="amount">Hours</th><th>Water Toy</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>
+      <div class="footer">Nautium — Equipment Report — ${dateLabel}</div>
+    </body></html>`;
+
+    downloadHTML(html, `equipment-report-${vesselName.toLowerCase().replace(/\s+/g, '-')}-${now.toISOString().slice(0, 10)}.html`);
+    showToast(`${filteredEquipment.length} items exported as PDF`, 'success');
   };
 
   // ── IMPORT CSV ────────────────────────────────────────────────────────────
@@ -377,20 +444,30 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
             </button>
           </div>
 
-          {/* Export */}
+          {/* Export dropdown */}
           {equipment.length > 0 && (
-            <button onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
-              <FileDown className="w-4 h-4" />CSV
-            </button>
-          )}
-
-          {/* Template */}
-          {userCanCreate && (
-            <button onClick={handleDownloadTemplate}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
-              <Download className="w-4 h-4" />Template
-            </button>
+            <div className="relative">
+              <button onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm">
+                <FileDown className="w-4 h-4" />Export
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    <button onClick={() => { handleExportPDF(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileText className="w-4 h-4" />PDF
+                    </button>
+                    <button onClick={() => { handleExportCSV(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileDown className="w-4 h-4" />Excel (CSV)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* Import */}

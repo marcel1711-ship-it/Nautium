@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Search, AlertTriangle, Plus, Filter, ChevronDown, FileDown, MapPin, SlidersHorizontal, Pencil, Trash2, FileSpreadsheet, Anchor, Sofa, Settings, ChefHat, Shield, DollarSign } from 'lucide-react';
+import { Package, Search, AlertTriangle, Plus, Filter, ChevronDown, FileDown, FileText, MapPin, SlidersHorizontal, Pencil, Trash2, FileSpreadsheet, Anchor, Sofa, Settings, ChefHat, Shield, DollarSign } from 'lucide-react';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { demoInventoryItems, demoVessels } from '../data/demoData';
 import { supabase, fetchByCompany, dbInsert, dbUpdate, dbDelete } from '../lib/supabase';
-import { isLowStock, downloadHTML } from '../utils/helpers';
+import { isLowStock, downloadHTML, downloadCSV } from '../utils/helpers';
 import { useToast } from '../components/UI/Toast';
 import { AddInventoryModal, NewInventoryData } from '../components/Inventory/AddInventoryModal';
 import { ImportInventoryModal } from '../components/Inventory/ImportInventoryModal';
@@ -67,6 +67,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => { loadData(); }, [currentUser, selectedVesselId]);
 
@@ -292,6 +293,29 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
     downloadHTML(html, `inventory-report-${filterDepartment}-${now.toISOString().slice(0, 10)}.html`);
   };
 
+  const handleExportCSV = () => {
+    if (filtered.length === 0) { showToast('No items to export', 'info'); return; }
+    const headers = ['name', 'part_number', 'category', 'department', 'vessel', 'current_stock', 'minimum_stock', 'unit_of_measure', 'unit_cost', 'storage_location', 'supplier'];
+    const rows: string[][] = [headers];
+    filtered.forEach(item => {
+      rows.push([
+        item.name || '',
+        item.part_number || '',
+        item.category || '',
+        (item as any).department || '',
+        getVesselName(item.vessel_id),
+        String(item.current_stock ?? ''),
+        String(item.minimum_stock ?? ''),
+        item.unit_of_measure || '',
+        item.unit_cost ? String(item.unit_cost) : '',
+        item.storage_location || '',
+        item.supplier || '',
+      ]);
+    });
+    downloadCSV(rows, `inventory-${filterDepartment}-${new Date().toISOString().slice(0, 10)}.csv`);
+    showToast(`${filtered.length} items exported`, 'success');
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -308,11 +332,29 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate, departmentFilt
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('inventory.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {activeTab === 'items' && (
-            <button onClick={handleExportPDF} disabled={filtered.length === 0}
-              className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              <FileDown className="w-5 h-5" />{t('common.exportPDF')}
-            </button>
+          {activeTab === 'items' && filtered.length > 0 && (
+            <div className="relative">
+              <button onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all">
+                <FileDown className="w-5 h-5" />Export
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    <button onClick={() => { handleExportPDF(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileText className="w-4 h-4" />PDF
+                    </button>
+                    <button onClick={() => { handleExportCSV(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileDown className="w-4 h-4" />Excel (CSV)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
           {/* Import and Add only for users who can create */}
           {userCanCreate && (

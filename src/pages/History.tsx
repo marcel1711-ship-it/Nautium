@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { History as HistoryIcon, Search, CheckCircle, Calendar, User, Filter, ChevronDown, FileDown, Image, X, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { History as HistoryIcon, Search, CheckCircle, Calendar, User, Filter, ChevronDown, FileDown, FileText, Image, X, ChevronLeft, ChevronRight, Building2, Upload, Download, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { supabase, fetchByCompany } from '../lib/supabase';
+import { supabase, fetchByCompany, dbInsert } from '../lib/supabase';
 import { formatDate, downloadCSV, downloadHTML } from '../utils/helpers';
-import { MaintenanceHistory } from '../types';
+import { MaintenanceHistory, UserRole, canCreate } from '../types';
 import { Pagination } from '../components/UI/Pagination';
 import { HelpTooltip } from '../components/UI/HelpTooltip';
+import { useToast } from '../components/UI/Toast';
 
 const PAGE_SIZE = 20;
 
@@ -18,11 +19,28 @@ interface HistoryProps {
 interface VesselOption { id: string; name: string; }
 interface EquipmentOption { id: string; name: string; }
 
+const HISTORY_CSV_HEADERS = [
+  'task_title', 'equipment_name', 'completion_date', 'completed_by_name',
+  'due_date', 'comments', 'issues_detected', 'external_service_cost', 'department',
+];
+
+const HISTORY_CSV_EXAMPLES = [
+  ['Engine Oil Change', 'Main Engine Port', '2024-06-15', 'John Smith', '2024-06-10', 'Changed oil and filter', '', '0', 'Engineering'],
+  ['Hull Cleaning', '', '2024-07-01', 'Marine Services Ltd', '2024-06-28', 'Full hull cleaning and antifouling', '', '2500', 'Deck'],
+  ['Fire Extinguisher Inspection', 'Fire Suppression', '2024-05-20', 'Safety Inspector', '2024-05-15', 'All extinguishers checked and certified', 'One extinguisher needs replacement', '350', 'Safety'],
+];
+
 export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
   const { currentUser, selectedVesselId } = useAuth();
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const companyId: string | undefined = params?.companyId;
   const companyName: string | undefined = params?.companyName;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const role = currentUser?.role as UserRole;
+  const userCanCreate = canCreate(role);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVessel, setFilterVessel] = useState<string>('all');
   const [filterDateRange, setFilterDateRange] = useState<string>('all');
@@ -32,6 +50,10 @@ export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<{ photos: string[]; index: number } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState<{ success: number; errors: string[] } | null>(null);
+  const [showImportResults, setShowImportResults] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -259,6 +281,111 @@ export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
     downloadHTML(html, `maintenance-history-${now.toISOString().slice(0, 10)}.html`);
   };
 
+  // ── DOWNLOAD TEMPLATE ─────────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    const rows = [HISTORY_CSV_HEADERS, ...HISTORY_CSV_EXAMPLES];
+    downloadCSV(rows, 'maintenance-history-import-template.csv');
+  };
+
+  // ── IMPORT CSV ────────────────────────────────────────────────────────────
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    if (!selectedVesselId || selectedVesselId === 'all') {
+      showToast('Please select a specific vessel before importing', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setImporting(true);
+    const text = await file.text();
+    const lines = text.split('\n').filter(l => l.trim());
+
+    if (lines.length < 2) {
+      showToast('CSV file is empty or has no data rows', 'error');
+      setImporting(false);
+      return;
+    }
+
+    const delimiter = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+
+    const titleIdx    = headers.indexOf('task_title');
+    const equipIdx    = headers.indexOf('equipment_name');
+    const compDateIdx = headers.indexOf('completion_date');
+    const byNameIdx   = headers.indexOf('completed_by_name');
+    const dueDateIdx  = headers.indexOf('due_date');
+    const commentsIdx = headers.indexOf('comments');
+    const issuesIdx   = headers.indexOf('issues_detected');
+    const costIdx     = headers.indexOf('external_service_cost');
+    const deptIdx     = headers.indexOf('department');
+
+    if (titleIdx === -1 || compDateIdx === -1) {
+      showToast('CSV must have at least "task_title" and "completion_date" columns', 'error');
+      setImporting(false);
+      return;
+    }
+
+    const equipNameToId: Record<string, string> = {};
+    Object.entries(equipmentMap).forEach(([id, eq]) => {
+      equipNameToId[eq.name.toLowerCase()] = id;
+    });
+
+    const results = { success: 0, errors: [] as string[] };
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(delimiter).map(c => c.trim().replace(/"/g, ''));
+      const taskTitle = cols[titleIdx];
+      const completionDate = cols[compDateIdx];
+
+      if (!taskTitle || !completionDate) {
+        results.errors.push(`Row ${i + 1}: missing task_title or completion_date — skipped`);
+        continue;
+      }
+
+      const parsedDate = new Date(completionDate);
+      if (isNaN(parsedDate.getTime())) {
+        results.errors.push(`Row ${i + 1}: invalid date "${completionDate}" — skipped`);
+        continue;
+      }
+
+      const equipName = equipIdx !== -1 ? (cols[equipIdx] || '').toLowerCase() : '';
+      const equipmentId = equipName ? equipNameToId[equipName] || null : null;
+
+      const cost = costIdx !== -1 ? parseFloat(cols[costIdx]) : 0;
+
+      try {
+        await dbInsert('maintenance_history', {
+          vessel_id:             selectedVesselId,
+          company_id:            companyId || currentUser.company_id,
+          task_title:            taskTitle,
+          equipment_id:          equipmentId,
+          completion_date:       parsedDate.toISOString(),
+          completed_by_name:     byNameIdx !== -1 ? cols[byNameIdx] || 'Imported' : 'Imported',
+          completed_by_email:    currentUser.email,
+          due_date:              dueDateIdx !== -1 && cols[dueDateIdx] ? cols[dueDateIdx] : null,
+          comments:              commentsIdx !== -1 ? cols[commentsIdx] || '' : '',
+          issues_detected:       issuesIdx !== -1 ? cols[issuesIdx] || '' : '',
+          external_service_cost: !isNaN(cost) ? cost : 0,
+          department:            deptIdx !== -1 ? cols[deptIdx] || null : null,
+        });
+        results.success++;
+      } catch (err: any) {
+        results.errors.push(`Row ${i + 1} (${taskTitle}): ${err.message}`);
+      }
+    }
+
+    setImportResults(results);
+    setShowImportResults(true);
+    if (results.success > 0) {
+      showToast(`${results.success} history records imported`, 'success');
+      loadData();
+    }
+    setImporting(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const openLightbox = (photos: string[], index: number) => setLightbox({ photos, index });
   const closeLightbox = () => setLightbox(null);
   const lightboxPrev = () => setLightbox(lb => lb ? { ...lb, index: (lb.index - 1 + lb.photos.length) % lb.photos.length } : null);
@@ -336,24 +463,79 @@ export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
           <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">{t('history.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-          <button
-            onClick={handleExportCSV}
-            disabled={filtered.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-          >
-            <FileDown className="w-4 h-4" />
-            CSV
-          </button>
-          <button
-            onClick={handleExportPDF}
-            disabled={filtered.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-          >
-            <FileDown className="w-4 h-4" />
-            PDF
-          </button>
+          {/* Export dropdown */}
+          {filtered.length > 0 && (
+            <div className="relative">
+              <button onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all text-sm">
+                <FileDown className="w-4 h-4" />Export
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {showExportMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    <button onClick={() => { handleExportPDF(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileText className="w-4 h-4" />PDF
+                    </button>
+                    <button onClick={() => { handleExportCSV(); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileDown className="w-4 h-4" />Excel (CSV)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Import */}
+          {userCanCreate && (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all text-sm disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+              <input ref={fileInputRef} type="file" accept=".csv"
+                onChange={handleImportCSV} className="hidden" />
+            </>
+          )}
         </div>
       </div>
+
+      {/* ── Import results banner ── */}
+      {showImportResults && importResults && (
+        <div className={`rounded-2xl border p-5 ${importResults.errors.length === 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              {importResults.errors.length === 0
+                ? <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                : <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              }
+              <div>
+                <p className={`text-sm font-semibold ${importResults.errors.length === 0 ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {importResults.success} maintenance records imported successfully
+                  {importResults.errors.length > 0 && ` · ${importResults.errors.length} rows skipped`}
+                </p>
+                {importResults.errors.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {importResults.errors.map((err, i) => (
+                      <li key={i} className="text-xs text-amber-700">{err}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setShowImportResults(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-gray-200 p-7">
         <div className="flex items-center gap-3 mb-6">
@@ -420,6 +602,15 @@ export const History: React.FC<HistoryProps> = ({ onNavigate, params }) => {
               <div className="text-center py-12">
                 <HistoryIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-600">{t('history.notFound')}</p>
+                {userCanCreate && (
+                  <p className="text-sm text-gray-500 mt-2 mb-4">You can import past maintenance records from a CSV file.</p>
+                )}
+                {userCanCreate && (
+                  <button onClick={handleDownloadTemplate}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors">
+                    <Download className="w-4 h-4" />Download CSV template
+                  </button>
+                )}
               </div>
             ) : (
               paginated.map(record => {

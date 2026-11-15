@@ -309,12 +309,26 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
       : (filter.mode === 'year' || filter.isFullYear) ? 12 : 1;
     const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.first_name || ''} ${c.last_name || ''} — ${c.role || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod2, vessel: getVesselName(c.vessel_id) }));
 
+    // ── Fresh period revenue (not from state) ────────────────────────────
+    const periodVoyages = await fetchFiltered('voyages', companyId,
+      [...vesselFilter, { field: 'departure_date', op: 'gte' as const, value: start }, { field: 'departure_date', op: 'lte' as const, value: end }, { field: 'status', op: 'eq' as const, value: 'completed' }],
+      { select_cols: 'revenue' });
+    const freshPeriodRevenue = periodVoyages.reduce((s: number, v: any) => s + Number(v.revenue || 0), 0);
+
+    const freshOperational = opExpenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const freshFuel = fuelEntries.reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0);
+    const freshService = histEntries.reduce((s: number, h: any) => s + Number(h.external_service_cost || 0), 0);
+    const freshParts = partsDetail.reduce((s: number, p) => s + p.amount, 0);
+    const freshCrew = crewItems.reduce((s: number, c) => s + c.amount, 0);
+    const freshPeriodSpend = freshOperational + freshFuel + freshService + freshParts + freshCrew;
+    const freshNetPL = freshPeriodRevenue - freshPeriodSpend;
+
     const breakdownRows = [
-      buildCategoryBlock('Operational', spendBreakdown.operational, opItems),
-      buildCategoryBlock('Fuel', spendBreakdown.fuel, fuelItems),
-      buildCategoryBlock('Parts Used', spendBreakdown.parts, partsDetail),
-      buildCategoryBlock('External Service', spendBreakdown.service, serviceItems),
-      buildCategoryBlock('Crew Salaries', spendBreakdown.crew, crewItems),
+      buildCategoryBlock('Operational', freshOperational, opItems),
+      buildCategoryBlock('Fuel', freshFuel, fuelItems),
+      buildCategoryBlock('Parts Used', freshParts, partsDetail),
+      buildCategoryBlock('External Service', freshService, serviceItems),
+      buildCategoryBlock('Crew Salaries', freshCrew, crewItems),
     ].join('');
 
     // ── YTD 12-Month Data by Category ──────────────────────────────────────
@@ -487,10 +501,10 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
 
     <h2>Period Summary — ${periodLabel}</h2>
     <div class="kpi-row">
-      <div class="kpi"><div class="label">Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(periodRevenue)}</div></div>
-      <div class="kpi"><div class="label">Expenses</div><div class="value">${fmtCurrency(periodSpend)}</div></div>
-      <div class="kpi"><div class="label">Net P&amp;L</div><div class="value" style="color:${netPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(netPL)}</div></div>
-      <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? budgetUsedPct + '%' : '—'}</div><div class="sub">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - periodSpend)) + ' remaining' : 'No budget set'}</div></div>
+      <div class="kpi"><div class="label">Revenue</div><div class="value" style="color:#16a34a">${fmtCurrency(freshPeriodRevenue)}</div></div>
+      <div class="kpi"><div class="label">Expenses</div><div class="value">${fmtCurrency(freshPeriodSpend)}</div></div>
+      <div class="kpi"><div class="label">Net P&amp;L</div><div class="value" style="color:${freshNetPL >= 0 ? '#16a34a' : '#dc2626'}">${fmtCurrency(freshNetPL)}</div></div>
+      <div class="kpi"><div class="label">Budget Used</div><div class="value">${periodBudget > 0 ? Math.round((freshPeriodSpend / periodBudget) * 100) + '%' : '—'}</div><div class="sub">${periodBudget > 0 ? fmtCurrency(Math.max(0, periodBudget - freshPeriodSpend)) + ' remaining' : 'No budget set'}</div></div>
     </div>
 
     <h2>${ytdYear} Year-to-Date Summary</h2>

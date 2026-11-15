@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  AlertTriangle, BarChart3, ChevronDown, ChevronRight, Clock,
+  AlertTriangle, BarChart3, Calendar, ChevronDown, ChevronRight, Clock,
   DollarSign, Package, ShieldCheck, ShieldAlert, Ship, Wrench,
   TrendingDown, XCircle, Check, X, FileDown, FileText,
 } from 'lucide-react';
@@ -498,85 +498,127 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
     onNavigate('dashboard');
   };
 
-  const handleExportReport = async (vesselId: string) => {
+  const handleExportReport = async (vesselId: string, period: string = '3m') => {
     const vs = vesselStats.find(v => v.vessel.id === vesselId);
     if (!vs) return;
+
+    const periodLabels: Record<string, string> = {
+      '1m': 'Last Month', '3m': 'Last 3 Months', '6m': 'Last 6 Months', '1y': 'Last Year', 'all': 'All Time',
+    };
+    const now = new Date();
+    let periodStart: Date | null = null;
+    if (period === '1m') periodStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    else if (period === '3m') periodStart = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    else if (period === '6m') periodStart = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    else if (period === '1y') periodStart = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
 
     let fuelResources: any[] = [];
     let complianceItems: any[] = [];
     let prStats = { pending: 0, approved: 0, totalValue: 0 };
-    let expenses: any[] = [];
-    let history: any[] = [];
 
     try {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const [fuelData, compData, prData, expData, histData] = await Promise.all([
+      const [fuelData, compData, prData, expData, histData, fuelLogData, maintenanceData, invData] = await Promise.all([
         fetchByVessel('fuel_resources', vesselId, { select_cols: 'name, current_level, capacity, unit' }),
         fetchByVessel('compliance_items', vesselId, { select_cols: 'title, expiry_date, status' }),
         fetchByVessel('purchase_requests', vesselId, { select_cols: 'status, total_estimated_cost' }),
-        fetchByVessel('operational_expenses', vesselId, { date_field: 'expense_date', date_from: threeMonthsAgo.toISOString().slice(0, 10), select_cols: 'amount, department, expense_date, category' }),
-        fetchByVessel('maintenance_history', vesselId, { order_by: 'completion_date', ascending: false, limit: 10, select_cols: 'task_name, completion_date, completed_by_name' }),
+        fetchByVessel('operational_expenses', vesselId),
+        fetchByVessel('maintenance_history', vesselId, { order_by: 'completion_date', ascending: false }),
+        fetchByVessel('fuel_logs', vesselId).catch(() => []),
+        fetchByVessel('maintenance_tasks', vesselId).catch(() => []),
+        fetchByVessel('inventory_items', vesselId).catch(() => []),
       ]);
+
       fuelResources = fuelData || [];
       complianceItems = compData || [];
-      history = histData || [];
-      expenses = expData || [];
       const prs = prData || [];
       prStats.pending = prs.filter((p: any) => p.status === 'pending_captain' || p.status === 'pending_fleet_manager').length;
       prStats.approved = prs.filter((p: any) => p.status === 'approved').length;
       prStats.totalValue = prs.filter((p: any) => p.status === 'approved').reduce((s: number, p: any) => s + (p.total_estimated_cost || 0), 0);
-    } catch { /* silent */ }
 
-    const monthMap: Record<string, { total: number; cats: Record<string, number> }> = {};
-    expenses.forEach((e: any) => {
-      const d = new Date(e.expense_date);
-      const key = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-      if (!monthMap[key]) monthMap[key] = { total: 0, cats: {} };
-      monthMap[key].total += Number(e.amount || 0);
-      const cat = e.category || e.department || 'General';
-      monthMap[key].cats[cat] = (monthMap[key].cats[cat] || 0) + Number(e.amount || 0);
-    });
-    const costMonths = Object.entries(monthMap).slice(-3).map(([month, d]) => ({
-      month,
-      total: d.total,
-      items: Object.entries(d.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([label, amount]) => ({ label, amount })),
-    }));
+      const afterDate = (d: string) => !periodStart || new Date(d) >= periodStart;
+      const filteredExpenses = (expData || []).filter((e: any) => e.status !== 'pending' && afterDate(e.expense_date));
+      const filteredFuelLogs = (fuelLogData || []).filter((f: any) => afterDate(f.log_date));
+      const history = (histData || []).filter((h: any) => afterDate(h.completion_date));
 
-    let maintenanceTasks: any[] = [];
-    try {
-      maintenanceTasks = await fetchByVessel('maintenance_tasks', vesselId) || [];
-    } catch { /* silent */ }
+      const totalOp = filteredExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const totalFuel = filteredFuelLogs.reduce((s: number, f: any) => s + (f.total_cost || 0), 0);
+      const totalService = history.reduce((s: number, h: any) => s + (h.external_service_cost || 0), 0);
+      const grandTotal = totalOp + totalFuel + totalService;
 
-    let inventoryItems: any[] = [];
-    try {
-      inventoryItems = await fetchByVessel('inventory_items', vesselId) || [];
-    } catch { /* silent */ }
+      const expByCat: Record<string, { total: number; count: number }> = {};
+      filteredExpenses.forEach((e: any) => {
+        const cat = e.category || 'other';
+        if (!expByCat[cat]) expByCat[cat] = { total: 0, count: 0 };
+        expByCat[cat].total += e.amount || 0;
+        expByCat[cat].count++;
+      });
 
-    const reportData: OwnerReportData = {
-      vessel: {
-        vesselName: vs.vessel.name,
-        vesselType: vs.vessel.type,
-        vesselFlag: vs.vessel.flag,
-        vesselLength: vs.vessel.length_overall ? `${vs.vessel.length_overall}m` : undefined,
-      },
-      maintenance: {
-        tasks: maintenanceTasks,
-        recentHistory: history,
-      },
-      inventory: { items: inventoryItems },
-      costs: { months: costMonths, currency: 'EUR' },
-      fuel: { resources: fuelResources },
-      compliance: { items: complianceItems },
-      procurement: prStats,
-      generatedBy: currentUser?.full_name || 'Fleet Manager',
-    };
+      const monthBuckets: Record<string, number> = {};
+      filteredExpenses.forEach((e: any) => {
+        if (!e.expense_date) return;
+        const d = new Date(e.expense_date);
+        const key = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+        monthBuckets[key] = (monthBuckets[key] || 0) + (e.amount || 0);
+      });
+      filteredFuelLogs.forEach((f: any) => {
+        if (!f.log_date) return;
+        const d = new Date(f.log_date);
+        const key = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+        monthBuckets[key] = (monthBuckets[key] || 0) + (f.total_cost || 0);
+      });
+      const costMonths = Object.entries(monthBuckets)
+        .sort((a, b) => {
+          const parseKey = (k: string) => { const [m, y] = k.split(' '); return new Date(`01 ${m} 20${y}`); };
+          return parseKey(a[0]).getTime() - parseKey(b[0]).getTime();
+        })
+        .map(([month, total]) => ({ month, total, items: [] as { label: string; amount: number }[] }));
 
-    const html = generateOwnerReport(reportData);
-    downloadReport(html, vs.vessel.name);
+      const reportData: OwnerReportData = {
+        vessel: {
+          vesselName: vs.vessel.name,
+          vesselType: vs.vessel.type,
+          vesselFlag: vs.vessel.flag,
+          vesselLength: vs.vessel.length_overall ? `${vs.vessel.length_overall}m` : undefined,
+        },
+        maintenance: {
+          tasks: maintenanceData || [],
+          recentHistory: history.slice(0, 10).map((h: any) => ({ task_name: h.task_name || h.task_title, completion_date: h.completion_date, completed_by_name: h.completed_by_name })),
+        },
+        inventory: { items: invData || [] },
+        costs: {
+          months: costMonths,
+          currency: 'USD',
+          periodLabel: periodLabels[period] || period,
+          byCategory: Object.entries(expByCat)
+            .map(([category, d]) => ({ category, total: d.total, count: d.count }))
+            .sort((a, b) => b.total - a.total),
+          expenses: filteredExpenses.map((e: any) => ({
+            description: e.description || e.category,
+            category: e.category || 'other',
+            department: e.department || 'General',
+            date: e.expense_date,
+            amount: e.amount || 0,
+          })),
+          totalOperational: totalOp,
+          totalFuel: totalFuel,
+          totalService: totalService,
+          grandTotal,
+        },
+        fuel: { resources: fuelResources },
+        compliance: { items: complianceItems },
+        procurement: prStats,
+        generatedBy: currentUser?.full_name || 'Fleet Manager',
+      };
+
+      const html = generateOwnerReport(reportData);
+      downloadReport(html, vs.vessel.name);
+    } catch (err) {
+      console.error('Failed to generate owner report:', err);
+    }
   };
 
   const [showReportMenu, setShowReportMenu] = useState(false);
+  const [showReportPeriod, setShowReportPeriod] = useState(false);
 
   const handleExportSalesDossier = async (vesselId: string) => {
     const vs = vesselStats.find(v => v.vessel.id === vesselId);
@@ -745,32 +787,56 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
             </button>
             {showReportMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowReportMenu(false)} />
-                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                  <button onClick={() => {
-                    const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
-                    if (vid) handleExportReport(vid);
-                    setShowReportMenu(false);
-                  }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                    <FileText className="w-4 h-4 text-blue-500" />
+                <div className="fixed inset-0 z-10" onClick={() => { setShowReportMenu(false); setShowReportPeriod(false); }} />
+                <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  {!showReportPeriod ? (
+                    <>
+                      <button onClick={() => setShowReportPeriod(true)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                        <FileText className="w-4 h-4 text-blue-500" />
+                        <div className="flex-1">
+                          <div className="font-medium">Owner Report</div>
+                          <div className="text-xs text-gray-400">Financial & operational summary</div>
+                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-400 -rotate-90" />
+                      </button>
+                      <button onClick={() => {
+                        const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
+                        if (vid) handleExportSalesDossier(vid);
+                        setShowReportMenu(false); setShowReportPeriod(false);
+                      }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left border-t border-gray-100">
+                        <Ship className="w-4 h-4 text-emerald-500" />
+                        <div>
+                          <div className="font-medium">Vessel Sales Dossier</div>
+                          <div className="text-xs text-gray-400">Complete history for buyers</div>
+                        </div>
+                      </button>
+                    </>
+                  ) : (
                     <div>
-                      <div className="font-medium">Owner Report</div>
-                      <div className="text-xs text-gray-400">Monthly operational summary</div>
+                      <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Select Period</div>
+                      </div>
+                      {[
+                        { value: '1m', label: 'Last Month' },
+                        { value: '3m', label: 'Last 3 Months' },
+                        { value: '6m', label: 'Last 6 Months' },
+                        { value: '1y', label: 'Last Year' },
+                        { value: 'all', label: 'All Time' },
+                      ].map(opt => (
+                        <button key={opt.value} onClick={() => {
+                          const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
+                          if (vid) handleExportReport(vid, opt.value);
+                          setShowReportMenu(false); setShowReportPeriod(false);
+                        }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors text-left border-t border-gray-50">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span className="font-medium">{opt.label}</span>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                  <button onClick={() => {
-                    const vid = activeFilter !== 'all' ? activeFilter : vesselStats[0]?.vessel.id;
-                    if (vid) handleExportSalesDossier(vid);
-                    setShowReportMenu(false);
-                  }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left border-t border-gray-100">
-                    <Ship className="w-4 h-4 text-emerald-500" />
-                    <div>
-                      <div className="font-medium">Vessel Sales Dossier</div>
-                      <div className="text-xs text-gray-400">Complete history for buyers</div>
-                    </div>
-                  </button>
+                  )}
                 </div>
               </>
             )}

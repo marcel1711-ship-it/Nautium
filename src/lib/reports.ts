@@ -20,6 +20,14 @@ interface InventoryReport {
 interface CostReport {
   months: { month: string; total: number; items: { label: string; amount: number }[] }[];
   currency?: string;
+  periodLabel?: string;
+  byCategory?: { category: string; total: number; count: number }[];
+  expenses?: { description: string; category: string; department: string; date: string; amount: number }[];
+  totalOperational?: number;
+  totalFuel?: number;
+  totalService?: number;
+  totalParts?: number;
+  grandTotal?: number;
 }
 
 interface FuelReport {
@@ -293,25 +301,79 @@ ${overdueTasks.length > 0 || expiredCerts.length > 0 ? `
 <div class="section">
   <div class="section-header">
     <div class="section-icon finance">$</div>
-    <div><div class="section-title">Financial Summary</div><div class="section-subtitle">Operating expenses overview</div></div>
+    <div><div class="section-title">Financial Summary</div><div class="section-subtitle">${data.costs.periodLabel || 'Operating expenses overview'}</div></div>
   </div>
-  ${data.costs.months.length > 0 ? `
-  <div class="kpi-row">
-    ${data.costs.months.map(m => `
-      <div class="kpi kpi-accent" style="border-left-color:#2563eb;">
-        <div class="kpi-val">${fmt(m.total, cur)}</div>
-        <div class="kpi-lbl">${m.month}</div>
-      </div>
-    `).join('')}
-    <div class="kpi kpi-accent" style="border-left-color:#0f172a;">
-      <div class="kpi-val" style="color:#0f172a;">${fmt(data.costs.months.reduce((s, m) => s + m.total, 0), cur)}</div>
-      <div class="kpi-lbl">Total (${data.costs.months.length} mo.)</div>
+  ${(data.costs.grandTotal ?? 0) > 0 || data.costs.months.length > 0 ? `
+  <!-- Grand total + category cards -->
+  <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;padding:20px 24px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);">Total Period Cost</div>
+      <div style="font-size:26px;font-weight:800;color:#fff;letter-spacing:-0.5px;margin-top:2px;">${fmt(data.costs.grandTotal ?? data.costs.months.reduce((s, m) => s + m.total, 0), cur)}</div>
     </div>
+    <div style="font-size:32px;opacity:0.15;">📊</div>
   </div>
+  <div class="kpi-row">
+    ${data.costs.totalOperational != null ? `<div class="kpi kpi-accent" style="border-left-color:#059669;"><div class="kpi-val c-green">${fmt(data.costs.totalOperational, cur)}</div><div class="kpi-lbl">Operational</div></div>` : ''}
+    ${data.costs.totalFuel != null ? `<div class="kpi kpi-accent" style="border-left-color:#d97706;"><div class="kpi-val c-amber">${fmt(data.costs.totalFuel, cur)}</div><div class="kpi-lbl">Fuel & Fluids</div></div>` : ''}
+    ${data.costs.totalParts != null ? `<div class="kpi kpi-accent" style="border-left-color:#2563eb;"><div class="kpi-val c-blue">${fmt(data.costs.totalParts, cur)}</div><div class="kpi-lbl">Spare Parts</div></div>` : ''}
+    ${data.costs.totalService != null ? `<div class="kpi kpi-accent" style="border-left-color:#ea580c;"><div class="kpi-val" style="color:#ea580c">${fmt(data.costs.totalService, cur)}</div><div class="kpi-lbl">External Service</div></div>` : ''}
+  </div>
+
+  <!-- Category breakdown with bars -->
+  ${data.costs.byCategory && data.costs.byCategory.length > 0 ? `
+  <div style="margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:8px;">Breakdown by Category</div>
+    ${(() => {
+      const maxCat = Math.max(...(data.costs.byCategory || []).map(c => c.total), 1);
+      return (data.costs.byCategory || []).map(c => {
+        const pct = Math.round((c.total / maxCat) * 100);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+          <div style="width:120px;font-size:10px;font-weight:600;color:#475569;text-transform:capitalize;">${c.category}</div>
+          <div style="flex:1;height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#2563eb,#3b82f6);border-radius:4px;"></div>
+          </div>
+          <div style="width:55px;font-size:10px;font-weight:700;color:#1e293b;text-align:right;">${fmt(c.total, cur)}</div>
+          <div style="width:30px;font-size:9px;color:#94a3b8;text-align:right;">${c.count}</div>
+        </div>`;
+      }).join('');
+    })()}
+  </div>` : ''}
+
+  <!-- Monthly trend -->
+  ${data.costs.months.length > 0 ? `
+  <div style="margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:8px;">Monthly Trend</div>
+    ${(() => {
+      const maxMonth = Math.max(...data.costs.months.map(m => m.total), 1);
+      return data.costs.months.map(m => {
+        const pct = Math.round((m.total / maxMonth) * 100);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:5px 0;">
+          <div style="width:60px;font-size:10px;font-weight:600;color:#475569;">${m.month}</div>
+          <div style="flex:1;height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#059669,#34d399);border-radius:5px;"></div>
+          </div>
+          <div style="width:70px;font-size:10px;font-weight:700;color:#1e293b;text-align:right;">${fmt(m.total, cur)}</div>
+        </div>`;
+      }).join('');
+    })()}
+  </div>` : ''}
+
+  <!-- Expense detail table -->
+  ${data.costs.expenses && data.costs.expenses.length > 0 ? `
+  <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:8px;">Expense Details</div>
   <table>
-    <thead><tr><th>Month</th><th class="num">Total</th><th>Top Categories</th></tr></thead>
-    <tbody>${costRows}</tbody>
-  </table>` : '<p class="empty">No cost data available for this period</p>'}
+    <thead><tr><th>Description</th><th>Category</th><th>Department</th><th>Date</th><th class="num">Amount</th></tr></thead>
+    <tbody>${data.costs.expenses.slice(0, 100).map(e => `
+      <tr>
+        <td style="font-weight:600">${e.description || '—'}</td>
+        <td style="text-transform:capitalize">${e.category}</td>
+        <td>${e.department || 'General'}</td>
+        <td>${new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td class="num" style="font-weight:600">${fmt(e.amount, cur)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>` : ''}
+  ` : '<p class="empty">No cost data available for this period</p>'}
 </div>
 
 <!-- ═══ PROCUREMENT ═══ -->

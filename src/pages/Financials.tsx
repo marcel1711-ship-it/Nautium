@@ -208,11 +208,12 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     setSpendBreakdown({ operational: operationalTotal, fuel: fuelTotal, parts: partsTotal, service: serviceTotal, crew: crewCostForPeriod });
     setPeriodSpend(totalSpend);
 
-    // Revenue from voyages
+    // Revenue from completed voyages only
     const voyageFilters = [
       ...vesselFilter,
       { field: 'departure_date', op: 'gte' as const, value: start },
       { field: 'departure_date', op: 'lte' as const, value: end },
+      { field: 'status', op: 'eq' as const, value: 'completed' },
     ];
     const voyages = await fetchFiltered('voyages', companyId, voyageFilters, { select_cols: 'revenue' });
     const revenueTotal = voyages.reduce((s: number, v: any) => s + Number(v.revenue || 0), 0);
@@ -332,7 +333,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
         [...vesselFilter, { field: 'completion_date', op: 'gte', value: ytdStart }, { field: 'completion_date', op: 'lte', value: ytdEnd }],
         { select_cols: 'external_service_cost, parts_used, completion_date' }),
       fetchFiltered('voyages', companyId,
-        [...vesselFilter, { field: 'departure_date', op: 'gte', value: ytdStart }, { field: 'departure_date', op: 'lte', value: ytdEnd }],
+        [...vesselFilter, { field: 'departure_date', op: 'gte', value: ytdStart }, { field: 'departure_date', op: 'lte', value: ytdEnd }, { field: 'status', op: 'eq', value: 'completed' }],
         { select_cols: 'revenue, departure_date' }),
     ]);
 

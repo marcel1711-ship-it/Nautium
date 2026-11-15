@@ -63,15 +63,15 @@ const DEPT_COLORS: Record<string, string> = {
 const CSV_HEADERS = [
   'name', 'type', 'manufacturer', 'model',
   'serial_number', 'installation_date',
-  'location_on_vessel', 'department', 'notes',
+  'location_on_vessel', 'department', 'equipment_hours', 'notes',
 ];
 
 const CSV_EXAMPLE_ROWS = [
-  ['Main Engine Port', 'Main Engine', 'Caterpillar', 'C32 ACERT', 'CAT-SN-001', '2020-03-15', 'Engine Room', 'Engineering', '3200hp diesel engine'],
-  ['Generator 1', 'Generator', 'Northern Lights', 'M60C3', 'NL-SN-002', '2020-03-15', 'Engine Room', 'Engineering', '60kW generator'],
-  ['Watermaker', 'Watermaker', 'Spectra', 'Newport 400', 'SP-SN-003', '2021-06-01', 'Engine Room', 'Engineering', '400 GPD watermaker'],
-  ['Anchor Windlass', 'Anchor Windlass', 'Maxwell', 'VWC4000', 'MW-SN-004', '2020-03-15', 'Foredeck', 'Deck', 'Electric windlass 4000W'],
-  ['Main Chartplotter', 'Chartplotter', 'Garmin', 'GPSMAP 8616', 'GM-SN-005', '2022-01-10', 'Helm Station', 'Navigation', '16 inch MFD'],
+  ['Main Engine Port', 'Main Engine', 'Caterpillar', 'C32 ACERT', 'CAT-SN-001', '2020-03-15', 'Engine Room', 'Engineering', '12500', '3200hp diesel engine'],
+  ['Generator 1', 'Generator', 'Northern Lights', 'M60C3', 'NL-SN-002', '2020-03-15', 'Engine Room', 'Engineering', '8200', '60kW generator'],
+  ['Watermaker', 'Watermaker', 'Spectra', 'Newport 400', 'SP-SN-003', '2021-06-01', 'Engine Room', 'Engineering', '3100', '400 GPD watermaker'],
+  ['Anchor Windlass', 'Anchor Windlass', 'Maxwell', 'VWC4000', 'MW-SN-004', '2020-03-15', 'Foredeck', 'Deck', '', 'Electric windlass 4000W'],
+  ['Main Chartplotter', 'Chartplotter', 'Garmin', 'GPSMAP 8616', 'GM-SN-005', '2022-01-10', 'Helm Station', 'Navigation', '', '16 inch MFD'],
 ];
 
 export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, departmentFilter }) => {
@@ -198,6 +198,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
         e.installation_date || '',
         e.location_on_vessel || '',
         (e as any).department || '',
+        e.equipment_hours ? String(e.equipment_hours) : '',
         e.notes || '',
       ]);
     });
@@ -245,6 +246,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
     const installIdx      = headers.indexOf('installation_date');
     const locationIdx     = headers.indexOf('location_on_vessel');
     const deptIdx         = headers.indexOf('department');
+    const hoursIdx        = headers.indexOf('equipment_hours');
     const notesIdx        = headers.indexOf('notes');
 
     if (nameIdx === -1 || typeIdx === -1) {
@@ -277,6 +279,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
           installation_date: installIdx !== -1 && cols[installIdx] ? cols[installIdx] : null,
           location:          locationIdx !== -1 ? cols[locationIdx] || null : null,
           department:        deptIdx !== -1 ? cols[deptIdx] || 'Engineering' : 'Engineering',
+          equipment_hours:   hoursIdx !== -1 && cols[hoursIdx] ? Number(cols[hoursIdx]) : 0,
           description:       notesIdx !== -1 ? cols[notesIdx] || null : null,
         });
         results.success++;

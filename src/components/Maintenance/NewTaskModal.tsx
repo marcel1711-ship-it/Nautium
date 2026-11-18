@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, AlertCircle, ChevronDown, Plus, Trash2, CheckSquare, Package, Anchor, Sofa, Settings, ChefHat, Shield, RefreshCw, Pin, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY, fetchByCompany } from '../../lib/supabase';
 import { demoEquipment, demoVessels, demoUsers } from '../../data/demoData';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../UI/Toast';
@@ -10,6 +10,7 @@ interface NewTaskModalProps {
   onClose: () => void;
   onSave: (task: NewTaskData) => void;
   defaultDepartment?: string;
+  defaultProjectId?: string;
 }
 export interface NewTaskData {
   title: string; description: string; category: string;
@@ -20,6 +21,7 @@ export interface NewTaskData {
   required_parts: { inventory_id: string; name: string; quantity: number }[];
   department: string;
   is_recurring: boolean;
+  project_id?: string;
 }
 interface VesselOption { id: string; name: string; }
 interface UserOption { id: string; full_name: string; role: string; vessel_ids: string[]; }
@@ -48,7 +50,7 @@ const DEPARTMENTS = [
 ];
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
-export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, defaultDepartment }) => {
+export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, defaultDepartment, defaultProjectId }) => {
   const { currentUser } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
@@ -58,7 +60,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
     vessel_id: '', equipment_id: '', assigned_user_id: currentUser?.id || '',
     next_due_date: '', interval_type: 'days', interval_value: 30, reminder_hours_before: 0,
     checklist_items: [], required_parts: [], department: defaultDepartment || 'Engineering',
-    is_recurring: true,
+    is_recurring: true, project_id: defaultProjectId || '',
   });
   const [vessels, setVessels] = useState<VesselOption[]>([]);
   const [companyUsers, setCompanyUsers] = useState<UserOption[]>([]);
@@ -72,6 +74,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
   const [realEquipment, setRealEquipment] = useState<{ id: string; name: string }[]>([]);
+  const [projectOptions, setProjectOptions] = useState<{ id: string; name: string }[]>([]);
   const filteredCategories = MAINTENANCE_CATEGORIES.filter(c => c.toLowerCase().includes(categoryInput.toLowerCase()));
   const showAddNew = categoryInput.trim().length > 0 && !MAINTENANCE_CATEGORIES.some(c => c.toLowerCase() === categoryInput.trim().toLowerCase());
 
@@ -84,6 +87,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
   }, []);
 
   useEffect(() => { loadVessels(); loadCompanyUsers(); }, [currentUser]);
+  useEffect(() => {
+    if (!currentUser?.company_id || isDemoUser(currentUser.email)) return;
+    fetchByCompany('projects', currentUser.company_id, 'name')
+      .then((data) => setProjectOptions((data || []).filter((p: any) => p.status !== 'cancelled').map((p: any) => ({ id: p.id, name: p.name }))));
+  }, [currentUser?.company_id]);
   useEffect(() => { if (vessels.length === 1 && !formData.vessel_id) setFormData(prev => ({ ...prev, vessel_id: vessels[0].id })); }, [vessels]);
   useEffect(() => {
     if (!formData.vessel_id || isDemoUser(currentUser?.email || '')) return;
@@ -232,6 +240,19 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({ onClose, onSave, def
               })}
             </div>
           </div>
+          )}
+
+          {/* PROJECT (optional) */}
+          {projectOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Project <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select value={formData.project_id || ''}
+                onChange={e => setFormData({ ...formData, project_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">No project</option>
+                {projectOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
           )}
 
           {/* DESCRIPTION */}

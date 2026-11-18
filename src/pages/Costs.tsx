@@ -796,6 +796,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
           vessels={vessels}
           companyId={currentUser?.company_id || ''}
           defaultDepartment={userDepartment as OperationalExpenseDepartment | null}
+          defaultProjectId={params?.project_id || null}
           onClose={() => setShowAddModal(false)}
           onNavigate={onNavigate}
           onSaved={(result?: string) => {
@@ -915,10 +916,11 @@ const AddExpenseModal: React.FC<{
   vessels: VesselOption[];
   companyId: string;
   defaultDepartment?: OperationalExpenseDepartment | null;
+  defaultProjectId?: string | null;
   onClose: () => void;
   onSaved: (result?: string) => void;
   onNavigate: (page: string, params?: any) => void;
-}> = ({ vessels, companyId, defaultDepartment, onClose, onSaved, onNavigate }) => {
+}> = ({ vessels, companyId, defaultDepartment, defaultProjectId, onClose, onSaved, onNavigate }) => {
   const { currentUser } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
@@ -930,6 +932,13 @@ const AddExpenseModal: React.FC<{
   const receiptInputRef = React.useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanConfidence, setScanConfidence] = useState<number | null>(null);
+  const [projectOptions, setProjectOptions] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    fetchByCompany('projects', companyId, 'name')
+      .then((data) => setProjectOptions((data || []).filter((p: any) => p.status !== 'cancelled').map((p: any) => ({ id: p.id, name: p.name }))));
+  }, [companyId]);
 
   const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Unbudgeted'];
 
@@ -1017,6 +1026,7 @@ const AddExpenseModal: React.FC<{
     expense_date: new Date().toISOString().split('T')[0],
     department:   defaultDepartment || 'Unbudgeted' as OperationalExpenseDepartment,
     voyage_id:    '',
+    project_id:   defaultProjectId || '',
   });
 
   useEffect(() => {
@@ -1119,6 +1129,7 @@ const AddExpenseModal: React.FC<{
         requested_by:       currentUser.id,
         requested_by_name:  currentUser.full_name,
         voyage_id:          form.voyage_id || null,
+        project_id:         form.project_id || null,
         receipt_url,
       });
 
@@ -1263,6 +1274,19 @@ const AddExpenseModal: React.FC<{
               </select>
             )}
           </div>
+
+          {/* Project (optional) */}
+          {projectOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Project <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select value={form.project_id}
+                onChange={e => setForm({ ...form, project_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">No project</option>
+                {projectOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Category — filtradas por dept */}
           <div>

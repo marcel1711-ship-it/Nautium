@@ -326,6 +326,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
         required_parts: taskData.required_parts || [], checklist_items: taskData.checklist_items || [],
         is_recurring: taskData.is_recurring ?? true,
         department: taskData.department || 'Engineering',
+        project_id: taskData.project_id || null,
       });
       setShowNewTaskModal(false);
       showToast('Task created', 'success');
@@ -594,7 +595,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ onNavigate, params, de
         </div>
       )}
 
-      {showNewTaskModal && <NewTaskModal onClose={() => setShowNewTaskModal(false)} onSave={handleNewTask} />}
+      {showNewTaskModal && <NewTaskModal onClose={() => setShowNewTaskModal(false)} onSave={handleNewTask} defaultProjectId={params?.project_id} />}
 
       <div className="bg-white rounded-2xl border border-gray-200 p-7">
         <div className="flex items-center gap-3 mb-6">

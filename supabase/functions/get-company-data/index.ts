@@ -36,6 +36,7 @@ const ALLOWED_TABLES = [
   'closed_deals',
   'non_conformity_reports',
   'hours_of_rest',
+  'projects',
 ];
 
 Deno.serve(async (req: Request) => {

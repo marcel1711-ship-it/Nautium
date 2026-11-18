@@ -1090,7 +1090,7 @@ const CaptainDashboard: React.FC<{
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
             {crewOnBoard.map(member => {
-              const deptColor = DEPT_COLORS[member.department] || DEPT_COLORS.General;
+              const deptColor = DEPT_COLORS[member.department] || DEPT_COLORS.Unbudgeted;
               const isOnLeave = member.status === 'on_leave';
               return (
                 <div key={member.id} onClick={() => onNavigate('crew')}

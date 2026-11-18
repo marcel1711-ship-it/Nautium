@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Package, Calendar,
   Building2, Users as UsersIcon, CreditCard, Activity,
   TrendingUp, Anchor, DollarSign, BarChart3, TrendingDown, Ship,
-  ShieldCheck, ShieldAlert, Check, X, FileDown, FileText, ChevronDown,
+  ShieldCheck, ShieldAlert, Check, X, FileDown, FileText, ChevronDown, FolderKanban,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -1222,6 +1222,40 @@ const CaptainDashboard: React.FC<{
         </div>
       </div>
 
+      {/* ACTIVE PROJECTS */}
+      {activeProjects.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 20, border: '1px solid #e5e7eb', padding: '20px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FolderKanban size={16} style={{ color: '#6366f1' }} />
+              Active Projects
+            </h2>
+            <button onClick={() => onNavigate('projects')} style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>View all →</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {activeProjects.map((p: any) => {
+              const statusColor = p.status === 'in_progress' ? '#3b82f6' : '#f59e0b';
+              const statusLabel = p.status === 'in_progress' ? 'In Progress' : 'Planning';
+              return (
+                <div key={p.id} onClick={() => onNavigate('projects')} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#f9fafb', borderRadius: 12, cursor: 'pointer' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FolderKanban size={16} style={{ color: '#6366f1' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
+                    <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                      {p.project_type?.replace('_', ' ')}
+                      {p.location ? ` · ${p.location}` : ''}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, background: `${statusColor}15`, padding: '2px 8px', borderRadius: 20 }}>{statusLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* RECENT ACTIVITY */}
       <div style={{ background: 'white', borderRadius: 20, border: '1px solid #e5e7eb', padding: '20px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -1374,6 +1408,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [vessel, setVessel]         = useState<VesselInfo | null>(null);
   const [allVessels, setAllVessels] = useState<Vessel[]>([]);
   const [compliance, setCompliance] = useState<any[]>([]);
+  const [activeProjects, setActiveProjects] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
 
   const role           = currentUser?.role as UserRole;
@@ -1411,17 +1446,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const cid = currentUser.company_id;
     if (!cid) { setLoading(false); return; }
     try {
-      const [tasksData, inventoryData, historyData, vessels, complianceData] = await Promise.all([
+      const [tasksData, inventoryData, historyData, vessels, complianceData, projectsData] = await Promise.all([
         fetchByCompany('maintenance_tasks', cid, 'next_due_date', true),
         fetchByCompany('inventory_items', cid, 'created_at', false),
         fetchByCompany('maintenance_history', cid, 'completion_date', false),
         fetchByCompany('vessels', cid, 'name', true),
         fetchByCompany('compliance_items', cid, 'expiry_date', true),
+        fetchByCompany('projects', cid, 'updated_at', false).catch(() => []),
       ]);
       setTasks(recalculateTaskStatuses(tasksData));
       setInventory(inventoryData);
       setHistory(historyData.slice(0, 5));
       setCompliance(complianceData);
+      setActiveProjects((projectsData || []).filter((p: any) =>
+        (p.status === 'planning' || p.status === 'in_progress') &&
+        (!selectedVesselId || selectedVesselId === 'all' || p.vessel_id === selectedVesselId)
+      ).slice(0, 4));
       setAllVessels(vessels || []);
       const v = selectedVesselId ? vessels.find((v: any) => v.id === selectedVesselId) : vessels[0];
       if (v) setVessel({ id: v.id, name: v.name, photo_url: v.photo_url || null });

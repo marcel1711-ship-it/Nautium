@@ -18,6 +18,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
   };
@@ -37,6 +41,11 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="text-sm text-slate-400 mt-1">
             An unexpected error occurred in this section. Your data is safe.
           </p>
+          {this.state.error && (
+            <p className="text-xs text-red-400 mt-2 font-mono max-w-lg break-all">
+              {this.state.error.message}
+            </p>
+          )}
         </div>
         <button
           onClick={this.handleReset}

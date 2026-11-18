@@ -367,7 +367,7 @@ ${overdueTasks.length > 0 || expiredCerts.length > 0 ? `
       <tr>
         <td style="font-weight:600">${e.description || '—'}</td>
         <td style="text-transform:capitalize">${e.category}</td>
-        <td>${e.department || 'General'}</td>
+        <td>${e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted'}</td>
         <td>${new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
         <td class="num" style="font-weight:600">${fmt(e.amount, cur)}</td>
       </tr>`).join('')}
@@ -561,7 +561,7 @@ export function generateSalesDossier(data: SalesDossierData): string {
   const totalServiceCosts = data.maintenanceHistory.reduce((s, h) => s + (h.external_service_cost || 0), 0);
 
   const deptGroups = data.equipment.reduce((acc, e) => {
-    const dept = e.department || 'General';
+    const dept = e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted';
     if (!acc[dept]) acc[dept] = [];
     acc[dept].push(e);
     return acc;

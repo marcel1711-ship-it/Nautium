@@ -28,7 +28,7 @@ interface VesselBudget {
 
 interface VesselOption { id: string; name: string; photo_url: string | null; }
 
-const DEPARTMENTS = ['Total', 'Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Crew', 'General'];
+const DEPARTMENTS = ['Total', 'Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Crew', 'Unbudgeted'];
 
 const DEPT_COLORS: Record<string, { bg: string; text: string; icon: React.ElementType; bar: string }> = {
   Total:       { bg: 'bg-blue-50',   text: 'text-blue-700',   icon: DollarSign, bar: 'bg-blue-500' },
@@ -38,7 +38,7 @@ const DEPT_COLORS: Record<string, { bg: string; text: string; icon: React.Elemen
   Galley:      { bg: 'bg-green-50',  text: 'text-green-700',  icon: ChefHat,    bar: 'bg-green-500' },
   Safety:      { bg: 'bg-red-50',    text: 'text-red-700',    icon: Shield,     bar: 'bg-red-500' },
   Crew:        { bg: 'bg-cyan-50',   text: 'text-cyan-700',   icon: Users,      bar: 'bg-cyan-500' },
-  General:     { bg: 'bg-gray-50',   text: 'text-gray-700',   icon: Package,    bar: 'bg-gray-400' },
+  Unbudgeted:  { bg: 'bg-gray-50',   text: 'text-gray-700',   icon: Package,    bar: 'bg-gray-400' },
 };
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
@@ -116,7 +116,7 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
   const getSpent = (vesselId: string, dept: string) => {
     const vesselExpenses = expenses.filter(e => e.vessel_id === vesselId);
     if (dept === 'Crew') return getCrewSalary(vesselId);
-    const expTotal = vesselExpenses.filter(e => dept === 'Total' || (e.department || 'General') === dept)
+    const expTotal = vesselExpenses.filter(e => dept === 'Total' || (e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted') === dept)
       .reduce((s, e) => s + Number(e.amount || 0), 0);
     if (dept === 'Total') return expTotal + getCrewSalary(vesselId);
     return expTotal;
@@ -310,7 +310,7 @@ export const Budget: React.FC<BudgetProps> = ({ onNavigate, controlledYear, cont
                     const over      = spent > budget && budget > 0;
                     const key       = `${vessel.id}-${dept}`;
                     const isEditing = editingKey === key;
-                    const deptStyle = DEPT_COLORS[dept] || DEPT_COLORS.General;
+                    const deptStyle = DEPT_COLORS[dept] || DEPT_COLORS.Unbudgeted;
                     const Icon      = deptStyle.icon;
 
                     return (

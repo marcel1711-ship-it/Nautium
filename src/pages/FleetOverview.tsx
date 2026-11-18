@@ -481,7 +481,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
       const vesselCrewSalary     = crewSalaries.filter(c => c.vessel_id === vessel.id).reduce((s, c) => s + Number(c.monthly_salary || 0), 0);
       const monthlySpend         = vExp.reduce((s, e) => s + Number(e.amount || 0), 0) + vesselCrewSalary;
       const spendByDept: Record<string, number> = {};
-      vExp.forEach(e => { const d = e.department || 'General'; spendByDept[d] = (spendByDept[d] || 0) + Number(e.amount || 0); });
+      vExp.forEach(e => { const d = e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted'; spendByDept[d] = (spendByDept[d] || 0) + Number(e.amount || 0); });
       const topSpendDepartment   = Object.entries(spendByDept).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
       const sortedHist           = [...vHist].sort((a, b) => new Date(b.completion_date).getTime() - new Date(a.completion_date).getTime());
       const lastActivityDate     = sortedHist[0]?.completion_date || null;
@@ -595,7 +595,7 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
           expenses: filteredExpenses.map((e: any) => ({
             description: e.description || e.category,
             category: e.category || 'other',
-            department: e.department || 'General',
+            department: e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted',
             date: e.expense_date,
             amount: e.amount || 0,
           })),

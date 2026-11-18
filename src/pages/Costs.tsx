@@ -338,12 +338,12 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
     filterVoyage === 'all' ? true : filterVoyage === 'none' ? !e.voyage_id : e.voyage_id === filterVoyage;
 
   const filteredOpExpenses = (isDeptLocked
-    ? approvedExpenses.filter(e => e.department === departmentFilter || e.department === 'General')
+    ? approvedExpenses.filter(e => e.department === departmentFilter || e.department === 'Unbudgeted' || e.department === 'General')
     : approvedExpenses
   ).filter(voyageFilter);
 
   const filteredPendingExpenses = (isDeptLocked
-    ? pendingExpenses.filter(e => e.department === departmentFilter || e.department === 'General')
+    ? pendingExpenses.filter(e => e.department === departmentFilter || e.department === 'Unbudgeted' || e.department === 'General')
     : pendingExpenses
   ).filter(voyageFilter);
 
@@ -415,7 +415,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
     const vesselLabel = selectedVessel !== 'all' ? getVesselName(selectedVessel) : 'All Vessels';
 
     const allRows: { vessel: string; category: string; description: string; department: string; date: string; amount: number; currency: string }[] = [];
-    for (const r of filteredOpExpenses) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Operational', description: r.description || r.category, department: r.department || 'General', date: r.expense_date, amount: r.amount, currency: r.currency });
+    for (const r of filteredOpExpenses) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Operational', description: r.description || r.category, department: r.department === 'General' ? 'Unbudgeted' : r.department || 'Unbudgeted', date: r.expense_date, amount: r.amount, currency: r.currency });
     if (!isDeptLocked) {
       for (const r of fuelCosts) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'Fuel', description: r.resource_name, department: 'Engineering', date: r.date, amount: r.total_cost, currency: r.currency });
       for (const r of serviceCosts) allRows.push({ vessel: getVesselName(r.vessel_id), category: 'External Service', description: r.task_title, department: 'Engineering', date: r.date, amount: r.amount, currency: 'USD' });
@@ -658,7 +658,7 @@ export const Costs: React.FC<CostsProps> = ({ onNavigate, params, departmentFilt
                   const Icon = cat?.icon || MoreHorizontal;
                   const catLabel = EXPENSE_CATEGORY_LABELS[exp.category] || exp.category;
                   const vesselTag = showFleetBreakdown ? `${getVesselName(exp.vessel_id)} · ` : '';
-                  return { label: exp.description || catLabel, sub: `${vesselTag}${catLabel} · ${exp.department || 'General'} · ${fmtDate(exp.expense_date)}`, amount: exp.amount, currency: exp.currency, icon: <Icon className={`w-5 h-5 ${cat?.color || 'text-gray-500'}`} />, iconBg: 'bg-gray-100', id: exp.id, receiptUrl: (exp as any).receipt_url };
+                  return { label: exp.description || catLabel, sub: `${vesselTag}${catLabel} · ${exp.department === 'General' ? 'Unbudgeted' : exp.department || 'Unbudgeted'} · ${fmtDate(exp.expense_date)}`, amount: exp.amount, currency: exp.currency, icon: <Icon className={`w-5 h-5 ${cat?.color || 'text-gray-500'}`} />, iconBg: 'bg-gray-100', id: exp.id, receiptUrl: (exp as any).receipt_url };
                 })}
                 total={totalOp}
                 onDelete={(id) => setConfirmDeleteId(id)}
@@ -931,7 +931,7 @@ const AddExpenseModal: React.FC<{
   const [scanning, setScanning] = useState(false);
   const [scanConfidence, setScanConfidence] = useState<number | null>(null);
 
-  const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
+  const DEPT_OPTIONS: OperationalExpenseDepartment[] = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Unbudgeted'];
 
   const scanReceipt = async (file: File) => {
     setScanning(true);
@@ -1015,7 +1015,7 @@ const AddExpenseModal: React.FC<{
     amount:       '',
     currency:     'USD',
     expense_date: new Date().toISOString().split('T')[0],
-    department:   defaultDepartment || 'General' as OperationalExpenseDepartment,
+    department:   defaultDepartment || 'Unbudgeted' as OperationalExpenseDepartment,
     voyage_id:    '',
   });
 
@@ -1410,7 +1410,7 @@ const EditExpenseReceiptModal: React.FC<{
             <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Description</span><span className="text-sm font-semibold text-gray-900">{expense.description || expense.category}</span></div>
             <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Amount</span><span className="text-sm font-bold text-gray-900">{expense.currency} {expense.amount.toLocaleString()}</span></div>
             <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Date</span><span className="text-sm text-gray-700">{fmtDate(expense.expense_date)}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Department</span><span className="text-sm text-gray-700">{expense.department || 'General'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500 uppercase font-medium">Department</span><span className="text-sm text-gray-700">{expense.department === 'General' ? 'Unbudgeted' : expense.department || 'Unbudgeted'}</span></div>
           </div>
 
           {currentReceipt && (

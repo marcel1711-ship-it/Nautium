@@ -224,7 +224,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
     const vesselName = vessels.find(v => v.id === selectedVesselId)?.name || 'All Vessels';
 
     const tableRows = filteredEquipment.map(e => {
-      const dept = (e as any).department || 'General';
+      const dept = (e as any).department === 'General' ? 'Unbudgeted' : (e as any).department || 'Unbudgeted';
       const wtName = e.water_toy_id ? waterToyMap[e.water_toy_id] || '' : '';
       return `<tr>
         <td><strong>${e.name}</strong>${e.serial_number ? `<br/><small>${e.serial_number}</small>` : ''}</td>
@@ -267,7 +267,7 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
       </div>
       <div class="summary">
         <div class="summary-card"><div class="num">${filteredEquipment.length}</div><div class="lbl">Total Equipment</div></div>
-        <div class="summary-card"><div class="num">${[...new Set(filteredEquipment.map(e => (e as any).department || 'General'))].length}</div><div class="lbl">Departments</div></div>
+        <div class="summary-card"><div class="num">${[...new Set(filteredEquipment.map(e => (e as any).department === 'General' ? 'Unbudgeted' : (e as any).department || 'Unbudgeted'))].length}</div><div class="lbl">Departments</div></div>
         <div class="summary-card"><div class="num">${[...new Set(filteredEquipment.map(e => e.type).filter(Boolean))].length}</div><div class="lbl">Types</div></div>
       </div>
       <div class="table-wrap"><table>
@@ -381,13 +381,13 @@ export const Equipment: React.FC<EquipmentProps> = ({ onNavigate, params, depart
 
   const uniqueTypes = [...new Set(equipment.map(e => e.type).filter(Boolean))].sort();
   const groupedByDept = filteredEquipment.reduce((acc, item) => {
-    const dept = (item as any).department || 'General';
+    const dept = (item as any).department === 'General' ? 'Unbudgeted' : (item as any).department || 'Unbudgeted';
     if (!acc[dept]) acc[dept] = [];
     acc[dept].push(item);
     return acc;
   }, {} as Record<string, EquipmentType[]>);
 
-  const DEPT_ORDER = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Navigation', 'General'];
+  const DEPT_ORDER = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Navigation', 'Unbudgeted'];
   const sortedDepts = DEPT_ORDER.filter(d => groupedByDept[d]);
 
   return (

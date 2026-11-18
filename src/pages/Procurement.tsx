@@ -20,7 +20,7 @@ interface InventoryOption { id: string; name: string; part_number?: string; unit
 
 const isDemoUser = (email: string) => email === 'admin@yachtmaintenance.pro';
 
-const DEPARTMENTS = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'] as const;
+const DEPARTMENTS = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Unbudgeted'] as const;
 const URGENCY_OPTIONS = [
   { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
   { value: 'medium', label: 'Medium', color: 'bg-blue-100 text-blue-700' },

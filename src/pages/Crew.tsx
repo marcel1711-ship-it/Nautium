@@ -23,7 +23,7 @@ const POSITIONS = [
   'Security Officer', 'Laundry', 'Other',
 ];
 
-const DEPARTMENTS = ['Deck', 'Engineering', 'Interior', 'Galley', 'Safety', 'General'];
+const DEPARTMENTS = ['Deck', 'Engineering', 'Interior', 'Galley', 'Safety', 'Unbudgeted'];
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; text: string }> = {
   active:     { label: 'Active',     dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },

@@ -1380,7 +1380,7 @@ export const demoOperationalExpenses: OperationalExpense[] = [
   {
     id: 'opex-oct-18', vessel_id: '00000000-0000-0000-0001-000000000001', company_id: '00000000-0000-0000-0000-000000000001',
     category: 'insurance' as OperationalExpenseCategory, description: 'Hull & Machinery — Q4 premium installment', amount: 18500, currency: 'USD',
-    expense_date: '2026-10-02', department: 'General',
+    expense_date: '2026-10-02', department: 'Unbudgeted',
     created_by: 'e4f41f8e-f5bd-484d-b382-a230f4045c71', created_at: '2026-10-02T10:00:00Z',
   },
   {

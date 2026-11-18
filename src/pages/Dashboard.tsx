@@ -46,9 +46,9 @@ const DEPT_COLORS: Record<string, { bg: string; text: string; border: string; he
   Interior:    { bg: 'rgba(147,51,234,0.12)', text: '#9333ea', border: 'rgba(147,51,234,0.25)', hex: '#9333ea' },
   Galley:      { bg: 'rgba(22,163,74,0.12)',  text: '#16a34a', border: 'rgba(22,163,74,0.25)',  hex: '#16a34a' },
   Safety:      { bg: 'rgba(220,38,38,0.12)',  text: '#dc2626', border: 'rgba(220,38,38,0.25)',  hex: '#dc2626' },
-  General:     { bg: 'rgba(107,114,128,0.12)', text: '#6b7280', border: 'rgba(107,114,128,0.25)', hex: '#6b7280' },
+  Unbudgeted:  { bg: 'rgba(107,114,128,0.12)', text: '#6b7280', border: 'rgba(107,114,128,0.25)', hex: '#6b7280' },
 };
-const DEPT_ORDER = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'General'];
+const DEPT_ORDER = ['Engineering', 'Deck', 'Interior', 'Galley', 'Safety', 'Unbudgeted'];
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
 const getDaysUntilExpiry = (date: string) => {
@@ -502,7 +502,7 @@ const CaptainDashboard: React.FC<{
       const allExp = await fetchByCompany('operational_expenses', companyId, 'expense_date', false);
       const byDept: Record<string, number> = {};
       allExp.filter((e: any) => e.expense_date >= monthStart).forEach((e: any) => {
-        const d = e.department || 'General';
+        const d = e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted';
         byDept[d] = (byDept[d] || 0) + (e.amount || 0);
       });
       setExpenses(DEPT_ORDER.filter(d => byDept[d]).map(d => ({ dept: d, amount: byDept[d] })));
@@ -520,7 +520,7 @@ const CaptainDashboard: React.FC<{
       setMonthlyTrend(trend);
       const allInv = await fetchByCompany('inventory_items', companyId, 'name', true);
       const byDeptInv: Record<string, number> = {};
-      allInv.forEach((i: any) => { const d = i.department || 'General'; if (i.unit_cost) byDeptInv[d] = (byDeptInv[d] || 0) + (i.unit_cost * i.current_stock); });
+      allInv.forEach((i: any) => { const d = i.department === 'General' ? 'Unbudgeted' : i.department || 'Unbudgeted'; if (i.unit_cost) byDeptInv[d] = (byDeptInv[d] || 0) + (i.unit_cost * i.current_stock); });
       setDeptInventory(DEPT_ORDER.filter(d => byDeptInv[d]).map(d => ({ dept: d, value: byDeptInv[d] })));
     } catch { /* cost data is supplementary, silent fail is acceptable */ }
     finally { setLoadingCosts(false); }
@@ -693,7 +693,7 @@ const CaptainDashboard: React.FC<{
           expenses: filteredExpenses.map((e: any) => ({
             description: e.description || e.category,
             category: e.category || 'other',
-            department: e.department || 'General',
+            department: e.department === 'General' ? 'Unbudgeted' : e.department || 'Unbudgeted',
             date: e.expense_date,
             amount: e.amount || 0,
           })),

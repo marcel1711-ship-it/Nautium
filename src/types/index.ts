@@ -275,7 +275,7 @@ export type OperationalExpenseDepartment =
   | 'Interior'
   | 'Galley'
   | 'Safety'
-  | 'General';
+  | 'Unbudgeted';
 
 export interface OperationalExpense {
   id: string;

@@ -490,8 +490,9 @@ const CaptainDashboard: React.FC<{
   const [loadingCosts, setLoadingCosts] = useState(true);
   const [monthlyTrend, setMonthlyTrend] = useState<{ month: string; total: number }[]>([]);
   const [crewOnBoard, setCrewOnBoard] = useState<{ id: string; full_name: string; position: string; department: string; status: string; photo_url: string | null }[]>([]);
+  const [activeProjects, setActiveProjects] = useState<any[]>([]);
 
-  useEffect(() => { if (companyId) { loadCosts(); loadCrew(); } }, [companyId, selectedVesselId]);
+  useEffect(() => { if (companyId) { loadCosts(); loadCrew(); loadProjects(); } }, [companyId, selectedVesselId]);
 
   const loadCosts = async () => {
     setLoadingCosts(true);
@@ -541,6 +542,16 @@ const CaptainDashboard: React.FC<{
       // Secondary sort by position (fetchFiltered supports single order_by)
       data.sort((a: any, b: any) => (a.position || '').localeCompare(b.position || ''));
       setCrewOnBoard(data);
+    } catch { /* silent */ }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const data = await fetchByCompany('projects', companyId, 'updated_at', false);
+      setActiveProjects((data || []).filter((p: any) =>
+        (p.status === 'planning' || p.status === 'in_progress') &&
+        (!selectedVesselId || selectedVesselId === 'all' || p.vessel_id === selectedVesselId)
+      ).slice(0, 4));
     } catch { /* silent */ }
   };
 
@@ -706,6 +717,18 @@ const CaptainDashboard: React.FC<{
         fuel: { resources: fuelResources },
         compliance: { items: complianceItems },
         procurement: prStats,
+        projects: await (async () => {
+          try {
+            const proj = await fetchByVessel('projects', selectedVesselId === 'all' ? '' : selectedVesselId);
+            const active = (proj || []).filter((p: any) => p.status === 'planning' || p.status === 'in_progress');
+            const withSpent = await Promise.all(active.map(async (p: any) => {
+              const expenses = await fetchByVessel('operational_expenses', p.vessel_id);
+              const spent = (expenses || []).filter((e: any) => e.project_id === p.id).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+              return { name: p.name, project_type: p.project_type, status: p.status, budget: p.budget_amount || 0, spent, currency: p.currency || 'USD' };
+            }));
+            return withSpent;
+          } catch { return []; }
+        })(),
         generatedBy: currentUser?.full_name || 'Captain',
       };
 

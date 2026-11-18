@@ -607,6 +607,18 @@ export const FleetOverview: React.FC<FleetOverviewProps> = ({ onNavigate }) => {
         fuel: { resources: fuelResources },
         compliance: { items: complianceItems },
         procurement: prStats,
+        projects: await (async () => {
+          try {
+            const proj = await fetchByVessel('projects', vs.vessel.id);
+            const active = (proj || []).filter((p: any) => p.status === 'planning' || p.status === 'in_progress');
+            const withSpent = await Promise.all(active.map(async (p: any) => {
+              const expenses = await fetchByVessel('operational_expenses', p.vessel_id);
+              const spent = (expenses || []).filter((e: any) => e.project_id === p.id).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+              return { name: p.name, project_type: p.project_type, status: p.status, budget: p.budget_amount || 0, spent, currency: p.currency || 'USD' };
+            }));
+            return withSpent;
+          } catch { return []; }
+        })(),
         generatedBy: currentUser?.full_name || 'Fleet Manager',
       };
 

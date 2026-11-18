@@ -52,6 +52,7 @@ export interface OwnerReportData {
   fuel: FuelReport;
   compliance: ComplianceReport;
   procurement: PRReport;
+  projects?: { name: string; project_type: string; status: string; budget: number; spent: number; currency: string }[];
   generatedBy: string;
 }
 
@@ -461,6 +462,19 @@ ${expiredCerts.length > 0 ? `
   <table>
     <thead><tr><th>Certificate</th><th>Expiry Date</th></tr></thead>
     <tbody>${expiredCertRows}</tbody>
+  </table>
+</div>` : ''}
+
+<!-- ═══ PROJECTS ═══ -->
+${(data.projects && data.projects.length > 0) ? `
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon maint">📐</div>
+    <div><div class="section-title">Active Projects</div><div class="section-subtitle">Ongoing projects and budgets</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Remaining</th></tr></thead>
+    <tbody>${data.projects.map(p => `<tr><td>${p.name}</td><td style="text-transform:capitalize">${p.project_type.replace(/_/g, ' ')}</td><td style="text-transform:capitalize">${p.status.replace(/_/g, ' ')}</td><td class="num">${fmt(p.budget, p.currency)}</td><td class="num">${fmt(p.spent, p.currency)}</td><td class="num">${fmt(p.budget - p.spent, p.currency)}</td></tr>`).join('')}</tbody>
   </table>
 </div>` : ''}
 

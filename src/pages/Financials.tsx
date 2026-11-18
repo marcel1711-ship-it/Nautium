@@ -79,6 +79,9 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
   const [periodRevenue, setPeriodRevenue] = useState(0);
   const [periodBudget, setPeriodBudget] = useState(0);
   const [spendBreakdown, setSpendBreakdown] = useState({ operational: 0, fuel: 0, parts: 0, service: 0, crew: 0 });
+  const [projectsBreakdown, setProjectsBreakdown] = useState<{ name: string; spent: number }[]>([]);
+  const [operationsSpend, setOperationsSpend] = useState(0);
+  const [projectsTotalSpend, setProjectsTotalSpend] = useState(0);
 
   const companyId = currentUser?.company_id;
 
@@ -137,14 +140,36 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     const { start, end } = getPeriodRange(filter);
     const vesselFilter = overviewVessel !== 'all' ? [{ field: 'vessel_id', op: 'eq' as const, value: overviewVessel }] : [];
 
-    // 1) Operational expenses
+    // 1) Operational expenses (with project_id for breakdown)
     const expenses = await fetchFiltered(
       'operational_expenses',
       companyId,
       [...vesselFilter, { field: 'expense_date', op: 'gte', value: start }, { field: 'expense_date', op: 'lte', value: end }],
-      { select_cols: 'amount' }
+      { select_cols: 'amount, project_id' }
     );
     const operationalTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+
+    // Split into operations (no project) vs project expenses
+    const opsOnly = expenses.filter((e: any) => !e.project_id).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const projExpenses = expenses.filter((e: any) => e.project_id);
+    const projMap: Record<string, number> = {};
+    projExpenses.forEach((e: any) => { projMap[e.project_id] = (projMap[e.project_id] || 0) + Number(e.amount || 0); });
+    setOperationsSpend(opsOnly);
+    setProjectsTotalSpend(Object.values(projMap).reduce((s, v) => s + v, 0));
+
+    // Load project names for breakdown
+    if (Object.keys(projMap).length > 0) {
+      const allProjects = await fetchByCompany('projects', companyId);
+      const projNameMap: Record<string, string> = {};
+      (allProjects || []).forEach((p: any) => { projNameMap[p.id] = p.name; });
+      setProjectsBreakdown(
+        Object.entries(projMap)
+          .map(([id, spent]) => ({ name: projNameMap[id] || 'Unknown Project', spent }))
+          .sort((a, b) => b.spent - a.spent)
+      );
+    } else {
+      setProjectsBreakdown([]);
+    }
 
     // 2) Fuel
     const fuelEntries = await fetchFiltered(
@@ -683,6 +708,43 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
               {spendBreakdown.crew > 0 && <BreakdownItem label="Crew salaries" value={spendBreakdown.crew} />}
             </div>
           </div>
+
+          {/* Operations vs Projects breakdown */}
+          {projectsBreakdown.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h3 className="text-sm font-bold text-gray-900 mb-4">Operations vs Projects</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">Operations</p>
+                    <p className="text-xs text-blue-600">Day-to-day expenses (no project)</p>
+                  </div>
+                  <p className="text-lg font-bold text-blue-900">{fmtCurrency(operationsSpend)}</p>
+                </div>
+                <div className="p-3 bg-indigo-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-semibold text-indigo-800">Projects</p>
+                      <p className="text-xs text-indigo-600">{projectsBreakdown.length} active project{projectsBreakdown.length !== 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-lg font-bold text-indigo-900">{fmtCurrency(projectsTotalSpend)}</p>
+                  </div>
+                  <div className="space-y-1.5 pl-3 border-l-2 border-indigo-200">
+                    {projectsBreakdown.map(pb => (
+                      <div key={pb.name} className="flex items-center justify-between text-sm">
+                        <span className="text-indigo-700">{pb.name}</span>
+                        <span className="font-medium text-indigo-800">{fmtCurrency(pb.spent)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-100 rounded-xl border-t-2 border-gray-300">
+                  <p className="text-sm font-bold text-gray-800">Total Month</p>
+                  <p className="text-lg font-bold text-gray-900">{fmtCurrency(operationsSpend + projectsTotalSpend)}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-1">

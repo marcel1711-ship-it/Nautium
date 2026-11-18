@@ -42,6 +42,7 @@ const Roadmap = lazy(() => import('./pages/Roadmap').then(m => ({ default: m.Roa
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const GuestList = lazy(() => import('./pages/GuestList').then(m => ({ default: m.GuestList })));
 const Procurement = lazy(() => import('./pages/Procurement').then(m => ({ default: m.Procurement })));
+const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })));
 const DataSim = lazy(() => import('./pages/DataSim').then(m => ({ default: m.DataSim })));
 const NautiusChat = lazy(() => import('./components/NautiusChat').then(m => ({ default: m.NautiusChat })));
 const WelcomeGuide = lazy(() => import('./components/WelcomeGuide').then(m => ({ default: m.WelcomeGuide })));
@@ -279,6 +280,9 @@ const AppContent: React.FC = () => {
 
       case 'procurement':
         return <Procurement onNavigate={handleNavigate} />;
+
+      case 'projects':
+        return <Projects onNavigate={handleNavigate} params={pageParams} />;
 
       case 'costs':
         return (

@@ -40,6 +40,7 @@ const translations: Record<Language, Record<string, string>> = {
      'nav.guestList' : 'Guest List',
      'nav.voyages': 'Voyages',
      'nav.procurement' : 'Procurement',
+     'nav.projects' : 'Projects',
 
     // ── Header ──
     'header.toggleMenu': 'Toggle menu',
@@ -692,6 +693,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.guestList': 'Lista de Invitados',
     'nav.voyages': 'Viajes',
     'nav.procurement': 'Compras',
+    'nav.projects': 'Proyectos',
 
     // ── Encabezado ──
     'header.toggleMenu': 'Alternar menú',

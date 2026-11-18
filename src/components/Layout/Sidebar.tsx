@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Wrench, Package, Ship, Building2, Users, Users2,
   Settings, History, FileText, FolderOpen, Boxes, Fuel, DollarSign,
   X, Layers, ClipboardList, ShieldCheck, ChevronDown, ChevronUp,
-  ShoppingCart, Compass, Waves, UserCheck, Rocket,
+  ShoppingCart, Compass, Waves, UserCheck, Rocket, FolderKanban,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
   { id: 'crew',                   labelKey: 'nav.crew',                  icon: Users2,          roles: ['customer_admin', 'fleet_manager', 'captain', ...CREW_ROLES] },
   { id: 'guest-list',              labelKey: 'nav.voyages',               icon: Compass,         roles: ['customer_admin', 'fleet_manager', 'captain', 'chief_stew', 'deck_officer'] },
   { id: 'maintenance',            labelKey: 'nav.maintenance',           icon: Wrench,          roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
+  { id: 'projects',               labelKey: 'nav.projects',              icon: FolderKanban,    roles: ['customer_admin', 'fleet_manager', 'captain'] },
   { id: 'inventory',              labelKey: 'nav.inventory',             icon: Package,         roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'equipment',              labelKey: 'nav.equipment',             icon: Boxes,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },
   { id: 'water-toys',             labelKey: 'nav.waterToys',             icon: Waves,           roles: ['customer_admin', 'standard_user', ...FLEET_ROLES, ...CREW_ROLES] },

@@ -315,7 +315,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     const crewData = await fetchFiltered(
       'crew_members', companyId,
       [...vesselFilter, { field: 'status', op: 'eq', value: 'active' }],
-      { select_cols: 'first_name, last_name, role, monthly_salary, vessel_id' }
+      { select_cols: 'full_name, position, monthly_salary, vessel_id' }
     );
 
     const buildCategoryBlock = (title: string, total: number, items: { description: string; amount: number; date?: string; vessel?: string }[]) => {
@@ -332,7 +332,7 @@ export const Financials: React.FC<FinancialsProps> = ({ onNavigate }) => {
     const monthsInPeriod2 = filter.mode === 'period'
       ? (filter.period === '1m' ? 1 : filter.period === '3m' ? 3 : filter.period === '6m' ? 6 : 12)
       : (filter.mode === 'year' || filter.isFullYear) ? 12 : 1;
-    const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.first_name || ''} ${c.last_name || ''} — ${c.role || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod2, vessel: getVesselName(c.vessel_id) }));
+    const crewItems = crewData.filter((c: any) => c.monthly_salary > 0).map((c: any) => ({ description: `${c.full_name || 'Crew'} — ${c.position || 'Crew'}`.trim(), amount: Number(c.monthly_salary) * monthsInPeriod2, vessel: getVesselName(c.vessel_id) }));
 
     // ── Fresh period revenue (not from state) ────────────────────────────
     const periodVoyages = await fetchFiltered('voyages', companyId,

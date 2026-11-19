@@ -91,6 +91,26 @@ export const Projects: React.FC<ProjectsProps> = ({ onNavigate }) => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Inline task creation
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskCategory, setTaskCategory] = useState('');
+  const [taskDepartment, setTaskDepartment] = useState('Engineering');
+  const [taskPriority, setTaskPriority] = useState('medium');
+  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+
+  // Inline expense creation
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expDescription, setExpDescription] = useState('');
+  const [expCategory, setExpCategory] = useState('other');
+  const [expDepartment, setExpDepartment] = useState('Engineering');
+  const [expAmount, setExpAmount] = useState('');
+  const [expCurrency, setExpCurrency] = useState('USD');
+  const [expDate, setExpDate] = useState('');
+
   // Form state
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState<ProjectType>('dry_dock');
@@ -244,6 +264,83 @@ export const Projects: React.FC<ProjectsProps> = ({ onNavigate }) => {
       loadData();
     } catch {
       showToast('Failed to delete project', 'error');
+    }
+  };
+
+  const openAddTask = () => {
+    setTaskTitle('');
+    setTaskCategory('');
+    setTaskDepartment('Engineering');
+    setTaskPriority('medium');
+    setTaskDueDate('');
+    setTaskDescription('');
+    setShowTaskModal(true);
+  };
+
+  const handleSaveTask = async () => {
+    if (!selectedProject) return;
+    if (!taskTitle.trim()) { showToast('Task title is required', 'error'); return; }
+    if (!taskDueDate) { showToast('Due date is required', 'error'); return; }
+    setSavingTask(true);
+    try {
+      await dbInsert('maintenance_tasks', {
+        vessel_id: selectedProject.vessel_id,
+        company_id: companyId,
+        project_id: selectedProject.id,
+        title: taskTitle.trim(),
+        description: taskDescription.trim(),
+        category: taskCategory.trim(),
+        department: taskDepartment,
+        priority: taskPriority,
+        frequency: 'one_time',
+        next_due_date: taskDueDate,
+        status: 'upcoming',
+      });
+      showToast('Task created', 'success');
+      setShowTaskModal(false);
+      loadProjectDetail(selectedProject);
+    } catch {
+      showToast('Failed to create task', 'error');
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
+  const openAddExpense = () => {
+    setExpDescription('');
+    setExpCategory('other');
+    setExpDepartment('Engineering');
+    setExpAmount('');
+    setExpCurrency(selectedProject?.currency || 'USD');
+    setExpDate(new Date().toISOString().slice(0, 10));
+    setShowExpenseModal(true);
+  };
+
+  const handleSaveExpense = async () => {
+    if (!selectedProject) return;
+    if (!expDescription.trim()) { showToast('Description is required', 'error'); return; }
+    if (!expAmount || parseFloat(expAmount) <= 0) { showToast('Amount must be greater than 0', 'error'); return; }
+    setSavingExpense(true);
+    try {
+      await dbInsert('operational_expenses', {
+        vessel_id: selectedProject.vessel_id,
+        company_id: companyId,
+        project_id: selectedProject.id,
+        description: expDescription.trim(),
+        category: expCategory,
+        department: expDepartment,
+        amount: parseFloat(expAmount),
+        currency: expCurrency,
+        expense_date: expDate || new Date().toISOString().slice(0, 10),
+        status: 'approved',
+      });
+      showToast('Expense created', 'success');
+      setShowExpenseModal(false);
+      loadProjectDetail(selectedProject);
+    } catch {
+      showToast('Failed to create expense', 'error');
+    } finally {
+      setSavingExpense(false);
     }
   };
 
@@ -601,19 +698,27 @@ export const Projects: React.FC<ProjectsProps> = ({ onNavigate }) => {
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500">{tasks.length} task{tasks.length !== 1 ? 's' : ''} linked to this project</p>
                 {canManage && (
-                  <button
-                    onClick={() => onNavigate('maintenance', { project_id: selectedProject.id })}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                  >
-                    + Add from Maintenance
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={openAddTask}
+                      className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
+                    >
+                      + Add Task
+                    </button>
+                    <button
+                      onClick={() => onNavigate('maintenance', { project_id: selectedProject.id })}
+                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      Link Existing
+                    </button>
+                  </div>
                 )}
               </div>
               {tasks.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
                   <ClipboardList className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                   <p className="text-gray-500 text-sm">No tasks linked yet</p>
-                  <p className="text-gray-400 text-xs mt-1">Assign tasks from the Maintenance page</p>
+                  <p className="text-gray-400 text-xs mt-1">Create a new task or link one from Maintenance</p>
                 </div>
               ) : (
                 tasks.map((t: any) => (
@@ -644,19 +749,27 @@ export const Projects: React.FC<ProjectsProps> = ({ onNavigate }) => {
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500">{expenses.length} expense{expenses.length !== 1 ? 's' : ''} · Total: {fmtCurrency(totalSpent, selectedProject.currency)}</p>
                 {canManage && (
-                  <button
-                    onClick={() => onNavigate('costs', { project_id: selectedProject.id })}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                  >
-                    + Add from Costs
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={openAddExpense}
+                      className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
+                    >
+                      + Add Expense
+                    </button>
+                    <button
+                      onClick={() => onNavigate('costs', { project_id: selectedProject.id })}
+                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      Link Existing
+                    </button>
+                  </div>
                 )}
               </div>
               {expenses.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
                   <Receipt className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                   <p className="text-gray-500 text-sm">No expenses linked yet</p>
-                  <p className="text-gray-400 text-xs mt-1">Assign expenses from the Costs page</p>
+                  <p className="text-gray-400 text-xs mt-1">Create a new expense or link one from Costs</p>
                 </div>
               ) : (
                 expenses.map((e: any) => (
@@ -759,6 +872,133 @@ export const Projects: React.FC<ProjectsProps> = ({ onNavigate }) => {
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50">
                 {saving ? 'Saving...' : editingProject ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Add Task Modal */}
+      {showTaskModal && selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">New Task</h2>
+              <p className="text-xs text-gray-500 mt-1">Auto-linked to {selectedProject.name}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="e.g. Replace impeller" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select value={taskDepartment} onChange={e => setTaskDepartment(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="Engineering">Engineering</option>
+                    <option value="Deck">Deck</option>
+                    <option value="Interior">Interior</option>
+                    <option value="Galley">Galley</option>
+                    <option value="Safety">Safety</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <select value={taskPriority} onChange={e => setTaskPriority(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <input type="text" value={taskCategory} onChange={e => setTaskCategory(e.target.value)} placeholder="e.g. Engine, Hull" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date *</label>
+                  <input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea value={taskDescription} onChange={e => setTaskDescription(e.target.value)} rows={3} placeholder="Task details..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setShowTaskModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button onClick={handleSaveTask} disabled={savingTask} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50">
+                {savingTask ? 'Creating...' : 'Create Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Add Expense Modal */}
+      {showExpenseModal && selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">New Expense</h2>
+              <p className="text-xs text-gray-500 mt-1">Auto-linked to {selectedProject.name}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                <input type="text" value={expDescription} onChange={e => setExpDescription(e.target.value)} placeholder="e.g. Paint supplies" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                  <input type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} placeholder="0" min="0" step="0.01" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                  <select value={expCurrency} onChange={e => setExpCurrency(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select value={expCategory} onChange={e => setExpCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="maintenance">Maintenance</option>
+                    <option value="fuel">Fuel</option>
+                    <option value="crew">Crew</option>
+                    <option value="provisions">Provisions</option>
+                    <option value="insurance">Insurance</option>
+                    <option value="docking">Docking</option>
+                    <option value="equipment">Equipment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <select value={expDepartment} onChange={e => setExpDepartment(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="Engineering">Engineering</option>
+                    <option value="Deck">Deck</option>
+                    <option value="Interior">Interior</option>
+                    <option value="Galley">Galley</option>
+                    <option value="Safety">Safety</option>
+                    <option value="Unbudgeted">Unbudgeted</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setShowExpenseModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+              <button onClick={handleSaveExpense} disabled={savingExpense} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50">
+                {savingExpense ? 'Creating...' : 'Create Expense'}
               </button>
             </div>
           </div>

@@ -464,6 +464,7 @@ const HoursOfRestTab: React.FC<{
   canEdit: boolean;
 }> = ({ crew, vessels, companyId, activeVessel, currentUser, canEdit }) => {
   const { showToast } = useToast();
+  const [horView, setHorView] = useState<'overview' | 'individual'>(canEdit ? 'overview' : 'individual');
   const [selectedCrew, setSelectedCrew] = useState<string>('');
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [records, setRecords] = useState<HorRecord[]>([]);
@@ -475,6 +476,10 @@ const HoursOfRestTab: React.FC<{
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [confirmChecked, setConfirmChecked] = useState(false);
+
+  // Captain overview state
+  const [overviewData, setOverviewData] = useState<Record<string, { records: HorRecord[]; weeklyRest: number; weeklyWork: number; violations: string[]; status: string }>>({});
+  const [loadingOverview, setLoadingOverview] = useState(false);
 
   const weekDates = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -511,6 +516,67 @@ const HoursOfRestTab: React.FC<{
   }, [selectedCrew, weekDates, companyId]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
+
+  const loadOverview = useCallback(async () => {
+    if (!companyId || filteredCrew.length === 0) return;
+    setLoadingOverview(true);
+    try {
+      const startStr = fmtDate(weekDates[0]);
+      const endStr = fmtDate(weekDates[6]);
+      const allRecords = await fetchFiltered('hours_of_rest', companyId, [
+        { field: 'date', op: 'gte', value: startStr },
+        { field: 'date', op: 'lte', value: endStr },
+      ]);
+      const byMember: Record<string, HorRecord[]> = {};
+      for (const r of (allRecords || [])) {
+        if (!byMember[r.crew_member_id]) byMember[r.crew_member_id] = [];
+        byMember[r.crew_member_id].push(r);
+      }
+      const result: typeof overviewData = {};
+      for (const cm of filteredCrew) {
+        const recs = byMember[cm.id] || [];
+        const weeklyWork = recs.reduce((s, r) => s + r.total_work_hours, 0);
+        const weeklyRest = recs.reduce((s, r) => s + r.total_rest_hours, 0);
+        const violations = checkMlcViolations(recs);
+        const allApproved = recs.length > 0 && recs.every(r => r.status === 'approved');
+        const hasConfirmed = recs.some(r => r.status === 'crew_confirmed');
+        const hasDrafts = recs.some(r => r.status === 'draft');
+        const status = recs.length === 0 ? 'no_records' : allApproved ? 'approved' : hasConfirmed ? 'pending_approval' : hasDrafts ? 'draft' : 'no_records';
+        result[cm.id] = { records: recs, weeklyRest, weeklyWork, violations, status };
+      }
+      setOverviewData(result);
+    } catch { showToast('Error loading overview', 'error'); }
+    finally { setLoadingOverview(false); }
+  }, [companyId, filteredCrew, weekDates]);
+
+  useEffect(() => { if (horView === 'overview') loadOverview(); }, [horView, loadOverview]);
+
+  const handleBulkApprove = async () => {
+    setSaving(true);
+    try {
+      let count = 0;
+      for (const cm of filteredCrew) {
+        const data = overviewData[cm.id];
+        if (!data) continue;
+        const confirmed = data.records.filter(r => r.status === 'crew_confirmed');
+        for (const rec of confirmed) {
+          await dbUpdate('hours_of_rest', rec.id, {
+            status: 'approved',
+            master_approved_at: new Date().toISOString(),
+            master_approved_by: currentUser?.full_name || currentUser?.email,
+          });
+          count++;
+        }
+      }
+      if (count > 0) {
+        showToast(`${count} record${count !== 1 ? 's' : ''} approved`, 'success');
+        loadOverview();
+      } else {
+        showToast('No records to approve', 'info');
+      }
+    } catch { showToast('Error approving records', 'error'); }
+    finally { setSaving(false); }
+  };
 
   const selectedMember = crew.find(c => c.id === selectedCrew);
   const vesselId = selectedMember?.vessel_id || '';
@@ -607,17 +673,23 @@ const HoursOfRestTab: React.FC<{
   const weeklyWork = records.reduce((s, r) => s + r.total_work_hours, 0);
   const weeklyRest = records.reduce((s, r) => s + r.total_rest_hours, 0);
 
+  const overviewPendingCount = Object.values(overviewData).filter(d => d.status === 'pending_approval').length;
+  const overviewViolationCount = Object.values(overviewData).filter(d => d.violations.length > 0).length;
+
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)}
-          className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white min-w-[200px]">
-          {filteredCrew.length === 0 && <option value="">No active crew</option>}
-          {filteredCrew.map(c => (
-            <option key={c.id} value={c.id}>{c.full_name} — {c.position}</option>
-          ))}
-        </select>
+      {/* View toggle + week nav */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <button onClick={() => setHorView('overview')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${horView === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            Overview
+          </button>
+          <button onClick={() => setHorView('individual')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${horView === 'individual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            Individual
+          </button>
+        </div>
 
         <div className="flex items-center gap-2">
           <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); }}
@@ -636,6 +708,147 @@ const HoursOfRestTab: React.FC<{
             Today
           </button>
         </div>
+      </div>
+
+      {/* ── OVERVIEW MODE ── */}
+      {horView === 'overview' && (
+        <div className="space-y-4">
+          {/* Overview stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-3">
+              <p className="text-xs text-gray-500">Crew members</p>
+              <p className="text-lg font-bold text-gray-900">{filteredCrew.length}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-3">
+              <p className="text-xs text-gray-500">Pending approval</p>
+              <p className={`text-lg font-bold ${overviewPendingCount > 0 ? 'text-blue-600' : 'text-gray-900'}`}>{overviewPendingCount}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-3">
+              <p className="text-xs text-gray-500">Violations</p>
+              <p className={`text-lg font-bold ${overviewViolationCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{overviewViolationCount}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-3">
+              <p className="text-xs text-gray-500">All approved</p>
+              <p className={`text-lg font-bold ${filteredCrew.length > 0 && filteredCrew.every(c => overviewData[c.id]?.status === 'approved') ? 'text-emerald-600' : 'text-gray-400'}`}>
+                {filteredCrew.length > 0 && filteredCrew.every(c => overviewData[c.id]?.status === 'approved') ? '✓ Yes' : 'No'}
+              </p>
+            </div>
+          </div>
+
+          {loadingOverview ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+              <p className="text-sm text-gray-500">Loading crew records...</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="hidden sm:grid sm:grid-cols-12 gap-4 px-5 py-3 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <div className="col-span-3">Crew Member</div>
+                <div className="col-span-2 text-center">Work / Rest</div>
+                <div className="col-span-1 text-center">Days</div>
+                <div className="col-span-2 text-center">Compliance</div>
+                <div className="col-span-2 text-center">Status</div>
+                <div className="col-span-2 text-right">Actions</div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {filteredCrew.map(cm => {
+                  const d = overviewData[cm.id] || { records: [], weeklyRest: 0, weeklyWork: 0, violations: [], status: 'no_records' };
+                  const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
+                    no_records: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'No records' },
+                    draft: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Draft' },
+                    pending_approval: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Pending approval' },
+                    approved: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'Approved' },
+                  };
+                  const st = statusStyles[d.status] || statusStyles.no_records;
+                  return (
+                    <div key={cm.id} className="sm:grid sm:grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-gray-50">
+                      <div className="col-span-3 flex items-center gap-3 mb-2 sm:mb-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                          {cm.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{cm.full_name}</p>
+                          <p className="text-xs text-gray-500">{cm.position}</p>
+                        </div>
+                      </div>
+                      <div className="col-span-2 text-center">
+                        <span className="text-sm font-semibold text-gray-900 tabular-nums">{d.weeklyWork}h</span>
+                        <span className="text-xs text-gray-400 mx-1">/</span>
+                        <span className={`text-sm font-semibold tabular-nums ${d.records.length === 7 && d.weeklyRest < 77 ? 'text-red-600' : 'text-gray-900'}`}>{d.weeklyRest}h</span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        <span className="text-sm font-semibold text-gray-900 tabular-nums">{d.records.length}/7</span>
+                      </div>
+                      <div className="col-span-2 text-center">
+                        {d.violations.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                            <AlertTriangle className="w-3 h-3" /> {d.violations.length} violation{d.violations.length !== 1 ? 's' : ''}
+                          </span>
+                        ) : d.records.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                            <Check className="w-3 h-3" /> Compliant
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </div>
+                      <div className="col-span-2 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${st.bg} ${st.text}`}>{st.label}</span>
+                      </div>
+                      <div className="col-span-2 flex justify-end gap-2">
+                        <button onClick={() => { setSelectedCrew(cm.id); setHorView('individual'); }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                          View
+                        </button>
+                        {d.status === 'pending_approval' && canEdit && (
+                          <button onClick={async () => {
+                            setSaving(true);
+                            try {
+                              const confirmed = d.records.filter(r => r.status === 'crew_confirmed');
+                              for (const rec of confirmed) {
+                                await dbUpdate('hours_of_rest', rec.id, {
+                                  status: 'approved',
+                                  master_approved_at: new Date().toISOString(),
+                                  master_approved_by: currentUser?.full_name || currentUser?.email,
+                                });
+                              }
+                              showToast(`${cm.full_name} approved`, 'success');
+                              loadOverview();
+                            } catch { showToast('Error approving', 'error'); }
+                            finally { setSaving(false); }
+                          }}
+                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                            Approve
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Bulk approve button */}
+          {canEdit && overviewPendingCount > 0 && (
+            <button onClick={handleBulkApprove} disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50">
+              <Shield className="w-4 h-4" /> {saving ? 'Approving...' : `Approve all (${overviewPendingCount})`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── INDIVIDUAL MODE ── */}
+      {horView === 'individual' && (<>
+      {/* Crew selector */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)}
+          className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white min-w-[200px]">
+          {filteredCrew.length === 0 && <option value="">No active crew</option>}
+          {filteredCrew.map(c => (
+            <option key={c.id} value={c.id}>{c.full_name} — {c.position}</option>
+          ))}
+        </select>
       </div>
 
       {/* MLC Violations */}
@@ -790,6 +1003,8 @@ const HoursOfRestTab: React.FC<{
           )}
         </div>
       )}
+
+      </>)}
 
       {/* Edit day modal */}
       {editingDay && (

@@ -158,7 +158,7 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
             {' · '}{crew.length} member{crew.length !== 1 ? 's' : ''}
           </p>
         </div>
-        {canEdit && (
+        {canEdit && tab === 'roster' && (
           <button onClick={() => setShowAddModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
             <Plus className="w-4 h-4" /> Add crew
@@ -166,7 +166,20 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button onClick={() => setTab('roster')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'roster' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <span className="flex items-center gap-2"><Users className="w-4 h-4" /> Roster</span>
+        </button>
+        <button onClick={() => setTab('hours_of_rest')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'hours_of_rest' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Hours of Rest</span>
+        </button>
+      </div>
+
       {/* Content */}
+      {tab === 'roster' && (<>
           {/* Stats */}
           <div className={`grid grid-cols-2 ${showSalary ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3`}>
             <StatCard icon={UserCheck} label="Active" value={stats.active} tone="green" />
@@ -317,7 +330,18 @@ export const Crew: React.FC<CrewProps> = ({ onNavigate }) => {
               </div>
             </div>
           )}
-      )
+      </>)}
+
+      {tab === 'hours_of_rest' && (
+        <HoursOfRestTab
+          crew={crew}
+          vessels={vessels}
+          companyId={companyId}
+          activeVessel={activeVessel}
+          currentUser={currentUser}
+          canEdit={canEdit}
+        />
+      )}
 
       {/* Modals */}
       {showAddModal && (

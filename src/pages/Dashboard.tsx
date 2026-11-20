@@ -3,7 +3,7 @@ import {
   AlertTriangle, CheckCircle, Clock, Package, Calendar,
   Building2, Users as UsersIcon, CreditCard, Activity,
   TrendingUp, Anchor, DollarSign, BarChart3, TrendingDown, Ship,
-  ShieldCheck, ShieldAlert, Check, X, FileDown, FileText, ChevronDown, FolderKanban,
+  ShieldCheck, ShieldAlert, Check, X, FileDown, FileText, ChevronDown, ChevronRight, FolderKanban,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -368,6 +368,71 @@ const PendingPRsCard: React.FC<{
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   HOURS OF REST REMINDER CARD
+───────────────────────────────────────────── */
+const HoursOfRestReminderCard: React.FC<{
+  companyId: string;
+  vesselId: string | null;
+  onNavigate: (page: string) => void;
+}> = ({ companyId, vesselId, onNavigate }) => {
+  const [pendingCount, setPendingCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!companyId) return;
+      try {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+        monday.setHours(0, 0, 0, 0);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const startStr = monday.toISOString().split('T')[0];
+        const endStr = sunday.toISOString().split('T')[0];
+        const filters: { field: string; op: 'eq' | 'gte' | 'lte' | 'in'; value: any }[] = [
+          { field: 'date', op: 'gte', value: startStr },
+          { field: 'date', op: 'lte', value: endStr },
+        ];
+        if (vesselId && vesselId !== 'all') {
+          filters.push({ field: 'vessel_id', op: 'eq', value: vesselId });
+        }
+        const data = await fetchFiltered('hours_of_rest', companyId, filters, {
+          select_cols: 'id, status',
+        });
+        const records = data || [];
+        setPendingCount(records.filter((r: any) => r.status === 'crew_confirmed').length);
+        setDraftCount(records.filter((r: any) => r.status === 'draft').length);
+      } catch { /* silent */ }
+      finally { setLoading(false); }
+    };
+    load();
+  }, [companyId, vesselId]);
+
+  if (loading || (pendingCount === 0 && draftCount === 0)) return null;
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 cursor-pointer hover:bg-amber-100/60 transition-colors"
+      onClick={() => onNavigate('crew')}>
+      <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+        <Clock size={18} className="text-amber-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-amber-800">Hours of Rest — Weekly review pending</p>
+        <p className="text-xs text-amber-700 mt-1">
+          {pendingCount > 0 && `${pendingCount} record${pendingCount !== 1 ? 's' : ''} awaiting master approval. `}
+          {draftCount > 0 && `${draftCount} draft record${draftCount !== 1 ? 's' : ''} not yet confirmed by crew. `}
+          MLC 2006 requires weekly sign-off on all crew rest records.
+        </p>
+      </div>
+      <ChevronRight size={16} className="text-amber-400 mt-1 flex-shrink-0" />
     </div>
   );
 };
@@ -937,6 +1002,13 @@ const CaptainDashboard: React.FC<{
 
       {/* ── PENDING PURCHASE REQUESTS ── */}
       <PendingPRsCard
+        companyId={companyId}
+        vesselId={selectedVesselId}
+        onNavigate={onNavigate}
+      />
+
+      {/* ── HOURS OF REST REMINDER ── */}
+      <HoursOfRestReminderCard
         companyId={companyId}
         vesselId={selectedVesselId}
         onNavigate={onNavigate}

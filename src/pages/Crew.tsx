@@ -838,6 +838,25 @@ const HoursOfRestTab: React.FC<{
       {/* ── OVERVIEW MODE ── */}
       {horView === 'overview' && (
         <div className="space-y-4">
+          {/* Weekly captain reminder */}
+          {canEdit && !loadingOverview && (overviewPendingCount > 0 || filteredCrew.some(c => {
+            const d = overviewData[c.id];
+            return d && d.records.length > 0 && d.status !== 'approved';
+          })) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <Clock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Weekly reminder: Review & approve hours of rest</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {overviewPendingCount > 0
+                    ? `${overviewPendingCount} crew member${overviewPendingCount !== 1 ? 's' : ''} pending your approval for this week. MLC 2006 requires the master to review and sign off on all crew rest records weekly.`
+                    : 'Some crew members have records that are not yet fully approved. Please ensure all hours are confirmed and approved before the end of the week.'
+                  }
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Overview stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white rounded-xl border border-gray-200 p-3">
